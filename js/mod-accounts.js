@@ -146,13 +146,13 @@ J.act("exportBook",()=>{const U=ui().book,[f,t]=periodRange(U.period,U);const ro
 
 // ----- Ledgers -----
 function vLedger(){const U=ui().ledger,q=(U.q||"").toLowerCase();
-  const list=J.all("accounts").filter(a=>(!U.kind||a.kind===U.kind)&&(!q||a.name.toLowerCase().includes(q))).sort((a,b)=>a.name.localeCompare(b.name));
+  const nIn=J.all("accounts").filter(a=>a.active===false&&(!U.kind||a.kind===U.kind)).length;const list=J.all("accounts").filter(a=>(U.inactive||a.active!==false)&&(!U.kind||a.kind===U.kind)&&(!q||a.name.toLowerCase().includes(q))).sort((a,b)=>a.name.localeCompare(b.name));
   const groups={};for(const a of list)(groups[KINDS[a.kind]?.g||"Other"]??=[]).push(a);
   if(!U.acc||!J.get("accounts",U.acc))U.acc=list[0]?.id||"";
   return `<div class="split"><div class="panel"><div class="pb" style="display:flex;flex-direction:column;gap:8px">
     <input id="lg-q" data-ui="acc.ledger.q" value="${esc(U.q||"")}" placeholder="Find a ledger" aria-label="Find a ledger">
     <select id="lg-kind" data-ui="acc.ledger.kind" aria-label="Kind"><option value="">All kinds</option>${Object.entries(KINDS).map(([k,v])=>`<option value="${k}" ${U.kind===k?"selected":""}>${v.l}</option>`).join("")}</select>
-    <button class="btn w" data-a="newAcc">New ledger</button></div>
+    <label class="row" style="gap:6px"><input type="checkbox" id="lg-inact" data-ui="acc.ledger.inactive" ${U.inactive?"checked":""}> Show inactive (${nIn})</label><button class="btn w" data-a="newAcc">New ledger</button></div>
     <div class="acclist">${Object.keys(groups).sort((a,b)=>GROUP_ORDER.indexOf(a)-GROUP_ORDER.indexOf(b)).map(g=>`<div class="grp">${esc(g)}</div>${groups[g].map(a=>`<button data-a="pickacc" data-x="${a.id}" aria-current="${a.id===U.acc}"><span>${esc(a.name)}${a.active===false?' <span class="chip plain">inactive</span>':""}</span><span class="num">${bal(balanceOf(a.id))}</span></button>`).join("")}`).join("")||`<p class="pb muted">No ledgers match.</p>`}</div></div>
     <div style="min-width:0;display:flex;flex-direction:column;gap:12px">${U.acc?statement(U.acc):`<div class="panel"><div class="empty"><strong>No ledger selected</strong></div></div>`}</div></div>`}
 function statement(id){const a=J.get("accounts",id),U=ui().ledger,[from,to]=periodRange(U.period,U);const open=balanceBefore(id,from);let run=open,tdr=0,tcr=0;const canRec=RECON_KINDS.includes(a.kind);
