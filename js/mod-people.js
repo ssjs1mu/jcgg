@@ -181,8 +181,10 @@ async function build(m){const run=J.get("payroll",m)||{};const old=J.get("vouche
 const netOf=(v,sid)=>r2((v?.lines||[]).filter(l=>l.a===sid).reduce((t,l)=>t+l.cr-l.dr,0));
 const sameLines=(a,b)=>{const k=x=>x.map(l=>l.a+"|"+r2(l.dr)+"|"+r2(l.cr)+"|"+(l.n||"")).sort().join("\n");return k(a)===k(b)};
 H.lastClosedMonth=()=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);return J.iso(d).slice(0,7)};
+// salaries up to this month were paid outside these books; the month just before the book start stays open so April bank payments clear it
+H.preBookCut=()=>{const st=J.settings();if(st.salSettledBefore)return st.salSettledBefore;const d=J.parseISO(st.startMonth+"-01");d.setMonth(d.getMonth()-1);return J.iso(d).slice(0,7)};
 H.salaryVoucher=m=>J.get("vouchers",vidOf(m));
-H.syncMonth=async(m,reason)=>{const st=J.settings();J.derive&&J.derive();if(m>H.lastClosedMonth()||m<(st.payrollFrom||st.startMonth))return {main:0,adj:0};let main=0,adj=0;const log=[];
+H.syncMonth=async(m,reason)=>{const st=J.settings();J.derive&&J.derive();if(m>=H.preBookCut()&&J.get("vouchers",preOf(m)))await J.store.del("vouchers",preOf(m));if(m>H.lastClosedMonth()||m<(st.payrollFrom||st.startMonth))return {main:0,adj:0};let main=0,adj=0;const log=[];
   // retire the older one-voucher-per-person entries for this month
   for(const v of J.all("vouchers").filter(v=>v.type==="salary"&&v.src?.col==="payroll"&&v.src?.id===m&&v.id!==vidOf(m)))await J.store.del("vouchers",v.id);
   const {L,per,old}=await build(m);
@@ -194,7 +196,7 @@ H.syncMonth=async(m,reason)=>{const st=J.settings();J.derive&&J.derive();if(m>H.
       for(const sid of ids){const a=netOf(old,sid),b=netOf(v,sid);if(Math.abs(a-b)>=0.01)log.push({at:Date.now(),by:who(),type:"updated",sid,vid:v.id,text:(J.get("accounts",sid)?.name||sid)+" · net salary "+money(a)+" → "+money(b)+" ("+(b-a>=0?"+":"")+money(r2(b-a))+")"+(reason?" · "+reason:"")})}
       if(!log.length)log.push({at:Date.now(),by:who(),type:"updated",vid:v.id,text:"Salary entry "+v.no+" re-written (breakup changed, net pay unchanged)"+(reason?" · "+reason:"")})}
     // months before the book start: salaries were paid outside these books, so settle each person's net pay against one holding account
-    if(m<st.startMonth){const pre=await sysId("presal","Salaries settled before book start","capital");const PL=[];let tot=0;for(const [sid,x] of Object.entries(per)){const n=netOf(v,sid);if(n>0){PL.push({a:sid,dr:n,cr:0,n:"Salary "+monthLabel(m)+" settled (paid before these books began)"});tot+=n}}
+    if(m<H.preBookCut()){const pre=await sysId("presal","Salaries settled before book start","capital");const PL=[];let tot=0;for(const [sid,x] of Object.entries(per)){const n=netOf(v,sid);if(n>0){PL.push({a:sid,dr:n,cr:0,n:"Salary "+monthLabel(m)+" settled (paid before these books began)"});tot+=n}}
       if(PL.length){PL.push({a:pre,dr:0,cr:r2(tot),n:"Salaries "+monthLabel(m)});const po=J.get("vouchers",preOf(m));await J.postVoucher({...(po?{id:po.id}:{newId:preOf(m)}),type:"payment",date:J.monthEnd(m),lines:PL,ref:m,src:{col:"payroll",id:m,label:"Payroll"},narr:"Salaries for "+monthLabel(m)+" paid before the book start — settled"})}}}
   const cur=J.get("payroll",m)||{};const patch={vid:vidOf(m),calcAt:Date.now()};if(cur.posted)patch.posted=null;if(log.length)patch.log=[...(Array.isArray(cur.log)?cur.log:[]),...log];if(main||adj||log.length||cur.posted||cur.vid!==vidOf(m))await J.store.patch("payroll",m,patch);return {main,adj}};
 H.logChange=async(m,entry)=>{const cur=J.get("payroll",m)||{};await J.store.patch("payroll",m,{log:[...(Array.isArray(cur.log)?cur.log:[]),{at:Date.now(),by:who(),...entry}]})};
