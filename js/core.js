@@ -61,7 +61,8 @@ const WINDOW={vouchers:1,moves:3,kotday:24};
 function rebuildKots(){const m=new Map();for(const d of S.c.kotday.values())for(const [id,o] of Object.entries(d.orders||{}))if(o)m.set(id,{...o,id});S.c.kots=m}
 J.all=col=>[...S.c[col].values()];
 J.get=(col,id)=>S.c[col].get(id);
-J.settings=()=>({business:"JCGG",startMonth:"2026-04",tables:12,targetFood:32,pfOn:false,esicOn:false,ptOn:true,otRate:1,...(S.c.meta.get("settings")||{})});
+J.settings=()=>({business:"JCGG",startMonth:"2026-04",tables:12,targetFood:32,pfOn:false,esicOn:false,ptOn:true,otRate:1,payrollFrom:"2023-06",bizStart:"2023-06-22",lateDed:0,...(S.c.meta.get("settings")||{})});
+J.bookFrom=()=>{const s=J.settings();return [s.startMonth||"2026-04",s.payrollFrom||s.startMonth||"2026-04"].sort()[0]};
 let db=null,fdb=null;J.cap={};
 // Firestore cannot hold arrays directly inside arrays, so nested arrays are wrapped as {__a:[...]} on write and unwrapped on read
 const enc=v=>Array.isArray(v)?v.map(x=>Array.isArray(x)?{__a:enc(x)}:enc(x)):v&&typeof v==="object"?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,enc(x)])):v;
@@ -90,6 +91,7 @@ let renderQ=false;
 const derivers=[];J.onDerive=fn=>derivers.push(fn);
 J.D={};
 function derive(){for(const fn of derivers){try{fn(J.D)}catch(e){console.error(e)}}}
+J.derive=derive;
 J.refresh=()=>{derive();if(renderQ)return;renderQ=true;requestAnimationFrame(()=>{renderQ=false;J.render()})};
 let unsubs=[],mUnsubs=[];
 function subscribe(){
@@ -101,7 +103,7 @@ function subscribe(){
   subMonthly();
 }
 function subMonthly(){mUnsubs.forEach(u=>u());mUnsubs=[];
-  const end=(()=>{const d=new Date();d.setMonth(d.getMonth()+2);return iso(d).slice(0,7)})();const months=monthsBetween(J.settings().startMonth||"2026-04",end);
+  const end=(()=>{const d=new Date();d.setMonth(d.getMonth()+2);return iso(d).slice(0,7)})();const months=monthsBetween(J.bookFrom(),end);
   for(const [col,kind] of Object.entries(COLS)){if(kind!=="monthly")continue;S.monthDocs[col]={};const w=WINDOW[col]||1;
     for(let i=0;i<months.length;i+=w){const win=months.slice(i,i+w),key=win[0];const q=win.length===1?db.collection(col).where("m","==",win[0]):db.collection(col).where("m",">=",win[0]).where("m","<=",win.at(-1));
       mUnsubs.push(q.limit(1000).onSnapshot(s=>{S.monthDocs[col][key]=s.docs.map(d=>({id:d.id,...d.data()}));if(s.size>=1000)toast("More than 1,000 "+col+" records in "+key+": some may not show. Archive older entries.");S.c[col]=new Map(Object.values(S.monthDocs[col]).flat().map(v=>[v.id,v]));if(col==="kotday")rebuildKots();J.refresh()},onErr))}}
@@ -234,6 +236,12 @@ J.confirmBtn=(key,label,yesAct,x)=>S.confirm===key?`<span class="confirm">${esc(
 // ---------- small shared view helpers ----------
 J.emptyRow=(cols,title,sub)=>`<tr><td colspan="${cols}"><div class="empty"><strong>${esc(title)}</strong>${sub?`<span>${sub}</span>`:""}</div></td></tr>`;
 J.kpi=(l,v,s,go)=>`<button class="kpi" ${go?`data-go="${go.split("/")[0]}" data-tab="${go.split("/")[1]||""}"`:""}><small>${esc(l)}</small><strong>${v}</strong><em>${s||""}</em></button>`;
+// print any report (browser print dialog → Save as PDF)
+const PRINT_CSS=`*{box-sizing:border-box}body{font:11px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#111;margin:0}h1{font-size:17px;margin:0}h2{font-size:13px;margin:14px 0 6px}.sub{color:#555;margin:2px 0 10px}table{width:100%;border-collapse:collapse;margin:4px 0 8px}th,td{border:1px solid #bbb;padding:3px 5px;text-align:left;vertical-align:top}th{background:#f1f1f1;font-weight:600}.num{text-align:right;white-space:nowrap}tfoot td{font-weight:700;background:#f7f7f7}.muted{color:#666}.sig{display:flex;justify-content:space-between;margin-top:36px}.sig div{border-top:1px solid #333;padding-top:4px;width:28%;text-align:center}.hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:8px}tr{page-break-inside:avoid}.pb{page-break-before:always}`;
+J.PRINT_CSS=PRINT_CSS;
+J.printDoc=(title,html,landscape)=>{const f=document.createElement("iframe");f.setAttribute("aria-hidden","true");f.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0";document.body.appendChild(f);const d=f.contentDocument;d.open();
+  d.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4 ${landscape?"landscape":"portrait"};margin:10mm}${PRINT_CSS}</style></head><body>${html}<p class="muted" style="margin-top:14px">Printed ${new Date().toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})} · ${esc(J.settings().business||"JCGG")}</p></body></html>`);d.close();
+  setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){console.error(e)}setTimeout(()=>f.remove(),120000)},350)};
 J.act("printSlip",()=>{document.body.classList.add("print-slip");window.print();setTimeout(()=>document.body.classList.remove("print-slip"),500)});
 J.act("signIn",()=>J.signIn());J.act("signOut",()=>J.signOut());
 return J;

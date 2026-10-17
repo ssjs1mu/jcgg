@@ -154,33 +154,54 @@ const canAuto=()=>S.mode==="cloud"&&S.ready&&!J.readOnly()&&["Super Admin","Admi
 const who=()=>S.me?.name||S.me?.email||"";
 // mark every unmarked day inside each stint (up to `upto`) as Present, or Week off on the weekly-off day
 H.fillAttendance=async(upto=today(),only)=>{const byM={};let n=0;
-  for(const s of J.staffList(true)){if(only&&!only.includes(s.id))continue;for(const st of H.stints(s)){if(!st.join)continue;const end=st.exit&&st.exit<upto?st.exit:upto;
-    for(let d=st.join;d<=end;d=addDays(d,1)){const m=d.slice(0,7),day=String(+d.slice(8));const have=J.get("attendance",m)?.days?.[day]?.[s.id];if(have?.s)continue;((byM[m]??={})[day]??={})[s.id]={...(have||{}),s:isWO(s,d)?"W":"P",auto:1};n++}}}
+  for(const s of J.staffList(true)){if(only&&!only.includes(s.id))continue;const from0=J.settings().bizStart||"2023-06-22";for(const st of H.stints(s)){if(!st.join)continue;const end=st.exit&&st.exit<upto?st.exit:upto;
+    for(let d=st.join<from0?from0:st.join;d<=end;d=addDays(d,1)){const m=d.slice(0,7),day=String(+d.slice(8));const have=J.get("attendance",m)?.days?.[day]?.[s.id];if(have?.s)continue;((byM[m]??={})[day]??={})[s.id]={...(have||{}),s:isWO(s,d)?"W":"P",auto:1};n++}}}
   for(const [m,days] of Object.entries(byM))await J.store.patch("attendance",m,{days});return n};
-// what the ledger should hold for one person's salary in one month, as Dr-Cr per account
-async function target(s,m){const c=J.payCalc(s,m,J.get("payroll",m)?.ov?.[s.id]||{});if(c.grossEarned<=0&&!c.svc)return {c,v:{}};const acc=async(name,sys,kind)=>J.sysAcc(sys)?.id||J.ensureAcc(name,kind,sys);
-  const v={};const add=(a,x)=>{if(x)v[a]=r2((v[a]||0)+x)};add(await acc("Staff Salary","salary","expense"),c.grossEarned);if(c.pf)add(await acc("PF Payable","pf","tax"),-c.pf);if(c.esic)add(await acc("ESIC Payable","esic","tax"),-c.esic);if(c.pt)add(await acc("Professional Tax Payable","pt","tax"),-c.pt);if(c.tds)add(await acc("TDS Payable (Salary)","tds","tax"),-c.tds);add(s.id,-r2(c.grossEarned-c.stat));return {c,v}}
-const postedVs=(m,sid)=>J.all("vouchers").filter(v=>v.type==="salary"&&v.src?.col==="payroll"&&v.src?.id===m&&v.party===sid);
-function posted(m,sid){const v={};for(const x of postedVs(m,sid))for(const l of x.lines)v[l.a]=r2((v[l.a]||0)+l.dr-l.cr);return v}
-const hash=o=>{let h=0;const s=JSON.stringify(o);for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return (h>>>0).toString(36)};
+// One salary voucher per month (SA/…, dated the last day) carrying every person's breakup on its own lines:
+//   Dr Staff Salary (salary for paid days) · Dr Overtime Wages · Dr Staff Perks & Bonus
+//   Cr Late & Penalty Deductions · Cr PF/ESIC/PT/TDS payable · Cr each person's Advance and Loan ledgers (recovery) · Cr each person's salary ledger (net pay)
+// A later change to a closed month re-writes that same voucher (same number) and the change is written to the month's log.
+const vidOf=m=>"salm-"+m,preOf=m=>"salpre-"+m;
+const sysId=async(sys,name,kind)=>J.sysAcc(sys)?.id||J.ensureAcc(name,kind,sys);
+async function build(m){const run=J.get("payroll",m)||{};const old=J.get("vouchers",vidOf(m));const oldIds=new Set((old?.lines||[]).map(l=>l.a));
+  const people=J.staffList(true).filter(s=>H.inServiceRange(s,m+"-01",J.monthEnd(m))||oldIds.has(s.id));const L=[],per={};
+  const A={sal:await sysId("salary","Staff Salary","expense"),ot:await sysId("ot","Overtime Wages","expense"),perk:await sysId("perks","Staff Perks & Bonus","expense"),ded:await sysId("salded","Late & Penalty Deductions","expense"),
+    pf:"",esic:"",pt:"",tds:""};
+  for(const s of people){const c=J.payCalc(s,m,run.ov?.[s.id]||{});if(c.earned<=0&&c.otPay<=0&&c.bonus<=0&&!oldIds.has(s.id))continue;const tag=(s.code?s.code+" ":"")+s.name;per[s.id]={c,s};
+    const push=(a,dr,cr,n)=>{if(r2(dr)||r2(cr))L.push({a,dr:r2(dr),cr:r2(cr),n})};
+    push(A.sal,c.earned,0,tag+" · salary for "+c.paid+" paid days (P"+c.P+" H"+c.H+" L"+c.L+" W"+c.W+" A"+c.A+")");push(A.ot,c.otPay,0,tag+" · overtime "+c.ot+" h");push(A.perk,c.bonus,0,tag+" · perks / bonus");
+    push(A.ded,0,c.lateDed,tag+" · late deduction ("+c.late+" late marks)");push(A.ded,0,c.penalty,tag+" · penalty");
+    for(const [k,nm] of [["pf","PF Payable"],["esic","ESIC Payable"],["pt","Professional Tax Payable"],["tds","TDS Payable (Salary)"]])if(c[k]){A[k]=A[k]||await sysId(k,nm,"tax");push(A[k],0,c[k],tag+" · "+nm.replace(" Payable",""))}
+    push("adv-"+s.id,0,c.adv,"Advance recovered from "+monthLabel(m)+" salary");push("loan-"+s.id,0,c.loan,"Loan EMI from "+monthLabel(m)+" salary");
+    const net=r2(c.net);const f0=x=>J.inr.format(x);const parts=["salary "+f0(c.earned)+" ("+c.paid+" days)",c.otPay&&"OT "+f0(c.otPay),c.bonus&&"perks "+f0(c.bonus)].filter(Boolean).join(" + ");const less=[c.lateDed&&"late "+f0(c.lateDed),c.penalty&&"penalty "+f0(c.penalty),c.pt&&"PT "+f0(c.pt),c.pf&&"PF "+f0(c.pf),c.esic&&"ESIC "+f0(c.esic),c.tds&&"TDS "+f0(c.tds),c.adv&&"advance "+f0(c.adv),c.loan&&"loan EMI "+f0(c.loan)].filter(Boolean).join(", ");
+    if(net>=0)push(s.id,0,net,"Net salary "+monthLabel(m)+": "+parts+(less?" − "+less:""));else push(s.id,-net,0,"Deductions exceed salary for "+monthLabel(m)+": "+parts+" − "+less)}
+  return {L,per,old}}
+const netOf=(v,sid)=>r2((v?.lines||[]).filter(l=>l.a===sid).reduce((t,l)=>t+l.cr-l.dr,0));
+const sameLines=(a,b)=>{const k=x=>x.map(l=>l.a+"|"+r2(l.dr)+"|"+r2(l.cr)+"|"+(l.n||"")).sort().join("\n");return k(a)===k(b)};
 H.lastClosedMonth=()=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);return J.iso(d).slice(0,7)};
-// post the month's salary (once, dated month end) or the difference when something changed later (dated the day of the change)
-H.syncMonth=async(m,reason)=>{if(m>H.lastClosedMonth()||m<J.settings().startMonth)return {main:0,adj:0};let main=0,adj=0;const run=J.get("payroll",m)||{};const postedMap={...(run.posted||{})};const log=[];
-  const people=J.staffList(true).filter(s=>H.inServiceRange(s,m+"-01",J.monthEnd(m))||postedVs(m,s.id).length);
-  for(const s of people){const {c,v:want}=await target(s,m);const have=posted(m,s.id);const keys=new Set([...Object.keys(want),...Object.keys(have)]);const diff=[];for(const k of keys){const d=r2((want[k]||0)-(have[k]||0));if(Math.abs(d)>=0.5)diff.push({a:k,dr:d>0?d:0,cr:d<0?-d:0})}
-    if(!diff.length)continue;const first=!postedVs(m,s.id).length;const sal=J.sysAcc("salary")?.id;const oldG=r2(have[sal]||0),newG=r2(want[sal]||0);
-    const id=first?("sal-"+m+"-"+s.id):("saladj-"+m+"-"+s.id+"-"+hash({want,have}));if(J.get("vouchers",id))continue;
-    const vv=await J.postVoucher({newId:id,type:"salary",date:first?J.monthEnd(m):today(),lines:diff,party:s.id,ref:m,src:{col:"payroll",id:m,label:"Payroll"},f:{month:m},
-      narr:first?("Salary "+monthLabel(m)+" · "+c.paid+" paid days"+(c.otPay?" + OT":"")+(c.bonus?" + bonus":"")+(c.penalty?" − penalty":"")):("Salary adjustment "+monthLabel(m)+": "+money0(oldG)+" → "+money0(newG)+(reason?" ("+reason+")":""))});
-    if(first){postedMap[s.id]=vv.id;main++}else{adj++;log.push({at:Date.now(),by:who(),type:"adjustment",sid:s.id,text:"Salary re-posted "+money0(oldG)+" → "+money0(newG)+" ("+(newG-oldG>=0?"+":"")+money0(newG-oldG)+")"+(reason?" · "+reason:""),vid:vv.id})}}
-  if(main||adj){const cur=J.get("payroll",m)||{};await J.store.patch("payroll",m,{posted:postedMap,calcAt:Date.now(),log:[...(Array.isArray(cur.log)?cur.log:[]),...log]})}return {main,adj}};
+H.salaryVoucher=m=>J.get("vouchers",vidOf(m));
+H.syncMonth=async(m,reason)=>{const st=J.settings();J.derive&&J.derive();if(m>H.lastClosedMonth()||m<(st.payrollFrom||st.startMonth))return {main:0,adj:0};let main=0,adj=0;const log=[];
+  // retire the older one-voucher-per-person entries for this month
+  for(const v of J.all("vouchers").filter(v=>v.type==="salary"&&v.src?.col==="payroll"&&v.src?.id===m&&v.id!==vidOf(m)))await J.store.del("vouchers",v.id);
+  const {L,per,old}=await build(m);
+  if(!L.length){if(old){await J.store.del("vouchers",old.id);log.push({at:Date.now(),by:who(),type:"updated",text:"Salary entry removed — nobody in service"})}}
+  else if(!old||!sameLines(old.lines,L)){
+    const v=await J.postVoucher({...(old?{id:old.id}:{newId:vidOf(m)}),type:"salary",date:J.monthEnd(m),lines:L,party:"",ref:m,src:{col:"payroll",id:m,label:"Payroll"},f:{month:m},
+      narr:"Salary for "+monthLabel(m)+" · "+Object.keys(per).length+" staff · gross "+money(r2(Object.values(per).reduce((t,x)=>t+x.c.grossPay,0)))+" · net "+money(r2(Object.values(per).reduce((t,x)=>t+Math.max(0,x.c.net),0)))});
+    if(!old)main++;else{adj++;const ids=new Set([...Object.keys(per),...(old.lines||[]).map(l=>l.a).filter(a=>J.get("accounts",a)?.kind==="staff")]);
+      for(const sid of ids){const a=netOf(old,sid),b=netOf(v,sid);if(Math.abs(a-b)>=0.01)log.push({at:Date.now(),by:who(),type:"updated",sid,vid:v.id,text:(J.get("accounts",sid)?.name||sid)+" · net salary "+money(a)+" → "+money(b)+" ("+(b-a>=0?"+":"")+money(r2(b-a))+")"+(reason?" · "+reason:"")})}
+      if(!log.length)log.push({at:Date.now(),by:who(),type:"updated",vid:v.id,text:"Salary entry "+v.no+" re-written (breakup changed, net pay unchanged)"+(reason?" · "+reason:"")})}
+    // months before the book start: salaries were paid outside these books, so settle each person's net pay against one holding account
+    if(m<st.startMonth){const pre=await sysId("presal","Salaries settled before book start","capital");const PL=[];let tot=0;for(const [sid,x] of Object.entries(per)){const n=netOf(v,sid);if(n>0){PL.push({a:sid,dr:n,cr:0,n:"Salary "+monthLabel(m)+" settled (paid before these books began)"});tot+=n}}
+      if(PL.length){PL.push({a:pre,dr:0,cr:r2(tot),n:"Salaries "+monthLabel(m)});const po=J.get("vouchers",preOf(m));await J.postVoucher({...(po?{id:po.id}:{newId:preOf(m)}),type:"payment",date:J.monthEnd(m),lines:PL,ref:m,src:{col:"payroll",id:m,label:"Payroll"},narr:"Salaries for "+monthLabel(m)+" paid before the book start — settled"})}}}
+  const cur=J.get("payroll",m)||{};const patch={vid:vidOf(m),calcAt:Date.now()};if(cur.posted)patch.posted=null;if(log.length)patch.log=[...(Array.isArray(cur.log)?cur.log:[]),...log];if(main||adj||log.length||cur.posted||cur.vid!==vidOf(m))await J.store.patch("payroll",m,patch);return {main,adj}};
 H.logChange=async(m,entry)=>{const cur=J.get("payroll",m)||{};await J.store.patch("payroll",m,{log:[...(Array.isArray(cur.log)?cur.log:[]),{at:Date.now(),by:who(),...entry}]})};
 let busy=false,again=false,tmr=null;
-H.syncAll=async(reason)=>{if(!canAuto())return;if(busy){again=true;return}busy=true;try{let main=0,adj=0;const months=J.monthsBetween(J.settings().startMonth,H.lastClosedMonth());for(const m of months){const r=await H.syncMonth(m,reason);main+=r.main;adj+=r.adj}
-    if(main||adj)toast((main?main+" month-end salary entr"+(main>1?"ies":"y")+" posted":"")+(main&&adj?", ":"")+(adj?adj+" adjustment"+(adj>1?"s":"")+" posted":""))}catch(e){console.error(e)}finally{busy=false;if(again){again=false;H.syncSoon(reason)}}};
+H.syncAll=async(reason)=>{if(!canAuto())return;if(busy){again=true;return}busy=true;try{let main=0,adj=0;const months=J.monthsBetween(J.settings().payrollFrom||J.settings().startMonth,H.lastClosedMonth());for(const m of months){const r=await H.syncMonth(m,reason);main+=r.main;adj+=r.adj}
+    if(main||adj)toast((main?main+" monthly salary entr"+(main>1?"ies":"y")+" posted":"")+(main&&adj?", ":"")+(adj?adj+" salary entr"+(adj>1?"ies":"y")+" updated":""))}catch(e){console.error(e)}finally{busy=false;if(again){again=false;H.syncSoon(reason)}}};
 H.syncSoon=reason=>{clearTimeout(tmr);tmr=setTimeout(()=>H.syncAll(reason),1500)};
 // once per session, after the books have loaded: fill tenure attendance to yesterday, then post/adjust closed months
-let started=false;setInterval(async()=>{if(started||!canAuto())return;const vm=S.monthDocs?.vouchers;if(!vm||!J.monthsBetween(J.settings().startMonth,J.iso(new Date()).slice(0,7)).every(m=>vm[m])||!S.monthDocs.attendance&&!S.c.attendance)return;started=true;try{const n=await H.fillAttendance(addDays(today(),-1));if(n)toast(n+" attendance days marked present");setTimeout(()=>H.syncAll("month-end posting"),2500)}catch(e){console.error(e);started=false}},3000);
+let started=false;setInterval(async()=>{if(started||!canAuto())return;const vm=S.monthDocs?.vouchers;if(!vm||!J.monthsBetween(J.bookFrom(),J.iso(new Date()).slice(0,7)).every(m=>vm[m])||!S.monthDocs.attendance&&!S.c.attendance)return;started=true;try{for(const s of J.staffList(true)){await J.staffSubAcc(s.id,"adv");await J.staffSubAcc(s.id,"loan")}const n=await H.fillAttendance(addDays(today(),-1));if(n)toast(n+" attendance days marked present");setTimeout(()=>H.syncAll("month-end posting"),2500)}catch(e){console.error(e);started=false}},3000);
 J.act("fillAtt",async()=>{const n=await J.safe(()=>H.fillAttendance(today()));if(typeof n==="number")toast(n?n+" days marked present / week off":"Every tenure day is already marked");H.syncSoon("attendance filled")});
 J.act("syncPay",async()=>{await H.syncAll("manual re-check");toast("Salaries checked against attendance and history")});
 })();

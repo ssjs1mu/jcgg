@@ -4,23 +4,23 @@ const J=window.J,{S,esc,inr,inr0,r2,money,money0,bal,fmtDate,monthLabel,today,ad
 const KINDS={
   cash:{l:"Cash",g:"Cash & Bank"},bank:{l:"Bank account",g:"Cash & Bank"},card:{l:"Credit card",g:"Cash & Bank"},
   aggregator:{l:"Aggregator / wallet",g:"Receivables"},customer:{l:"Customer",g:"Receivables"},
-  vendor:{l:"Vendor / supplier",g:"Payables"},staff:{l:"Staff",g:"Staff"},
+  vendor:{l:"Vendor / supplier",g:"Payables"},staff:{l:"Staff (salary)",g:"Staff"},staffadv:{l:"Staff advance",g:"Staff advances & loans"},staffloan:{l:"Staff loan",g:"Staff advances & loans"},
   expense:{l:"Expense head",g:"Expenses"},income:{l:"Income head",g:"Income"},
   tax:{l:"Tax / statutory",g:"Duties & Taxes"},loan:{l:"Loan",g:"Loans"},
   capital:{l:"Capital / owner",g:"Capital"},asset:{l:"Fixed asset / deposit",g:"Assets"},invest:{l:"Investment",g:"Investments"},stock:{l:"Stock / inventory",g:"Assets"},suspense:{l:"Suspense / unclassified",g:"Suspense"}};
-const GROUP_ORDER=["Cash & Bank","Receivables","Payables","Staff","Expenses","Income","Duties & Taxes","Loans","Capital","Assets","Investments","Suspense"];
-const RECON_KINDS=["bank","card","aggregator","vendor","customer","staff","loan"];
+const GROUP_ORDER=["Cash & Bank","Receivables","Payables","Staff","Staff advances & loans","Expenses","Income","Duties & Taxes","Loans","Capital","Assets","Investments","Suspense"];
+const RECON_KINDS=["bank","card","aggregator","vendor","customer","staff","staffadv","staffloan","loan"];
 const MONEY=["cash","bank","card"];
 const TYPES={expense:{l:"Expense",d:"Rent, power, gas, repairs",p:"EX"},purchase:{l:"Purchase bill",d:"Supplier bill, paid or credit",p:"PU"},payment:{l:"Payment",d:"Pay a vendor, staff or other",p:"PY"},
   sale:{l:"Sale",d:"Dine-in, takeaway, delivery",p:"SL"},receipt:{l:"Receipt",d:"Money in from a party",p:"RC"},contra:{l:"Contra",d:"Cash ↔ bank, card bill",p:"CT"},
-  salary:{l:"Salary",d:"Salary earned",p:"SA"},advance:{l:"Staff advance",d:"Advance to staff",p:"AD"},journal:{l:"Journal",d:"Any balanced adjustment",p:"JV"},
+  salary:{l:"Salary",d:"Salary earned",p:"SA"},advance:{l:"Staff advance",d:"Advance to staff",p:"AD"},staffloan:{l:"Staff loan",d:"Loan to staff, repaid by EMI",p:"LN"},journal:{l:"Journal",d:"Any balanced adjustment",p:"JV"},
   debitnote:{l:"Debit note",d:"Return to vendor",p:"DN",hide:1},depreciation:{l:"Depreciation",d:"",p:"DP",hide:1},invest:{l:"Investment",d:"",p:"IV",hide:1}};
 Object.assign(J,{KINDS,GROUP_ORDER,RECON_KINDS,MONEY,TYPES});
 
 // ---- derived postings ----
 J.onDerive(D=>{const post=new Map();for(const a of S.c.accounts.keys())post.set(a,[]);
   const vs=J.all("vouchers").sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.createdAt||0)-(b.createdAt||0));
-  for(const v of vs)for(const ln of v.lines||[]){if(!post.has(ln.a))post.set(ln.a,[]);post.get(ln.a).push({v,dr:+ln.dr||0,cr:+ln.cr||0,date:v.date})}
+  for(const v of vs)for(const ln of v.lines||[]){if(!post.has(ln.a))post.set(ln.a,[]);post.get(ln.a).push({v,dr:+ln.dr||0,cr:+ln.cr||0,date:v.date,n:ln.n||""})}
   D.post=post;D.vs=vs});
 const accName=id=>J.get("accounts",id)?.name||"(deleted ledger)";
 const balanceOf=(id,upto)=>{let b=+(J.get("accounts",id)?.opening||0);for(const p of J.D.post?.get(id)||[]){if(upto&&p.date>upto)break;b+=p.dr-p.cr}return r2(b)};
@@ -45,7 +45,8 @@ J.ensureAcc=async(name,kind,sys)=>{let a=sys?sysAcc(sys):null;if(!a)a=J.all("acc
   const id=(sys||kind)+"-"+uid();await J.store.put("accounts",{id,name,kind,opening:0,active:true,...(sys?{sys}:{})});S.c.accounts.set(id,{id,name,kind,opening:0,active:true,...(sys?{sys}:{})});return id};
 function nextNo(type,date,keep){const fy=fyOf(date),p=TYPES[type]?.p||"JV";if(keep&&keep.startsWith(p+"/"+fy.short+"/"))return keep;const pre=p+"/"+fy.short+"/";let mx=0;for(const v of S.c.vouchers.values())if(v.no?.startsWith(pre))mx=Math.max(mx,+v.no.slice(pre.length)||0);return pre+String(mx+1).padStart(4,"0")}
 J.postVoucher=async spec=>{
-  const lines=(spec.lines||[]).filter(l=>l.a&&(+l.dr||+l.cr)).map(l=>({a:l.a,dr:r2(l.dr),cr:r2(l.cr)}));
+  const lines=(spec.lines||[]).filter(l=>l.a&&(+l.dr||+l.cr)).map(l=>({a:l.a,dr:r2(l.dr),cr:r2(l.cr),...(l.n?{n:String(l.n)}:{})}));
+  for(const l of lines)if(!J.get("accounts",l.a)&&/^(adv|loan)-/.test(l.a))await J.staffSubAcc(l.a.slice(l.a.indexOf("-")+1),l.a.startsWith("adv")?"adv":"loan");
   const dr=lines.reduce((s,l)=>s+l.dr,0),cr=lines.reduce((s,l)=>s+l.cr,0);
   if(Math.abs(dr-cr)>0.01)throw new Error("Accounting entry does not balance (Dr "+money(dr)+" vs Cr "+money(cr)+").");
   if(!lines.length)throw new Error("Nothing to post.");
@@ -53,6 +54,9 @@ J.postVoucher=async spec=>{
   const rec={...(spec.rec||{})};if(old?.rec)for(const [a,d] of Object.entries(old.rec))if(d&&lines.some(l=>l.a===a))rec[a]=d;
   const v={id:spec.id||spec.newId||uid(),no:nextNo(spec.type,spec.date,old?.no),type:spec.type,date:spec.date,m:spec.date.slice(0,7),lines,party:spec.party||"",narr:spec.narr||"",ref:spec.ref||"",f:spec.f||{},rec,gst:spec.gst||null,src:spec.src||null,imp:spec.imp||old?.imp||"",createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()};
   await J.store.put("vouchers",v);S.c.vouchers.set(v.id,v);return v};
+// every staff member has a salary ledger (the staff account) plus separate Advance and Loan ledgers
+J.staffSubAcc=async(sid,k)=>{const id=k+"-"+sid;const s=J.get("accounts",sid);const cur=J.get("accounts",id);const name=(k==="adv"?"Advance — ":"Loan — ")+(s?.name||sid);const want={id,name,kind:k==="adv"?"staffadv":"staffloan",opening:cur?.opening||0,active:s?.active!==false,staff:sid,code:s?.code||""};
+  if(!cur||cur.name!==want.name||cur.active!==want.active||cur.code!==want.code){await J.store.put("accounts",{...(cur||{}),...want});S.c.accounts.set(id,{...(cur||{}),...want})}return id};
 J.deleteVoucher=async id=>{if(id&&J.get("vouchers",id))await J.store.del("vouchers",id)};
 
 // ---- seed ----
@@ -71,7 +75,7 @@ function defaults(type){const f={date:today()};const cash=sysAcc("cash")?.id||ac
   if(type==="payment")f.from=cash;if(type==="sale"){f.head=sysAcc("sales")?.id||"";f.into=cash;f.rate="5"}
   if(type==="receipt")f.into=accsOf(["bank"])[0]?.id||cash;if(type==="contra"){f.from=cash;f.to=accsOf(["bank"])[0]?.id||""}
   if(type==="salary"){f.head=sysAcc("salary")?.id||"";const d=new Date();d.setMonth(d.getMonth()-1);f.month=iso(d).slice(0,7);f.paid=""}
-  if(type==="advance")f.from=cash;if(type==="journal")f.rows=[{a:"",dr:"",cr:""},{a:"",dr:"",cr:""},{a:"",dr:"",cr:""}];return f}
+  if(type==="advance"||type==="staffloan")f.from=cash;if(type==="journal")f.rows=[{a:"",dr:"",cr:""},{a:"",dr:"",cr:""},{a:"",dr:"",cr:""}];return f}
 function entryFields(type,f){const allK=Object.keys(KINDS);const common=[fld("Date",`<input type="date" name="date" id="f-date" value="${esc(f.date)}">`)];
   const narr=fld("Narration",txt("narr",f.narr,"What was this for?"),"wide");const ref=(l="Bill / ref no.")=>fld(l,txt("ref",f.ref));
   switch(type){
@@ -82,7 +86,7 @@ function entryFields(type,f){const allK=Object.keys(KINDS);const common=[fld("Da
     case "receipt":return [...common,fld("Received from",selA("from",allK.filter(k=>!MONEY.includes(k)),f.from,"Choose ledger…")),fld("Into",selA("into",MONEY,f.into)),fld("Amount",num("amount",f.amount)),fld("Mode / UTR",txt("ref",f.ref)),narr];
     case "contra":return [...common,fld("From",selA("from",MONEY,f.from)),fld("To",selA("to",MONEY,f.to)),fld("Amount",num("amount",f.amount)),ref("Slip / ref"),narr];
     case "salary":return [...common,fld("Staff member",selA("staff",["staff"],f.staff,"Choose staff…")),fld("Salary for month",`<input type="month" name="month" id="f-month" value="${esc(f.month)}">`),fld("Salary earned (gross)",num("amount",f.amount)),fld("Booked under",selA("head",["expense"],f.head)),fld("Pay now from",selA("paid",MONEY,f.paid,"Not paid yet")),fld("Pay now amount",num("paidAmt",f.paidAmt,"Full net")),narr];
-    case "advance":return [...common,fld("Staff member",selA("staff",["staff"],f.staff,"Choose staff…")),fld("Paid from",selA("from",MONEY,f.from)),fld("Amount",num("amount",f.amount)),narr];
+    case "advance":case "staffloan":return [...common,fld("Staff member",selA("staff",["staff"],f.staff,"Choose staff…")),fld("Paid from",selA("from",MONEY,f.from)),fld("Amount",num("amount",f.amount)),narr,`<p class="hint">${type==="advance"?"Booked to the person's Advance ledger and recovered from salary at the monthly recovery set on their profile (full balance if none is set).":"Booked to the person's Loan ledger and recovered from salary by the monthly EMI set on their profile."}</p>`];
     case "journal":return [...common,ref("Reference"),`<div class="wide"><div class="tbl-wrap"><table class="lines-tbl"><thead><tr><th>Ledger</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead><tbody>${(f.rows||[]).map((r,i)=>`<tr><td style="min-width:200px"><select name="jr-a-${i}" id="f-jr-a-${i}">${optAcc(allK,r.a,"—")}</select></td><td style="min-width:110px">${num("jr-dr-"+i,r.dr,"")}</td><td style="min-width:110px">${num("jr-cr-"+i,r.cr,"")}</td></tr>`).join("")}</tbody></table></div><button type="button" class="btn small" data-a="jrow" style="margin-top:8px">Add line</button></div>`,narr];
   }}
 function build(type,f,editId){const A=+f.amount||0,G=+f.gst||0,L=[];const add=(a,dr,cr)=>{if(a&&(dr||cr))L.push({a,dr:r2(dr),cr:r2(cr)})};let party="",e="",gst=null;
@@ -97,7 +101,7 @@ function build(type,f,editId){const A=+f.amount||0,G=+f.gst||0,L=[];const add=(a
     case "contra":need(f.from!==f.to,"From and To must be different.");need(A>0,"Enter the amount.");add(f.to,A,0);add(f.from,0,A);break;
     case "salary":{need(f.staff,"Choose the staff member.");need(A>0,"Enter the salary earned.");need(f.head,"Choose the salary head.");add(f.head,A,0);add(f.staff,0,A);party=f.staff;
       if(f.paid){let before=f.staff?balanceOf(f.staff):0;if(editId)for(const l of J.get("vouchers",editId)?.lines||[])if(l.a===f.staff)before-=l.dr-l.cr;const net=r2(A-Math.max(0,before));const pay=+f.paidAmt||net;need(pay>0,"Nothing left to pay after advances.");add(f.staff,pay,0);add(f.paid,0,pay)}break}
-    case "advance":need(f.staff,"Choose the staff member.");need(A>0,"Enter the amount.");add(f.staff,A,0);add(f.from,0,A);party=f.staff;break;
+    case "advance":case "staffloan":need(f.staff,"Choose the staff member.");need(A>0,"Enter the amount.");add((type==="advance"?"adv-":"loan-")+f.staff,A,0);add(f.from,0,A);party=f.staff;break;
     case "journal":{for(const r of f.rows||[])add(r.a,+r.dr||0,+r.cr||0);const dr=L.reduce((s,l)=>s+l.dr,0),cr=L.reduce((s,l)=>s+l.cr,0);need(L.length>=2,"A journal needs at least two lines.");need(Math.abs(dr-cr)<0.005,"Debits ("+money(dr)+") and credits ("+money(cr)+") must match.");break}}
   return {lines:L,party,err:e,gst}}
 function readForm(){const U=ui().entry,fm=document.getElementById("entryForm");if(!fm)return U.f;const f={...U.f};for(const el of fm.elements){if(!el.name||el.name.startsWith("jr-"))continue;f[el.name]=el.value}
@@ -159,17 +163,23 @@ function statement(id){const a=J.get("accounts",id),U=ui().ledger,[from,to]=peri
   const rows=(J.D.post?.get(id)||[]).filter(p=>p.date>=from&&p.date<=to).map(p=>{run+=p.dr-p.cr;tdr+=p.dr;tcr+=p.cr;return {p,run}});
   const meta=[KINDS[a.kind]?.l,a.phone,a.gstin&&("GSTIN "+a.gstin),a.terms&&(a.terms+" days credit")].filter(Boolean).map(esc).join(" · ");
   return `<div class="panel pb" style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start"><div><h2 style="font-family:var(--f-display);font-size:22px;margin:0;font-weight:600">${esc(a.name)}</h2><div class="muted">${meta}</div>${a.note?`<div class="hint" style="margin-top:4px">${esc(a.note)}</div>`:""}</div>
-    <div style="text-align:right"><div class="muted" style="font-size:12px">Closing balance</div><div style="font-size:22px;font-weight:600">${bal(run)}</div><div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn small w" data-a="editAcc" data-x="${id}">Edit ledger</button>${canRec?`<button class="btn small" data-a="reconAcc" data-x="${id}">Reconcile</button>`:""}<button class="btn small" data-a="exportLedger">Export CSV</button></div></div></div>
+    <div style="text-align:right"><div class="muted" style="font-size:12px">Closing balance</div><div style="font-size:22px;font-weight:600">${bal(run)}</div><div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn small w" data-a="editAcc" data-x="${id}">Edit ledger</button>${canRec?`<button class="btn small" data-a="reconAcc" data-x="${id}">Reconcile</button>`:""}<button class="btn small" data-a="exportLedger">Export CSV</button><button class="btn small" data-a="printLedger">Print / PDF</button></div></div></div>
   <div class="filters">${periodSeg("acc.ledger",U.period,U)}</div>
   <div class="panel"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>No.</th><th>Particulars</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th>${canRec?"<th>Cleared</th>":""}</tr></thead><tbody>
     <tr><td class="muted">${from>"0001"?fmtDate(from):""}</td><td></td><td class="muted">Opening balance</td><td></td><td></td><td class="num">${bal(open)}</td>${canRec?"<td></td>":""}</tr>
-    ${rows.map(({p,run})=>{const d=p.v.rec?.[id];return `<tr><td style="white-space:nowrap">${fmtDate(p.date)}</td><td><button class="linkbtn vno" data-a="editv" data-x="${p.v.id}">${esc(p.v.no)}</button></td><td>${esc(against(p.v,id))}<div class="muted" style="font-size:12px">${esc(p.v.narr)}</div></td><td class="num dr">${p.dr?inr.format(p.dr):""}</td><td class="num cr">${p.cr?inr.format(p.cr):""}</td><td class="num">${bal(run)}</td>${canRec?`<td><button class="chip ${d?"ok":"plain"} w" data-a="tick" data-x="${p.v.id}|${id}" title="${d?"Cleared on "+fmtDate(d)+" — click to undo":"Mark as cleared"}">${d?"✓ "+fmtDate(d):"Open"}</button></td>`:""}</tr>`}).join("")}
+    ${rows.map(({p,run})=>{const d=p.v.rec?.[id];return `<tr><td style="white-space:nowrap">${fmtDate(p.date)}</td><td><button class="linkbtn vno" data-a="editv" data-x="${p.v.id}">${esc(p.v.no)}</button></td><td>${p.n?esc(p.n):esc(against(p.v,id))}<div class="muted" style="font-size:12px">${esc(p.v.narr)}</div></td><td class="num dr">${p.dr?inr.format(p.dr):""}</td><td class="num cr">${p.cr?inr.format(p.cr):""}</td><td class="num">${bal(run)}</td>${canRec?`<td><button class="chip ${d?"ok":"plain"} w" data-a="tick" data-x="${p.v.id}|${id}" title="${d?"Cleared on "+fmtDate(d)+" — click to undo":"Mark as cleared"}">${d?"✓ "+fmtDate(d):"Open"}</button></td>`:""}</tr>`}).join("")}
   </tbody><tfoot><tr><td colspan="3">Period total · closing</td><td class="num">${inr.format(tdr)}</td><td class="num">${inr.format(tcr)}</td><td class="num">${bal(run)}</td>${canRec?"<td></td>":""}</tr></tfoot></table></div>${!rows.length?`<div class="empty"><span>No entries for this ledger in the selected period.</span></div>`:""}</div>`}
 J.act("pickacc",el=>{ui().ledger.acc=el.dataset.x;J.render()});
 J.openLedger=id=>{ui().ledger.acc=id;ui().ledger.kind="";ui().ledger.q="";J.go("accounts","ledger")};
 J.act("openLedger",el=>J.openLedger(el.dataset.x));
 J.act("reconAcc",el=>{const R=ui().recon;R.acc=el.dataset.x;R.matches=null;R.bal="";J.go("accounts","recon")});
 J.act("tick",async el=>{const [vid,acc]=el.dataset.x.split("|");const v=J.get("vouchers",vid);await J.safe(()=>J.store.patch("vouchers",vid,{rec:{[acc]:v?.rec?.[acc]?null:v.date}}))});
+J.act("printLedger",()=>{const id=ui().ledger.acc,a=J.get("accounts",id),U=ui().ledger,[f,t]=periodRange(U.period,U);let run=balanceBefore(id,f),tdr=0,tcr=0;const rows=[];
+  for(const p of J.D.post?.get(id)||[])if(p.date>=f&&p.date<=t){run+=p.dr-p.cr;tdr+=p.dr;tcr+=p.cr;rows.push(`<tr><td class="num">${fmtDate(p.date)}</td><td>${esc(p.v.no)}</td><td>${esc(p.n||against(p.v,id))}<div class="muted">${esc(p.v.narr)}</div></td><td class="num">${p.dr?inr.format(p.dr):""}</td><td class="num">${p.cr?inr.format(p.cr):""}</td><td class="num">${bal(run)}</td></tr>`)}
+  const s=a.staff?J.get("accounts",a.staff):a.kind==="staff"?a:null;
+  J.printDoc("Ledger "+a.name,`<div class="hd"><div><h1>${esc(J.settings().business)}</h1><div class="sub">Ledger account: <b>${esc(a.name)}</b>${s?.code?" · "+esc(s.code):""} · ${esc(KINDS[a.kind]?.l||"")}</div></div><div class="sub">${fmtDate(f)} to ${fmtDate(t)}</div></div>
+  <table><thead><tr><th>Date</th><th>Voucher</th><th>Particulars</th><th class="num">Debit ₹</th><th class="num">Credit ₹</th><th class="num">Balance</th></tr></thead><tbody><tr><td></td><td></td><td>Opening balance</td><td></td><td></td><td class="num">${bal(balanceBefore(id,f))}</td></tr>${rows.join("")}</tbody><tfoot><tr><td colspan="3">Total · closing balance</td><td class="num">${inr.format(tdr)}</td><td class="num">${inr.format(tcr)}</td><td class="num">${bal(run)}</td></tr></tfoot></table>
+  <p class="muted">Dr balance = owed to the business · Cr balance = owed by the business.</p><div class="sig"><div>Prepared by</div><div>Checked by</div><div>${s?"Staff signature":"Authorised signatory"}</div></div>`)});
 J.act("exportLedger",()=>{const id=ui().ledger.acc,a=J.get("accounts",id),U=ui().ledger,[f,t]=periodRange(U.period,U);let run=balanceBefore(id,f);const rows=[["Date","No","Particulars","Narration","Debit","Credit","Balance","Cleared on"],["","","Opening balance","","","",bal(run),""]];
   for(const p of J.D.post?.get(id)||[])if(p.date>=f&&p.date<=t){run+=p.dr-p.cr;rows.push([p.date,p.v.no,against(p.v,id),p.v.narr,p.dr||"",p.cr||"",bal(run),p.v.rec?.[id]||""])}J.saveFile("ledger-"+a.name.replace(/[^\w]+/g,"-")+".csv",J.toCSV(rows))});
 
