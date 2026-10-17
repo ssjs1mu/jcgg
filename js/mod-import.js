@@ -142,6 +142,7 @@ T.open={label:"Ledger opening balances",group:"Accounts",desc:"Balances of every
   summary:recs=>{const d=recs.reduce((s,r)=>s+Math.max(0,r.b),0),c=recs.reduce((s,r)=>s+Math.max(0,-r.b),0);return "Dr "+money(d)+" · Cr "+money(c)+(Math.abs(d-c)>0.01?" · differs by "+money(Math.abs(d-c))+" (put the difference in capital)":" · balanced")},
   async commit(recs,o,log){for(const r of recs){const a=r.ex?{...r.ex,opening:r.b}:{id:r.k+"-"+uid(),name:str(r.name),kind:r.k,opening:r.b,active:true,phone:str(r.phone),gstin:str(r.gstin).toUpperCase(),imp:log.id};if(r.ex&&str(r.phone))a.phone=str(r.phone);await J.store.put("accounts",a);S.c.accounts.set(a.id,a);if(!r.ex)log.add("accounts",a.id);log.tick()}}};
 
+T.staffwb={label:"Staff workbook (full history)",group:"People",desc:"The JCGG staff export with roster, rejoinings & exits, increments, banking and family sheets. Builds codes, stints, salary history and tenure for every person.",open:()=>J.openStaffWorkbook()};
 // ---------- file reading ----------
 J.loadXLSX=()=>window.XLSX?Promise.resolve(window.XLSX):new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=()=>res(window.XLSX);s.onerror=()=>rej(new Error("Could not load the Excel reader. Save the sheet as CSV and upload that instead."));document.head.appendChild(s)});
 async function readFile(file){const U=ui();U.err="";U.file=file.name;U.recs=null;U.done=null;
@@ -196,7 +197,7 @@ function rulesPanel(){const own=J.get("meta","rules")?.list||[];
     <div class="row"><input id="rule-kw" placeholder="Text in narration, e.g. SHARMA VEG" style="max-width:240px"><select id="rule-acc">${J.optAcc(Object.keys(J.KINDS),"")}</select><button class="btn small" data-a="ruleAdd">Add rule &amp; re-check</button></div></div></details>`}
 
 // ---------- actions ----------
-J.act("impType",el=>{const U=ui();Object.assign(U,{type:el.dataset.x,step:2,rows:[],file:"",sheets:[],recs:null,done:null,err:"",map:{},opt:{}});J.render()});
+J.act("impType",el=>{if(T[el.dataset.x]?.open){T[el.dataset.x].open();return}const U=ui();Object.assign(U,{type:el.dataset.x,step:2,rows:[],file:"",sheets:[],recs:null,done:null,err:"",map:{},opt:{}});J.render()});
 J.openImport=type=>{const U=ui();Object.assign(U,{type,step:2,rows:[],file:"",sheets:[],recs:null,done:null,err:"",map:{},opt:{}});J.go("import","import")};
 J.act("impOpen",el=>J.openImport(el.dataset.x));
 J.act("impBack",()=>{ui().step=1;ui().type="";J.render()});
