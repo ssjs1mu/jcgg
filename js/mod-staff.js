@@ -3,7 +3,7 @@
 const J=window.J,{S,esc,inr,r2,money,money0,fmtDate,today,addDays,uid,fld,txt,num,dateI,selO,area,toast,monthLabel,daysInMonth,pad}=J;
 const ui=()=>J.ui("staff",{month:today().slice(0,7),attDate:today(),tag:"",q:"",pmonth:""});
 const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-const ST={P:"Present",H:"Half-day",A:"Absent",L:"Paid leave",W:"Week off",WW:"Worked on week off"};
+const ST={P:"Present",H:"Half-day",A:"Absent",L:"Paid leave",W:"Week off",WW:"Worked on week off",O:"Not scheduled (service terms)"};
 const staff=(all)=>J.all("accounts").filter(a=>a.kind==="staff"&&(all||a.active!==false)).sort((a,b)=>a.name.localeCompare(b.name));
 J.staffList=staff;
 const att=m=>J.get("attendance",m)?.days||{};
@@ -44,6 +44,8 @@ function staffDrawer(id){const s=id?J.get("accounts",id):{kind:"staff",active:tr
     ${fld("Current address",area("address",s.address,2))}${fld("Permanent address",area("permAddress",s.permAddress,2))}${fld("Google Maps link",txt("mapLink",s.mapLink))}
     <h3 class="ph" style="padding:6px 0 0">Identity &amp; bank</h3><div class="form">${fld("Aadhaar",txt("aadhaar",s.aadhaar))}${fld("PAN",txt("pan",s.pan))}${fld("Voter ID",txt("voter",s.voter))}${fld("Ration card",txt("ration",s.ration))}${fld("Driving licence",txt("dl",s.dl))}${fld("Bank name",txt("bankName",s.bankName))}${fld("Account no.",txt("bankAc",s.bankAc))}${fld("Branch",txt("branch",s.branch))}${fld("IFSC",txt("ifsc",s.ifsc))}${fld("UPI ID",txt("upi",s.upi))}</div>
     <h3 class="ph" style="padding:6px 0 0">Shift &amp; attendance</h3><div class="form">${fld("Weekly off",selO("weekOff",DOW.map((d,i)=>[String(i),d]),sal.weekOff,"None"))}${fld("Shift start",`<input type="time" name="start" id="f-start" value="${esc(sal.start||"10:00")}">`)}${fld("Shift end",`<input type="time" name="end" id="f-end" value="${esc(sal.end||"")}">`)}${fld("Rest break",txt("rest",sal.rest,"15:00-16:00"))}${fld("Tracking mode",selO("tracking",["TIME BOUND","FLEXIBLE HOURS","PART TIME_WEEKLY","MANAGEMENT EXEMPT"],s.tracking||"TIME BOUND"))}${fld("Salary basis",selO("basis",[["calendar_days","Calendar days in month"],["30_days","30-day month"]],sal.basis||"calendar_days"))}</div>
+    <h3 class="ph" style="padding:6px 0 0">Service terms</h3><div class="row" style="gap:16px;flex-wrap:wrap">${ch("tfixed","Fixed monthly salary (attendance never changes pay)",s.terms?.fixed)}${ch("tauto","Mark attendance automatically every day",s.terms?.auto)}</div>
+    <div class="row" style="gap:12px;flex-wrap:wrap"><span class="hint">Attends on:</span>${DOW.map((d,i)=>ch("td"+i,d,(s.terms?.days||[0,1,2,3,4,5,6]).includes(i))).join("")}</div><p class="hint" style="margin:0">With automatic marking, each scheduled day is marked Present (Week off on the weekly off) and the other days "Not scheduled", from the joining date onwards. Days you change by hand are kept.</p>
     <div class="row" style="gap:16px">${ch("exempt","No salary cut for absence",sal.exempt||s.salaryCutExempt)}${ch("mgmt","Management",s.mgmt)}${ch("noLeave","No leave basis",s.noLeave)}</div>
     <h3 class="ph" style="padding:6px 0 0">Salary structure &amp; deductions</h3><div class="form">${fld("Basic",num("basic",sal.basic,"for PF"))}${fld("HRA",num("hra",sal.hra))}${fld("DA",num("da",sal.da))}${fld("TDS per month",num("tds",sal.tds,"0"))}${fld("Advance recovery per month",num("instal",sal.instal,"full balance"))}${fld("Loan EMI per month",num("loanEmi",sal.loanEmi,"0"))}</div>
     <div class="row" style="gap:16px">${ch("pf","PF (12%)",sal.pf)}${ch("esic","ESIC (0.75%)",sal.esic)}${ch("pt","Professional tax (WB)",sal.pt!==false)}</div>
@@ -53,7 +55,8 @@ function staffDrawer(id){const s=id?J.get("accounts",id):{kind:"staff",active:tr
       n.sal={...sal,basic:+fd.basic||0,hra:+fd.hra||0,da:+fd.da||0,tds:+fd.tds||0,instal:fd.instal===""?"":+fd.instal,loanEmi:+fd.loanEmi||0,weekOff:fd.weekOff,start:fd.start,end:fd.end,rest:fd.rest,basis:fd.basis,exempt:fd.exempt,pf:fd.pf,esic:fd.esic,pt:fd.pt};
       if(!hist){if(!fd.doj)return "Enter the joining date.";const g=+fd.gross||0;n.baseCode=s.baseCode||code;n.stints=[{join:fd.doj,exit:"",desig:fd.desig,dept:fd.dept,startSal:g,endSal:g}];n.revisions=[{date:fd.doj,kind:"join",event:"Starting salary",from:0,to:g,desig:fd.desig,reason:"Initial appointment",seq:1}]}
       else{const st=J.H.stints(s);st[st.length-1]={...st[st.length-1],desig:fd.desig,dept:fd.dept};n.stints=st}
-      await J.store.put("accounts",J.H.sync(n));toast("Saved "+name)}})}
+      const days=DOW.map((_,i)=>i).filter(i=>fd["td"+i]);n.terms={fixed:!!fd.tfixed,auto:!!fd.tauto,days:days.length?days:[0,1,2,3,4,5,6]};if(n.terms.fixed){n.sal.exempt=true;n.salaryCutExempt=true}
+      const before=JSON.stringify(s.terms||{});await J.store.put("accounts",J.H.sync(n));toast("Saved "+name);if(id&&before!==JSON.stringify(n.terms)&&n.terms.auto){const c=await J.H.fillAttendance(today(),[n.id],true);if(c)toast(c+" days re-marked to the service terms");J.H.syncSoon("service terms changed for "+name)}}})}
 J.act("newStaff",()=>staffDrawer(null));J.act("editStaff",el=>{J.closeDrawer();staffDrawer(el.dataset.x)});
 J.act("staffProfile",el=>{const s=J.get("accounts",el.dataset.x);const b=J.balanceOf(s.id);const notes=(Array.isArray(s.notes)?s.notes:[]).slice().reverse();const act=s.active!==false;
   J.drawer({title:s.name,wide:true,body:`<div class="row" style="gap:12px"><span class="avatar" style="width:64px;height:64px;font-size:20px">${s.img?`<img src="${esc(s.img)}" alt="">`:esc(J.initials(s.name))}</span><div><div><b class="mono">${esc(s.code||"")}</b> ${esc([s.desig,s.dept].filter(Boolean).join(" · "))}</div><div>${b>0.004?`Advance outstanding ${money(b)}`:b<-0.004?`Salary due ${money(-b)}`:"Ledger settled"}</div></div></div>
@@ -81,7 +84,7 @@ function vAttendance(){const U=ui();const d=U.attDate||today();const m=d.slice(0
   ${matrix(m,list)}`}
 function matrix(m,list){const D=daysInMonth(m);const days=att(m);
   return `<section class="panel"><h2>${monthLabel(m)} attendance matrix</h2><div class="tbl-wrap"><table class="mx"><thead><tr><th style="text-align:left">Staff</th>${[...Array(D)].map((_,i)=>`<th style="padding:3px 2px;text-align:center">${i+1}</th>`).join("")}<th>P</th><th>A</th><th>Late</th></tr></thead><tbody>
-  ${list.map(s=>{let P=0,A=0,L=0;const cells=[...Array(D)].map((_,i)=>{const date=m+"-"+pad(i+1);const r=days[String(i+1)]?.[s.id];const k=r?.s||(weekOff(s,date)?"W":"");if(k==="P"||k==="WW")P++;if(k==="H")P+=0.5;if(k==="A")A++;if(lateMins(s,r))L++;return `<td class="st-${k}" title="${date} ${ST[k]||"unmarked"}">${k==="WW"?"2×":k||"·"}</td>`}).join("");return `<tr><td style="text-align:left;white-space:nowrap">${esc(s.name)}</td>${cells}<td>${P}</td><td>${A}</td><td>${L}</td></tr>`}).join("")}
+  ${list.map(s=>{let P=0,A=0,L=0;const cells=[...Array(D)].map((_,i)=>{const date=m+"-"+pad(i+1);const r=days[String(i+1)]?.[s.id];const k=r?.s||(weekOff(s,date)?"W":"");if(k==="P"||k==="WW")P++;if(k==="H")P+=0.5;if(k==="A")A++;if(lateMins(s,r))L++;return `<td class="st-${k}" title="${date} ${ST[k]||"unmarked"}">${k==="WW"?"2×":k==="O"?"–":k||"·"}</td>`}).join("");return `<tr><td style="text-align:left;white-space:nowrap">${esc(s.name)}</td>${cells}<td>${P}</td><td>${A}</td><td>${L}</td></tr>`}).join("")}
   </tbody></table></div></section>`}
 J.act("attSet",async el=>{const [sid,f]=el.dataset.x.split("|");const d=ui().attDate||today();const m=d.slice(0,7),day=String(+d.slice(8));let v=el.value;if(f==="ot")v=+v||0;
   const prev=dayStatus(sid,d)||{};const patch={days:{[day]:{[sid]:{[f]:v,auto:null}}}};if(f==="in"&&!prev.s)patch.days[day][sid].s="P";if(await J.safe(()=>J.store.patch("attendance",m,patch))){const nm=J.get("accounts",sid)?.name||"";const lbl={s:"status",in:"in time",out:"out time",ot:"OT",st:"shift start"}[f]||f;
@@ -90,11 +93,11 @@ J.act("allPresent",async()=>{const d=ui().attDate||today();const m=d.slice(0,7),
 J.act("attImport",()=>J.openImport("att"));
 
 // ---------- Payroll ----------
-function calc(s,m,ov={}){const D=daysInMonth(m),HH=J.H,hist=HH.stints(s).length>0;const basis=s.sal?.basis==="30_days"?30:D;const exempt=!!(s.sal?.exempt||s.salaryCutExempt);
+function calc(s,m,ov={}){const D=daysInMonth(m),HH=J.H,hist=HH.stints(s).length>0;const basis=s.sal?.basis==="30_days"?30:D;const exempt=!!(s.sal?.exempt||s.salaryCutExempt||s.terms?.fixed);
   const gNow=hist?HH.salaryOn(s,J.monthEnd(m)<today()?J.monthEnd(m):today()):(+s.sal?.gross||0);const gross=gNow,perDay=gNow/basis;const days=att(m);const last=m===today().slice(0,7)?+today().slice(8):D;const unmarkedPresent=J.settings().unmarkedPresent!==false;
   let paid=0,P=0,H_=0,A=0,L=0,W=0,WW=0,un=0,late=0,lateMin=0,ot=0,svc=0,accrue=0;
   for(let i=1;i<=D;i++){const date=m+"-"+pad(i);if(i>last)continue;if(hist?!HH.inService(s,date):(s.doj&&date<s.doj))continue;svc++;const sal=hist?HH.salaryOn(s,date):gross;const r=days[String(i)]?.[s.id];let k=r?.s;if(!k){if(weekOff(s,date))k="W";else{un++;k=unmarkedPresent?"P":"A"}}
-    let w=k==="P"||k==="L"||k==="W"?1:k==="H"?0.5:k==="WW"?2:0;if(k==="P")P++;else if(k==="H")H_++;else if(k==="A")A++;else if(k==="L")L++;else if(k==="W")W++;else if(k==="WW")WW++;if(exempt)w=1;
+    if(k==="O"){k="W"}let w=k==="P"||k==="L"||k==="W"?1:k==="H"?0.5:k==="WW"?2:0;if(k==="P")P++;else if(k==="H")H_++;else if(k==="A")A++;else if(k==="L")L++;else if(k==="W")W++;else if(k==="WW")WW++;if(exempt)w=1;
     paid+=w;accrue+=sal/D-(1-w)*sal/basis;const lm=lateMins(s,r);if(lm){late++;lateMin+=lm}ot+=+r?.ot||0}
   const H=H_;const earned=r2(Math.max(0,accrue)),otPay=r2(ot*(perDay/8)*(+J.settings().otRate||1)),bonus=+ov.bonus||0,penalty=+ov.penalty||0;const lateDed=ov.late!=null&&ov.late!==""?+ov.late:r2(late*(+J.settings().lateDed||0));const grossPay=r2(earned+otPay+bonus);const grossEarned=r2(grossPay-penalty-lateDed);
   const basicE=r2((+s.sal?.basic||gross)*Math.min(paid,D)/D);const pf=s.sal?.pf?r2(Math.min(basicE,15000)*0.12):0;const esic=s.sal?.esic&&gross<=21000?Math.ceil(grossEarned*0.0075):0;const pt=s.sal?.pt!==false?PT_WB(grossEarned):0;const tds=ov.tds!=null&&ov.tds!==""?+ov.tds:(+s.sal?.tds||0);
