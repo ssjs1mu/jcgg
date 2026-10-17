@@ -3,7 +3,7 @@
 const J=window.J,{S,esc,fmtDate,today,addDays,toast,uid,fld,txt,num,selO}=J;
 const R=J.R={};
 const DEF={
-  shifts:{S1:{label:"Shift 1 (morning)",segs:[["06:00","11:30"],["17:30","20:00"]]},S2:{label:"Shift 2 (day)",segs:[["11:30","17:30"],["19:30","23:30"]]}},
+  shifts:{S1:{label:"Shift 1 (morning)",segs:[["06:00","11:30"],["17:30","22:00"]]},S2:{label:"Shift 2 (day)",segs:[["11:30","17:30"],["19:30","23:30"]]}},
   otAfter:10,                 // hours worked in a day beyond which overtime starts
   slabs:[[0,15,0],[16,30,0.25],[31,60,0.5],[61,120,0.75],[121,9999,1]],   // minutes late from–to → fraction of the daily rate
   woFirstMonths:1,            // first joining: no weekly off for this many months
