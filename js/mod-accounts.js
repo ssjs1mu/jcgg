@@ -35,7 +35,8 @@ const particulars=v=>({dr:[...new Set(v.lines.filter(l=>l.dr>0).map(l=>accName(l
 const vAmount=v=>r2((v.lines||[]).reduce((s,l)=>s+(+l.dr||0),0));
 Object.assign(J,{accName,balanceOf,balanceBefore,movement,accsOf,sysAcc,isCleared,against,vAmount});
 
-function optAcc(kinds,sel,blank){const groups={};for(const a of accsOf(kinds))(groups[KINDS[a.kind]?.g||"Other"]??=[]).push(a);
+let OPT_MONTH=null;
+function optAcc(kinds,sel,blank){const groups={};let list=accsOf(kinds);if(OPT_MONTH&&kinds.includes("staff")&&J.staffInMonth){const inM=J.staffInMonth(OPT_MONTH);list=[...list.filter(a=>a.kind!=="staff"),...inM];const cur=sel&&J.get("accounts",sel);if(cur?.kind==="staff"&&!list.includes(cur))list.push(cur)}for(const a of list)(groups[KINDS[a.kind]?.g||"Other"]??=[]).push(a);
   return (blank!=null?`<option value="">${esc(blank)}</option>`:"")+Object.keys(groups).sort((a,b)=>GROUP_ORDER.indexOf(a)-GROUP_ORDER.indexOf(b)).map(g=>`<optgroup label="${esc(g)}">${groups[g].map(a=>`<option value="${a.id}" ${a.id===sel?"selected":""}>${esc(a.name)}</option>`).join("")}</optgroup>`).join("")}
 const selA=(n,kinds,v,blank)=>`<select name="${n}" id="f-${n}">${optAcc(kinds,v,blank)}</select>`;
 J.optAcc=optAcc;J.selA=selA;
@@ -76,7 +77,8 @@ function defaults(type){const f={date:today()};const cash=sysAcc("cash")?.id||ac
   if(type==="receipt")f.into=accsOf(["bank"])[0]?.id||cash;if(type==="contra"){f.from=cash;f.to=accsOf(["bank"])[0]?.id||""}
   if(type==="salary"){f.head=sysAcc("salary")?.id||"";const d=new Date();d.setMonth(d.getMonth()-1);f.month=iso(d).slice(0,7);f.paid=""}
   if(type==="advance"||type==="staffloan")f.from=cash;if(type==="journal")f.rows=[{a:"",dr:"",cr:""},{a:"",dr:"",cr:""},{a:"",dr:"",cr:""}];return f}
-function entryFields(type,f){const allK=Object.keys(KINDS);const common=[fld("Date",`<input type="date" name="date" id="f-date" value="${esc(f.date)}">`)];
+function entryFields(type,f){OPT_MONTH=(f.date||today()).slice(0,7);try{return entryFields0(type,f)}finally{OPT_MONTH=null}}
+function entryFields0(type,f){const allK=Object.keys(KINDS);const common=[fld("Date",`<input type="date" name="date" id="f-date" data-ach="entryDate" value="${esc(f.date)}">`)];
   const narr=fld("Narration",txt("narr",f.narr,"What was this for?"),"wide");const ref=(l="Bill / ref no.")=>fld(l,txt("ref",f.ref));
   switch(type){
     case "expense":return [...common,fld("Expense head",selA("head",["expense"],f.head,"Choose head…")),fld("Paid from",`<select name="from" id="f-from">${optAcc(["cash","bank","card"],f.from)}<optgroup label="Not paid yet — on vendor's account">${accsOf(["vendor"]).map(a=>`<option value="${a.id}" ${a.id===f.from?"selected":""}>${esc(a.name)}</option>`).join("")}</optgroup></select>`),fld("Amount (before GST)",num("amount",f.amount)),fld("GST paid",num("gst",f.gst)),ref(),narr];
@@ -125,6 +127,7 @@ J.startEdit=id=>{const v=J.get("vouchers",id);if(!v)return;if(v.src&&J.openSrc?.
   S.ui.returnTab=S.route.tab;ui().entry={type:v.type,f:{...defaults(v.type),...v.f,date:v.date,narr:v.narr,ref:v.ref},editId:id};S.hold=null;J.go("accounts","entry")};
 J.openSrc={};
 J.act("etype",el=>{readForm();const E=ui().entry;E.type=el.dataset.x;E.f={...defaults(E.type),date:E.f.date||today()};S.hold=null;J.render()});
+J.act("entryDate",()=>{readForm();S.hold=null;J.render()});
 J.act("saveAnother",()=>saveEntry(true));
 J.act("cancelEdit",()=>{ui().entry={type:"expense",f:{},editId:null};S.hold=null;J.go("accounts",S.ui.returnTab||"book")});
 J.act("jrow",()=>{const f=readForm();f.rows=[...(f.rows||[]),{a:"",dr:"",cr:""}];S.hold=null;J.render()});
