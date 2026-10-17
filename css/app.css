@@ -259,3 +259,4 @@ img{max-width:100%}[hidden]{display:none!important}
 .lb-body{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:12px}
 .lb-img{width:auto;max-width:100%;height:auto;background:#fff}
 .lb-pdf{width:min(1100px,100%);height:100%;min-height:80vh;border:0;background:#fff}
+.lb-bar .btn{color:#111;background:#fff;text-decoration:none}
