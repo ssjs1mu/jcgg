@@ -138,7 +138,7 @@ function vMonth(){const U=ui();if(!U.month){const d=new Date();d.setDate(1);d.se
 J.act("postKotCons",async()=>{const U=ui();const c=consumption(U.month);const lines=Object.entries(c.need).map(([item,q])=>({item,qty:r3(q)}));const date=J.monthEnd(U.month)>today()?today():J.monthEnd(U.month);
   await J.safe(()=>J.store.put("moves",{id:"kotcons-"+U.month,type:"consume",date,m:date.slice(0,7),dept:"Main Kitchen",note:"KOT recipe consumption · "+monthLabel(U.month),lines,createdAt:Date.now()}),"Stock reduced for "+lines.length+" ingredients")});
 
-J.mod({id:"kot",label:"KOT & Tables",group:"Operations",icon:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/>',sub:"Floor, kitchen tickets and billing. Settled bills post straight to sales.",
+if(0)J.mod({id:"kot",label:"KOT & Tables",group:"Operations",icon:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/>',sub:"Floor, kitchen tickets and billing. Settled bills post straight to sales.",
   badge:()=>running().length||0,
   tabs:[["floor","Floor",vFloor],["kds","Kitchen display",vKds],["book","KOT book",vBook],["menu","Menu",vMenu],["month","Month-end transfer",vMonth]]});
 })();

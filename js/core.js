@@ -51,7 +51,7 @@ Object.assign(J,{fld,txt,num,dateI,selO,area,formData});
 
 // ---------- collections & state ----------
 // monthly collections are partitioned by field `m` (YYYY-MM) and subscribed per month
-const COLS={accounts:"full",vouchers:"monthly",items:"full",moves:"monthly",menu:"full",kotday:"monthly",recipes:"full",contacts:"full",attendance:"full",trades:"full",ohlc:"full",watch:"full",assets:"full",policies:"full",payroll:"full",meta:"full"};
+const COLS={accounts:"full",vouchers:"monthly",items:"full",moves:"monthly",menu:"full",kotday:"monthly",recipes:"full",contacts:"full",attendance:"full",trades:"full",ohlc:"full",watch:"full",assets:"full",policies:"full",payroll:"full",clients:"full",meta:"full"};
 const S={c:{},monthDocs:{},route:{mod:"home",tab:""},mode:"connecting",ready:false,ui:{},err:null,me:{role:"Super Admin",id:null,name:""}};
 for(const k in COLS)S.c[k]=new Map();S.c.kots=new Map();
 // kots are stored grouped per day in `kotday` (one record per day keeps the book far under the 25,000-record cap)
@@ -138,7 +138,7 @@ J.gate=(kind,msg)=>{const g=$("#gate");if(!kind){g.hidden=true;document.querySel
 
 // ---------- roles ----------
 const ROLES=["Super Admin","Admin","Manager","Accountant","Chef","Auditor"];
-const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","accounts","inventory","kot","staff","directory","assets","insurance"],"Accountant":["home","accounts","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kot","directory"],"Auditor":"*"};
+const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","accounts","inventory","kitchen","kot","staff","directory","assets","insurance"],"Accountant":["home","accounts","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*"};
 J.ROLES=ROLES;
 function myRole(){if(S.me.owner)return "Super Admin";return J.get("meta","roles")?.map?.[S.me.email]||"Manager"}
 J.myRole=myRole;
@@ -158,7 +158,7 @@ function renderRail(){
   let h="";for(const g of GROUPS){const ms=vis.filter(m=>m.group===g);if(!ms.length)continue;if(g!=="Home")h+=`<div class="ng">${g}</div>`;
     h+=ms.map(m=>{const b=m.badge?.();return `<button data-go="${m.id}" ${S.route.mod===m.id?'aria-current="page"':""}>${ICON(m.icon)}<span>${esc(m.label)}</span>${b?`<span class="count">${b}</span>`:""}</button>`}).join("")}
   $("#nav").innerHTML=h;const who=$("#who");if(who&&S.me.email)who.innerHTML=(S.me.photo?`<img src="${esc(S.me.photo)}" alt="" referrerpolicy="no-referrer">`:"")+`<span>${esc((S.me.name||S.me.email).split(" ")[0])} · ${esc(myRole())}</span>`;$("#bizName").textContent=J.settings().business||"JCGG";
-  $("#mnav").innerHTML=[["home","Home"],["accounts","Accounts"],["inventory","Stock"],["kot","KOT"]].filter(([k])=>J.canSee(k)).map(([k,l])=>{const m=MODS.find(x=>x.id===k);return `<button data-go="${k}" ${S.route.mod===k?'aria-current="page"':""}>${ICON(m.icon)}<span>${l}</span></button>`}).join("")+`<button data-a="modmenu">${ICON('<path d="M4 6h16M4 12h16M4 18h16"/>')}<span>More</span></button>`;
+  $("#mnav").innerHTML=[["home","Home"],["accounts","Accounts"],["inventory","Stock"],["kot","Staff KOT"]].filter(([k])=>J.canSee(k)).map(([k,l])=>{const m=MODS.find(x=>x.id===k);return `<button data-go="${k}" ${S.route.mod===k?'aria-current="page"':""}>${ICON(m.icon)}<span>${l}</span></button>`}).join("")+`<button data-a="modmenu">${ICON('<path d="M4 6h16M4 12h16M4 18h16"/>')}<span>More</span></button>`;
 }
 J.render=()=>{
   document.documentElement.classList.toggle("ro",J.readOnly());
