@@ -181,7 +181,7 @@ J.holdRefresh=[];
 
 // ---------- drawers ----------
 J.drawer=({title,body,submit="Save",onSubmit,danger,wide})=>{
-  $("#overlay").innerHTML=`<div class="drawer-bg" data-a="closeDrawer"><form class="drawer" id="drawerForm" role="dialog" aria-label="${esc(title)}" ${wide?'style="width:min(760px,100%)"':""}><h2>${esc(title)}</h2>${body}<div id="drawerErr"></div><div class="row" style="margin-top:4px">${onSubmit?`<button class="btn primary w" type="submit">${esc(submit)}</button>`:""}<button class="btn" type="button" data-a="closeDrawer">${onSubmit?"Cancel":"Close"}</button>${danger?`<span style="margin-left:auto">${danger}</span>`:""}</div></form></div>`;
+  $("#overlay").innerHTML=`<div class="drawer-bg" data-a="closeDrawer"><form class="drawer" id="drawerForm" role="dialog" aria-label="${esc(title)}" ${wide?'style="width:min(1100px,100%)"':""}><h2>${esc(title)}</h2>${body}<div id="drawerErr"></div><div class="row" style="margin-top:4px">${onSubmit?`<button class="btn primary w" type="submit">${esc(submit)}</button>`:""}<button class="btn" type="button" data-a="closeDrawer">${onSubmit?"Cancel":"Close"}</button>${danger?`<span style="margin-left:auto">${danger}</span>`:""}</div></form></div>`;
   const f=$("#drawerForm");f.querySelector("input,select,textarea")?.focus();
   f.addEventListener("submit",async ev=>{ev.preventDefault();if(!onSubmit)return;const fd=formData(f);const btn=f.querySelector("button[type=submit]");btn.disabled=true;
     try{const r=await onSubmit(fd,f);if(r===false){btn.disabled=false;return}if(typeof r==="string"){J.drawerErr(r);btn.disabled=false;return}J.closeDrawer();J.render()}catch(e){btn.disabled=false;J.drawerErr(e.message||("Could not save ("+(e.code||"error")+")"))}});
