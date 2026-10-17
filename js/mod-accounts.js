@@ -1,0 +1,296 @@
+/* Accounts: chart of accounts, double-entry vouchers, day book, ledgers, reconciliation, reports */
+(()=>{
+const J=window.J,{S,esc,inr,inr0,r2,money,money0,bal,fmtDate,monthLabel,today,addDays,parseISO,iso,fyOf,uid,monthsBetween,periodRange,periodSeg,fld,txt,num,selO,toast}=J;
+const KINDS={
+  cash:{l:"Cash",g:"Cash & Bank"},bank:{l:"Bank account",g:"Cash & Bank"},card:{l:"Credit card",g:"Cash & Bank"},
+  aggregator:{l:"Aggregator / wallet",g:"Receivables"},customer:{l:"Customer",g:"Receivables"},
+  vendor:{l:"Vendor / supplier",g:"Payables"},staff:{l:"Staff",g:"Staff"},
+  expense:{l:"Expense head",g:"Expenses"},income:{l:"Income head",g:"Income"},
+  tax:{l:"Tax / statutory",g:"Duties & Taxes"},loan:{l:"Loan",g:"Loans"},
+  capital:{l:"Capital / owner",g:"Capital"},asset:{l:"Fixed asset / deposit",g:"Assets"},invest:{l:"Investment",g:"Investments"},stock:{l:"Stock / inventory",g:"Assets"},suspense:{l:"Suspense / unclassified",g:"Suspense"}};
+const GROUP_ORDER=["Cash & Bank","Receivables","Payables","Staff","Expenses","Income","Duties & Taxes","Loans","Capital","Assets","Investments","Suspense"];
+const RECON_KINDS=["bank","card","aggregator","vendor","customer","staff","loan"];
+const MONEY=["cash","bank","card"];
+const TYPES={expense:{l:"Expense",d:"Rent, power, gas, repairs",p:"EX"},purchase:{l:"Purchase bill",d:"Supplier bill, paid or credit",p:"PU"},payment:{l:"Payment",d:"Pay a vendor, staff or other",p:"PY"},
+  sale:{l:"Sale",d:"Dine-in, takeaway, delivery",p:"SL"},receipt:{l:"Receipt",d:"Money in from a party",p:"RC"},contra:{l:"Contra",d:"Cash ↔ bank, card bill",p:"CT"},
+  salary:{l:"Salary",d:"Salary earned",p:"SA"},advance:{l:"Staff advance",d:"Advance to staff",p:"AD"},journal:{l:"Journal",d:"Any balanced adjustment",p:"JV"},
+  debitnote:{l:"Debit note",d:"Return to vendor",p:"DN",hide:1},depreciation:{l:"Depreciation",d:"",p:"DP",hide:1},invest:{l:"Investment",d:"",p:"IV",hide:1}};
+Object.assign(J,{KINDS,GROUP_ORDER,RECON_KINDS,MONEY,TYPES});
+
+// ---- derived postings ----
+J.onDerive(D=>{const post=new Map();for(const a of S.c.accounts.keys())post.set(a,[]);
+  const vs=J.all("vouchers").sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.createdAt||0)-(b.createdAt||0));
+  for(const v of vs)for(const ln of v.lines||[]){if(!post.has(ln.a))post.set(ln.a,[]);post.get(ln.a).push({v,dr:+ln.dr||0,cr:+ln.cr||0,date:v.date})}
+  D.post=post;D.vs=vs});
+const accName=id=>J.get("accounts",id)?.name||"(deleted ledger)";
+const balanceOf=(id,upto)=>{let b=+(J.get("accounts",id)?.opening||0);for(const p of J.D.post?.get(id)||[]){if(upto&&p.date>upto)break;b+=p.dr-p.cr}return r2(b)};
+const balanceBefore=(id,from)=>{let b=+(J.get("accounts",id)?.opening||0);for(const p of J.D.post?.get(id)||[]){if(p.date>=from)break;b+=p.dr-p.cr}return r2(b)};
+const movement=(id,from,to)=>{let dr=0,cr=0;for(const p of J.D.post?.get(id)||[]){if(p.date<from)continue;if(p.date>to)break;dr+=p.dr;cr+=p.cr}return {dr:r2(dr),cr:r2(cr)}};
+const accsOf=kinds=>J.all("accounts").filter(a=>kinds.includes(a.kind)&&a.active!==false).sort((a,b)=>a.name.localeCompare(b.name));
+const sysAcc=k=>J.all("accounts").find(a=>a.sys===k);
+const isCleared=(v,acc,asOf)=>{const d=v.rec?.[acc];return !!d&&(!asOf||d<=asOf)};
+const unclearedCount=id=>{let n=0;for(const p of J.D.post?.get(id)||[])if(!isCleared(p.v,id))n++;return n};
+const against=(v,acc)=>[...new Set((v.lines||[]).filter(l=>l.a!==acc).map(l=>accName(l.a)))].join(", ");
+const particulars=v=>({dr:[...new Set(v.lines.filter(l=>l.dr>0).map(l=>accName(l.a)))],cr:[...new Set(v.lines.filter(l=>l.cr>0).map(l=>accName(l.a)))]});
+const vAmount=v=>r2((v.lines||[]).reduce((s,l)=>s+(+l.dr||0),0));
+Object.assign(J,{accName,balanceOf,balanceBefore,movement,accsOf,sysAcc,isCleared,against,vAmount});
+
+function optAcc(kinds,sel,blank){const groups={};for(const a of accsOf(kinds))(groups[KINDS[a.kind]?.g||"Other"]??=[]).push(a);
+  return (blank!=null?`<option value="">${esc(blank)}</option>`:"")+Object.keys(groups).sort((a,b)=>GROUP_ORDER.indexOf(a)-GROUP_ORDER.indexOf(b)).map(g=>`<optgroup label="${esc(g)}">${groups[g].map(a=>`<option value="${a.id}" ${a.id===sel?"selected":""}>${esc(a.name)}</option>`).join("")}</optgroup>`).join("")}
+const selA=(n,kinds,v,blank)=>`<select name="${n}" id="f-${n}">${optAcc(kinds,v,blank)}</select>`;
+J.optAcc=optAcc;J.selA=selA;
+
+// ---- shared posting API for other modules ----
+J.ensureAcc=async(name,kind,sys)=>{let a=sys?sysAcc(sys):null;if(!a)a=J.all("accounts").find(x=>x.name.toLowerCase()===name.toLowerCase());if(a)return a.id;
+  const id=(sys||kind)+"-"+uid();await J.store.put("accounts",{id,name,kind,opening:0,active:true,...(sys?{sys}:{})});S.c.accounts.set(id,{id,name,kind,opening:0,active:true,...(sys?{sys}:{})});return id};
+function nextNo(type,date,keep){const fy=fyOf(date),p=TYPES[type]?.p||"JV";if(keep&&keep.startsWith(p+"/"+fy.short+"/"))return keep;const pre=p+"/"+fy.short+"/";let mx=0;for(const v of S.c.vouchers.values())if(v.no?.startsWith(pre))mx=Math.max(mx,+v.no.slice(pre.length)||0);return pre+String(mx+1).padStart(4,"0")}
+J.postVoucher=async spec=>{
+  const lines=(spec.lines||[]).filter(l=>l.a&&(+l.dr||+l.cr)).map(l=>({a:l.a,dr:r2(l.dr),cr:r2(l.cr)}));
+  const dr=lines.reduce((s,l)=>s+l.dr,0),cr=lines.reduce((s,l)=>s+l.cr,0);
+  if(Math.abs(dr-cr)>0.01)throw new Error("Accounting entry does not balance (Dr "+money(dr)+" vs Cr "+money(cr)+").");
+  if(!lines.length)throw new Error("Nothing to post.");
+  const old=spec.id?J.get("vouchers",spec.id):null;
+  const rec={...(spec.rec||{})};if(old?.rec)for(const [a,d] of Object.entries(old.rec))if(d&&lines.some(l=>l.a===a))rec[a]=d;
+  const v={id:spec.id||spec.newId||uid(),no:nextNo(spec.type,spec.date,old?.no),type:spec.type,date:spec.date,m:spec.date.slice(0,7),lines,party:spec.party||"",narr:spec.narr||"",ref:spec.ref||"",f:spec.f||{},rec,gst:spec.gst||null,src:spec.src||null,imp:spec.imp||old?.imp||"",createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()};
+  await J.store.put("vouchers",v);S.c.vouchers.set(v.id,v);return v};
+J.deleteVoucher=async id=>{if(id&&J.get("vouchers",id))await J.store.del("vouchers",id)};
+
+// ---- seed ----
+const DEFAULT_COA=[["cash-in-hand","Cash in Hand","cash","cash"],["petty-cash","Petty Cash","cash"],["bank-current","Bank — Current A/c","bank"],["zomato","Zomato Settlement","aggregator"],["swiggy","Swiggy Settlement","aggregator"],
+ ["exp-purchases","Kitchen Purchases (Raw Material)","expense","purch"],["exp-salary","Staff Salary","expense","salary"],["exp-rent","Rent","expense"],["exp-power","Electricity (CESC)","expense"],["exp-gas","Gas / LPG","expense"],["exp-repairs","Repairs & Maintenance","expense","repairs"],["exp-cleaning","Cleaning & Housekeeping","expense"],["exp-packaging","Packaging Material","expense"],["exp-staffmeals","Staff Welfare & Meals","expense"],["exp-marketing","Marketing & Promotion","expense"],["exp-charges","Bank & Aggregator Charges","expense"],["exp-misc","Miscellaneous Expenses","expense"],
+ ["inc-dinein","Dine-in Sales","income","sales"],["inc-takeaway","Takeaway Sales","income"],["inc-delivery","Delivery Sales","income"],["inc-party","Banquet / Party Sales","income"],["tax-igst","Input GST","tax","igst"],["tax-ogst","Output GST","tax","ogst"],["capital","Owner's Capital / Drawings","capital"]];
+J.seedCloud=async()=>{for(const [id,name,kind,sys] of DEFAULT_COA)await J.store.put("accounts",{id,name,kind,opening:0,active:true,...(sys?{sys}:{})});if(!J.get("meta","settings"))await J.store.put("meta",{id:"settings",business:"JCGG",startMonth:"2026-04"})};
+J.seedLocal=()=>{for(const [id,name,kind,sys] of DEFAULT_COA)S.c.accounts.set(id,{id,name,kind,opening:0,active:true,...(sys?{sys}:{})});J.store.put("meta",{id:"settings",business:"JCGG",startMonth:"2026-04"})};
+
+// ======== views ========
+const ui=()=>J.ui("acc",{book:{period:"month",type:"",acc:"",q:""},ledger:{acc:"",kind:"",q:"",period:"fy"},recon:{acc:"",date:"",bal:"",side:"dr",matches:null,paste:""},report:{tab:"tb",asOf:"",period:"fy"},entry:{type:"expense",f:{},editId:null}});
+
+// ----- Entry -----
+function defaults(type){const f={date:today()};const cash=sysAcc("cash")?.id||accsOf(["cash"])[0]?.id||"";
+  if(type==="expense")f.from=cash;if(type==="purchase"){f.head=sysAcc("purch")?.id||"";f.paid=""}
+  if(type==="payment")f.from=cash;if(type==="sale"){f.head=sysAcc("sales")?.id||"";f.into=cash;f.rate="5"}
+  if(type==="receipt")f.into=accsOf(["bank"])[0]?.id||cash;if(type==="contra"){f.from=cash;f.to=accsOf(["bank"])[0]?.id||""}
+  if(type==="salary"){f.head=sysAcc("salary")?.id||"";const d=new Date();d.setMonth(d.getMonth()-1);f.month=iso(d).slice(0,7);f.paid=""}
+  if(type==="advance")f.from=cash;if(type==="journal")f.rows=[{a:"",dr:"",cr:""},{a:"",dr:"",cr:""},{a:"",dr:"",cr:""}];return f}
+function entryFields(type,f){const allK=Object.keys(KINDS);const common=[fld("Date",`<input type="date" name="date" id="f-date" value="${esc(f.date)}">`)];
+  const narr=fld("Narration",txt("narr",f.narr,"What was this for?"),"wide");const ref=(l="Bill / ref no.")=>fld(l,txt("ref",f.ref));
+  switch(type){
+    case "expense":return [...common,fld("Expense head",selA("head",["expense"],f.head,"Choose head…")),fld("Paid from",`<select name="from" id="f-from">${optAcc(["cash","bank","card"],f.from)}<optgroup label="Not paid yet — on vendor's account">${accsOf(["vendor"]).map(a=>`<option value="${a.id}" ${a.id===f.from?"selected":""}>${esc(a.name)}</option>`).join("")}</optgroup></select>`),fld("Amount (before GST)",num("amount",f.amount)),fld("GST paid",num("gst",f.gst)),ref(),narr];
+    case "purchase":return [...common,fld("Vendor",selA("vendor",["vendor"],f.vendor,"Choose vendor…")),fld("Booked under",selA("head",["expense","asset"],f.head,"Choose head…")),fld("Bill amount (before GST)",num("amount",f.amount)),fld("GST on bill",num("gst",f.gst)),ref("Vendor bill no."),fld("Due date",`<input type="date" name="due" id="f-due" value="${esc(f.due||"")}">`),fld("Paid now from",selA("paid",["cash","bank","card"],f.paid,"Not paid — on credit")),narr];
+    case "payment":return [...common,fld("Paid to",selA("to",allK.filter(k=>!MONEY.includes(k)),f.to,"Choose ledger…")),fld("Paid from",selA("from",MONEY,f.from)),fld("Amount",num("amount",f.amount)),fld("Mode / UTR / cheque",txt("ref",f.ref)),narr];
+    case "sale":return [...common,fld("Sales head",selA("head",["income"],f.head,"Choose head…")),fld("Received into",selA("into",["cash","bank","card","aggregator","customer"],f.into)),fld("Total incl. GST",num("amount",f.amount)),fld("GST included",selO("rate",[["0","No GST"],["5","5%"],["12","12%"],["18","18%"]],f.rate)),ref("Bill / settlement ref"),narr];
+    case "receipt":return [...common,fld("Received from",selA("from",allK.filter(k=>!MONEY.includes(k)),f.from,"Choose ledger…")),fld("Into",selA("into",MONEY,f.into)),fld("Amount",num("amount",f.amount)),fld("Mode / UTR",txt("ref",f.ref)),narr];
+    case "contra":return [...common,fld("From",selA("from",MONEY,f.from)),fld("To",selA("to",MONEY,f.to)),fld("Amount",num("amount",f.amount)),ref("Slip / ref"),narr];
+    case "salary":return [...common,fld("Staff member",selA("staff",["staff"],f.staff,"Choose staff…")),fld("Salary for month",`<input type="month" name="month" id="f-month" value="${esc(f.month)}">`),fld("Salary earned (gross)",num("amount",f.amount)),fld("Booked under",selA("head",["expense"],f.head)),fld("Pay now from",selA("paid",MONEY,f.paid,"Not paid yet")),fld("Pay now amount",num("paidAmt",f.paidAmt,"Full net")),narr];
+    case "advance":return [...common,fld("Staff member",selA("staff",["staff"],f.staff,"Choose staff…")),fld("Paid from",selA("from",MONEY,f.from)),fld("Amount",num("amount",f.amount)),narr];
+    case "journal":return [...common,ref("Reference"),`<div class="wide"><div class="tbl-wrap"><table class="lines-tbl"><thead><tr><th>Ledger</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead><tbody>${(f.rows||[]).map((r,i)=>`<tr><td style="min-width:200px"><select name="jr-a-${i}" id="f-jr-a-${i}">${optAcc(allK,r.a,"—")}</select></td><td style="min-width:110px">${num("jr-dr-"+i,r.dr,"")}</td><td style="min-width:110px">${num("jr-cr-"+i,r.cr,"")}</td></tr>`).join("")}</tbody></table></div><button type="button" class="btn small" data-a="jrow" style="margin-top:8px">Add line</button></div>`,narr];
+  }}
+function build(type,f,editId){const A=+f.amount||0,G=+f.gst||0,L=[];const add=(a,dr,cr)=>{if(a&&(dr||cr))L.push({a,dr:r2(dr),cr:r2(cr)})};let party="",e="",gst=null;
+  if(!f.date)e="Pick a date.";else if(f.date<(J.settings().startMonth||"2026-04")+"-01")e="This date is before the book start month ("+monthLabel(J.settings().startMonth)+"). Change it in Settings if you need older entries.";
+  const need=(c,m)=>{if(!e&&!c)e=m};
+  switch(type){
+    case "expense":need(f.head,"Choose an expense head.");need(A>0,"Enter the amount.");need(!(G>0)||sysAcc("igst"),"Add an Input GST ledger to book GST.");add(f.head,A,0);if(G>0){add(sysAcc("igst")?.id,G,0);gst={in:{x:[A,G]}}}add(f.from,0,A+G);if(J.get("accounts",f.from)?.kind==="vendor")party=f.from;break;
+    case "purchase":need(f.vendor,"Choose the vendor.");need(f.head,"Choose where to book it.");need(A>0,"Enter the bill amount.");need(!(G>0)||sysAcc("igst"),"Add an Input GST ledger to book GST.");add(f.head,A,0);if(G>0){add(sysAcc("igst")?.id,G,0);gst={in:{x:[A,G]}}}add(f.vendor,0,A+G);if(f.paid){add(f.vendor,A+G,0);add(f.paid,0,A+G)}party=f.vendor;break;
+    case "payment":need(f.to,"Choose who was paid.");need(A>0,"Enter the amount.");add(f.to,A,0);add(f.from,0,A);party=f.to;break;
+    case "sale":{need(f.head,"Choose the sales head.");need(A>0,"Enter the sale total.");const rate=+f.rate||0;need(!rate||sysAcc("ogst"),"Add an Output GST ledger to book GST.");const tax=rate?r2(A-A/(1+rate/100)):0;add(f.into,A,0);add(f.head,0,A-tax);if(tax)add(sysAcc("ogst")?.id,0,tax);gst={out:{[rate]:[r2(A-tax),tax]}};if(["customer","aggregator"].includes(J.get("accounts",f.into)?.kind))party=f.into;break}
+    case "receipt":need(f.from,"Choose who paid.");need(A>0,"Enter the amount.");add(f.into,A,0);add(f.from,0,A);party=f.from;break;
+    case "contra":need(f.from!==f.to,"From and To must be different.");need(A>0,"Enter the amount.");add(f.to,A,0);add(f.from,0,A);break;
+    case "salary":{need(f.staff,"Choose the staff member.");need(A>0,"Enter the salary earned.");need(f.head,"Choose the salary head.");add(f.head,A,0);add(f.staff,0,A);party=f.staff;
+      if(f.paid){let before=f.staff?balanceOf(f.staff):0;if(editId)for(const l of J.get("vouchers",editId)?.lines||[])if(l.a===f.staff)before-=l.dr-l.cr;const net=r2(A-Math.max(0,before));const pay=+f.paidAmt||net;need(pay>0,"Nothing left to pay after advances.");add(f.staff,pay,0);add(f.paid,0,pay)}break}
+    case "advance":need(f.staff,"Choose the staff member.");need(A>0,"Enter the amount.");add(f.staff,A,0);add(f.from,0,A);party=f.staff;break;
+    case "journal":{for(const r of f.rows||[])add(r.a,+r.dr||0,+r.cr||0);const dr=L.reduce((s,l)=>s+l.dr,0),cr=L.reduce((s,l)=>s+l.cr,0);need(L.length>=2,"A journal needs at least two lines.");need(Math.abs(dr-cr)<0.005,"Debits ("+money(dr)+") and credits ("+money(cr)+") must match.");break}}
+  return {lines:L,party,err:e,gst}}
+function readForm(){const U=ui().entry,fm=document.getElementById("entryForm");if(!fm)return U.f;const f={...U.f};for(const el of fm.elements){if(!el.name||el.name.startsWith("jr-"))continue;f[el.name]=el.value}
+  if(U.type==="journal")f.rows=(f.rows||[]).map((r,i)=>({a:fm.elements["jr-a-"+i]?.value||"",dr:fm.elements["jr-dr-"+i]?.value||"",cr:fm.elements["jr-cr-"+i]?.value||""}));U.f=f;return f}
+function vEntry(){const E=ui().entry;if(!E.f.date)E.f=defaults(E.type);const editing=E.editId&&J.get("vouchers",E.editId);
+  return `${editing?`<div class="row"><span class="vno">Editing ${esc(editing.no)}</span><button class="btn small" data-a="cancelEdit">Cancel edit</button></div>`:`<div class="types" role="group" aria-label="Entry type">${Object.entries(TYPES).filter(([,t])=>!t.hide).map(([k,t])=>`<button data-a="etype" data-x="${k}" aria-pressed="${E.type===k}"><b>${t.l}</b><small>${t.d}</small></button>`).join("")}</div>`}
+  <div class="entry-grid"><form class="panel pb" id="entryForm" data-hold autocomplete="off"><div class="form">${entryFields(E.type,E.f).join("")}</div><div id="entryErr" style="margin-top:12px"></div>
+  <div class="row w" style="margin-top:14px"><button class="btn primary" type="submit">${editing?"Save changes":"Post entry"}</button>${editing?"":`<button class="btn" type="button" data-a="saveAnother">Post &amp; add another</button>`}</div></form><aside class="panel" id="entrySide"></aside></div>`}
+function sideHtml(){const E=ui().entry,f=readForm(),b=build(E.type,f,E.editId);const tot=b.lines.reduce((s,l)=>s+l.dr,0);const touched=[...new Set(b.lines.map(l=>l.a))].filter(a=>J.get("accounts",a));
+  return `<h2 class="ph">Posting preview</h2><div class="pb posting">${b.lines.length?`<div class="tbl-wrap"><table><thead><tr><th>Ledger</th><th class="num">Dr</th><th class="num">Cr</th></tr></thead><tbody>${b.lines.map(l=>`<tr><td>${esc(accName(l.a))}</td><td class="num dr">${l.dr?inr.format(l.dr):""}</td><td class="num cr">${l.cr?inr.format(l.cr):""}</td></tr>`).join("")}</tbody><tfoot><tr><td>Total</td><td class="num">${inr.format(tot)}</td><td class="num">${inr.format(b.lines.reduce((s,l)=>s+l.cr,0))}</td></tr></tfoot></table></div>`:`<p class="muted">Fill in the form to see the double entry.</p>`}
+  ${touched.length?`<h2 class="ph" style="padding:16px 0 6px">Ledger balances after posting</h2><table><tbody>${touched.map(a=>{let cur=balanceOf(a);if(E.editId)for(const l of J.get("vouchers",E.editId)?.lines||[])if(l.a===a)cur-=l.dr-l.cr;const after=cur+b.lines.filter(l=>l.a===a).reduce((s,l)=>s+l.dr-l.cr,0);return `<tr><td>${esc(accName(a))}</td><td class="num muted">${bal(cur)}</td><td class="num">→ ${bal(after)}</td></tr>`}).join("")}</tbody></table>`:""}</div>`}
+const refreshSide=()=>{const s=document.getElementById("entrySide");if(s)s.innerHTML=sideHtml()};
+J.holdRefresh.push(()=>{if(S.route.mod==="accounts"&&S.route.tab==="entry")refreshSide()});
+function wireEntry(){refreshSide();const fm=document.getElementById("entryForm");fm.addEventListener("change",refreshSide);fm.addEventListener("submit",ev=>{ev.preventDefault();saveEntry(false)})}
+async function saveEntry(another){const E=ui().entry,f=readForm(),b=build(E.type,f,E.editId),err=document.getElementById("entryErr");if(b.err){err.innerHTML=`<div class="err">${esc(b.err)}</div>`;return}
+  const {narr,ref,...rest}=f;const old=E.editId?J.get("vouchers",E.editId):null;
+  try{const v=await J.postVoucher({id:old?.id,type:E.type,date:f.date,lines:b.lines,party:b.party,narr,ref,f:{...rest},gst:b.gst});toast((old?"Updated ":"Posted ")+v.no);S.hold=null;
+    if(old){E.editId=null;E.f={};J.go("accounts",S.ui.returnTab||"book")}else if(another){E.f={...defaults(E.type),date:f.date};J.render();document.getElementById("f-amount")?.focus()}else{E.f={};J.go("accounts","book")}}
+  catch(e){err.innerHTML=`<div class="err">${esc(e.message||"Could not save ("+(e.code||"error")+")")}</div>`}}
+J.startEdit=id=>{const v=J.get("vouchers",id);if(!v)return;if(v.src&&J.openSrc?.[v.src.col]){J.openSrc[v.src.col](v.src.id);return}
+  S.ui.returnTab=S.route.tab;ui().entry={type:v.type,f:{...defaults(v.type),...v.f,date:v.date,narr:v.narr,ref:v.ref},editId:id};S.hold=null;J.go("accounts","entry")};
+J.openSrc={};
+J.act("etype",el=>{readForm();const E=ui().entry;E.type=el.dataset.x;E.f={...defaults(E.type),date:E.f.date||today()};S.hold=null;J.render()});
+J.act("saveAnother",()=>saveEntry(true));
+J.act("cancelEdit",()=>{ui().entry={type:"expense",f:{},editId:null};S.hold=null;J.go("accounts",S.ui.returnTab||"book")});
+J.act("jrow",()=>{const f=readForm();f.rows=[...(f.rows||[]),{a:"",dr:"",cr:""}];S.hold=null;J.render()});
+J.act("editv",el=>J.startEdit(el.dataset.x));
+J.act("delv",async el=>{await J.safe(()=>J.deleteVoucher(el.dataset.x),"Entry deleted");S.confirm=null;J.render()});
+J.newEntry=(type,f)=>{ui().entry={type,f:{...defaults(type),...f},editId:null};S.hold=null;J.go("accounts","entry")};
+
+// ----- Day book -----
+function vBook(){const U=ui().book,[from,to]=periodRange(U.period,U),q=(U.q||"").trim().toLowerCase();
+  const rows=(J.D.vs||[]).filter(v=>v.date>=from&&v.date<=to&&(!U.type||v.type===U.type)&&(!U.acc||v.lines.some(l=>l.a===U.acc))&&(!q||[v.no,v.narr,v.ref,...v.lines.map(l=>accName(l.a))].join(" ").toLowerCase().includes(q))).reverse();
+  const tot=rows.reduce((s,v)=>s+vAmount(v),0);
+  return `<div class="filters panel pb">${periodSeg("acc.book",U.period,U)}
+    ${fld("Type",`<select id="bk-type" data-ui="acc.book.type"><option value="">All types</option>${Object.entries(TYPES).map(([k,t])=>`<option value="${k}" ${U.type===k?"selected":""}>${t.l}</option>`).join("")}</select>`)}
+    ${fld("Ledger",`<select id="bk-acc" data-ui="acc.book.acc">${optAcc(Object.keys(KINDS),U.acc,"Any ledger")}</select>`)}
+    ${fld("Search",`<input id="bk-q" data-ui="acc.book.q" value="${esc(U.q||"")}" placeholder="No., narration, ledger">`)}
+    <span class="muted" style="margin-left:auto">${rows.length} entries · ${money(tot)}</span><button class="btn" data-a="exportBook">Export CSV</button></div>
+  <div class="panel"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>No.</th><th>Type</th><th>Debit (to)</th><th>Credit (from)</th><th>Narration</th><th class="num">Amount</th><th></th></tr></thead><tbody>
+  ${rows.length?rows.map(v=>{const p=particulars(v);return `<tr><td style="white-space:nowrap">${fmtDate(v.date)}</td><td class="vno">${esc(v.no)}</td><td><span class="typ t-${v.type}">${TYPES[v.type]?.l||v.type}</span>${v.src?`<div class="hint">from ${esc(v.src.label||v.src.col)}</div>`:""}</td><td>${esc(p.dr.join(", "))}</td><td>${esc(p.cr.join(", "))}</td><td class="muted">${esc(v.narr)}${v.ref?` <span class="mono">· ${esc(v.ref)}</span>`:""}</td><td class="num">${money(vAmount(v))}</td><td style="white-space:nowrap"><button class="btn small" data-a="editv" data-x="${v.id}">${v.src?"Open":"Edit"}</button> ${v.src?"":J.confirmBtn("v:"+v.id,"Delete "+v.no,"delv",v.id)}</td></tr>`}).join(""):J.emptyRow(8,"No entries in this view","Change the period or filters, or post a new entry.")}
+  </tbody>${rows.length?`<tfoot><tr><td colspan="6">Total</td><td class="num">${money(tot)}</td><td></td></tr></tfoot>`:""}</table></div></div>`}
+J.act("exportBook",()=>{const U=ui().book,[f,t]=periodRange(U.period,U);const rows=[["Date","No","Type","Ledger","Debit","Credit","Narration","Ref"]];
+  for(const v of J.D.vs||[])if(v.date>=f&&v.date<=t&&(!U.type||v.type===U.type)&&(!U.acc||v.lines.some(l=>l.a===U.acc)))for(const l of v.lines)rows.push([v.date,v.no,TYPES[v.type]?.l,accName(l.a),l.dr||"",l.cr||"",v.narr,v.ref]);
+  J.saveFile("daybook-"+f.replace("0000-01-01","start")+".csv",J.toCSV(rows))});
+
+// ----- Ledgers -----
+function vLedger(){const U=ui().ledger,q=(U.q||"").toLowerCase();
+  const list=J.all("accounts").filter(a=>(!U.kind||a.kind===U.kind)&&(!q||a.name.toLowerCase().includes(q))).sort((a,b)=>a.name.localeCompare(b.name));
+  const groups={};for(const a of list)(groups[KINDS[a.kind]?.g||"Other"]??=[]).push(a);
+  if(!U.acc||!J.get("accounts",U.acc))U.acc=list[0]?.id||"";
+  return `<div class="split"><div class="panel"><div class="pb" style="display:flex;flex-direction:column;gap:8px">
+    <input id="lg-q" data-ui="acc.ledger.q" value="${esc(U.q||"")}" placeholder="Find a ledger" aria-label="Find a ledger">
+    <select id="lg-kind" data-ui="acc.ledger.kind" aria-label="Kind"><option value="">All kinds</option>${Object.entries(KINDS).map(([k,v])=>`<option value="${k}" ${U.kind===k?"selected":""}>${v.l}</option>`).join("")}</select>
+    <button class="btn w" data-a="newAcc">New ledger</button></div>
+    <div class="acclist">${Object.keys(groups).sort((a,b)=>GROUP_ORDER.indexOf(a)-GROUP_ORDER.indexOf(b)).map(g=>`<div class="grp">${esc(g)}</div>${groups[g].map(a=>`<button data-a="pickacc" data-x="${a.id}" aria-current="${a.id===U.acc}"><span>${esc(a.name)}${a.active===false?' <span class="chip plain">inactive</span>':""}</span><span class="num">${bal(balanceOf(a.id))}</span></button>`).join("")}`).join("")||`<p class="pb muted">No ledgers match.</p>`}</div></div>
+    <div style="min-width:0;display:flex;flex-direction:column;gap:12px">${U.acc?statement(U.acc):`<div class="panel"><div class="empty"><strong>No ledger selected</strong></div></div>`}</div></div>`}
+function statement(id){const a=J.get("accounts",id),U=ui().ledger,[from,to]=periodRange(U.period,U);const open=balanceBefore(id,from);let run=open,tdr=0,tcr=0;const canRec=RECON_KINDS.includes(a.kind);
+  const rows=(J.D.post?.get(id)||[]).filter(p=>p.date>=from&&p.date<=to).map(p=>{run+=p.dr-p.cr;tdr+=p.dr;tcr+=p.cr;return {p,run}});
+  const meta=[KINDS[a.kind]?.l,a.phone,a.gstin&&("GSTIN "+a.gstin),a.terms&&(a.terms+" days credit")].filter(Boolean).map(esc).join(" · ");
+  return `<div class="panel pb" style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start"><div><h2 style="font-family:var(--f-display);font-size:22px;margin:0;font-weight:600">${esc(a.name)}</h2><div class="muted">${meta}</div>${a.note?`<div class="hint" style="margin-top:4px">${esc(a.note)}</div>`:""}</div>
+    <div style="text-align:right"><div class="muted" style="font-size:12px">Closing balance</div><div style="font-size:22px;font-weight:600">${bal(run)}</div><div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn small w" data-a="editAcc" data-x="${id}">Edit ledger</button>${canRec?`<button class="btn small" data-a="reconAcc" data-x="${id}">Reconcile</button>`:""}<button class="btn small" data-a="exportLedger">Export CSV</button></div></div></div>
+  <div class="filters">${periodSeg("acc.ledger",U.period,U)}</div>
+  <div class="panel"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>No.</th><th>Particulars</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th>${canRec?"<th>Cleared</th>":""}</tr></thead><tbody>
+    <tr><td class="muted">${from>"0001"?fmtDate(from):""}</td><td></td><td class="muted">Opening balance</td><td></td><td></td><td class="num">${bal(open)}</td>${canRec?"<td></td>":""}</tr>
+    ${rows.map(({p,run})=>{const d=p.v.rec?.[id];return `<tr><td style="white-space:nowrap">${fmtDate(p.date)}</td><td><button class="linkbtn vno" data-a="editv" data-x="${p.v.id}">${esc(p.v.no)}</button></td><td>${esc(against(p.v,id))}<div class="muted" style="font-size:12px">${esc(p.v.narr)}</div></td><td class="num dr">${p.dr?inr.format(p.dr):""}</td><td class="num cr">${p.cr?inr.format(p.cr):""}</td><td class="num">${bal(run)}</td>${canRec?`<td><button class="chip ${d?"ok":"plain"} w" data-a="tick" data-x="${p.v.id}|${id}" title="${d?"Cleared on "+fmtDate(d)+" — click to undo":"Mark as cleared"}">${d?"✓ "+fmtDate(d):"Open"}</button></td>`:""}</tr>`}).join("")}
+  </tbody><tfoot><tr><td colspan="3">Period total · closing</td><td class="num">${inr.format(tdr)}</td><td class="num">${inr.format(tcr)}</td><td class="num">${bal(run)}</td>${canRec?"<td></td>":""}</tr></tfoot></table></div>${!rows.length?`<div class="empty"><span>No entries for this ledger in the selected period.</span></div>`:""}</div>`}
+J.act("pickacc",el=>{ui().ledger.acc=el.dataset.x;J.render()});
+J.openLedger=id=>{ui().ledger.acc=id;ui().ledger.kind="";ui().ledger.q="";J.go("accounts","ledger")};
+J.act("openLedger",el=>J.openLedger(el.dataset.x));
+J.act("reconAcc",el=>{const R=ui().recon;R.acc=el.dataset.x;R.matches=null;R.bal="";J.go("accounts","recon")});
+J.act("tick",async el=>{const [vid,acc]=el.dataset.x.split("|");const v=J.get("vouchers",vid);await J.safe(()=>J.store.patch("vouchers",vid,{rec:{[acc]:v?.rec?.[acc]?null:v.date}}))});
+J.act("exportLedger",()=>{const id=ui().ledger.acc,a=J.get("accounts",id),U=ui().ledger,[f,t]=periodRange(U.period,U);let run=balanceBefore(id,f);const rows=[["Date","No","Particulars","Narration","Debit","Credit","Balance","Cleared on"],["","","Opening balance","","","",bal(run),""]];
+  for(const p of J.D.post?.get(id)||[])if(p.date>=f&&p.date<=t){run+=p.dr-p.cr;rows.push([p.date,p.v.no,against(p.v,id),p.v.narr,p.dr||"",p.cr||"",bal(run),p.v.rec?.[id]||""])}J.saveFile("ledger-"+a.name.replace(/[^\w]+/g,"-")+".csv",J.toCSV(rows))});
+
+function accDrawer(id,preset){const a=id?J.get("accounts",id):{name:"",kind:preset||"vendor",opening:0,active:true};const used=id&&(J.D.post?.get(id)||[]).length;const ob=+a.opening||0;
+  J.drawer({title:id?"Edit ledger":"New ledger",submit:id?"Save ledger":"Create ledger",body:`${fld("Name",txt("name",a.name,"e.g. Sharma Vegetables",'required'))}
+    ${fld("Kind",selO("kind",Object.entries(KINDS).map(([k,v])=>[k,v.l+" — "+v.g]),a.kind))}
+    <div class="form">${fld("Opening balance",num("ob",Math.abs(ob)||""))}${fld("Side",selO("side",[["dr","Dr — we hold / they owe us"],["cr","Cr — we owe / payable"]],ob<0?"cr":"dr"))}</div>
+    <p class="hint" style="margin:-6px 0 0">As on the book start, ${monthLabel(J.settings().startMonth)}.</p>
+    <div class="form">${fld("Phone",txt("phone",a.phone))}${fld("GSTIN",txt("gstin",a.gstin))}${fld("Credit days (vendors)",num("terms",a.terms,"0"))}</div>
+    ${fld("Notes",`<textarea name="note" id="f-note" rows="2">${esc(a.note||"")}</textarea>`)}
+    <label class="row" style="gap:8px"><input type="checkbox" name="active" id="f-active" ${a.active!==false?"checked":""}> Active (shows in entry lists)</label>
+    ${used?`<p class="hint">${used} entries are linked to this ledger. Renaming updates them everywhere.</p>`:""}`,
+    onSubmit:async fd=>{const name=fd.name.trim();if(!name)return "Give the ledger a name.";if(J.all("accounts").some(x=>x.id!==id&&x.name.toLowerCase()===name.toLowerCase()))return `A ledger called “${name}” already exists.`;
+      const n={...(id?a:{}),id:id||uid(),name,kind:fd.kind,opening:r2((+fd.ob||0)*(fd.side==="dr"?1:-1)),phone:fd.phone.trim(),gstin:fd.gstin.trim().toUpperCase(),terms:+fd.terms||0,note:fd.note.trim(),active:fd.active};
+      await J.store.put("accounts",n);ui().ledger.acc=n.id;toast(id?"Ledger saved":"Ledger created")}})}
+J.accDrawer=accDrawer;
+J.act("newAcc",()=>accDrawer(null));J.act("editAcc",el=>accDrawer(el.dataset.x));
+
+// ----- Reconcile -----
+function vRecon(){const U=ui().recon;const list=accsOf(RECON_KINDS);if(!U.acc||!J.get("accounts",U.acc))U.acc=list.find(a=>a.kind==="bank")?.id||list[0]?.id||"";if(!U.date)U.date=today();
+  if(!U.acc)return `<div class="panel"><div class="empty"><strong>Nothing to reconcile yet</strong><span>Add a bank, card, vendor or staff ledger first.</span><button class="btn w" data-a="newAcc">New ledger</button></div></div>`;
+  const a=J.get("accounts",U.acc),book=balanceOf(U.acc,U.date),posts=(J.D.post?.get(U.acc)||[]).filter(p=>p.date<=U.date);
+  const unDr=posts.filter(p=>p.dr&&!isCleared(p.v,U.acc,U.date)),unCr=posts.filter(p=>p.cr&&!isCleared(p.v,U.acc,U.date));const sDr=unDr.reduce((s,p)=>s+p.dr,0),sCr=unCr.reduce((s,p)=>s+p.cr,0);
+  const expected=r2(book-sDr+sCr),entered=U.bal===""?null:r2((+U.bal||0)*(U.side==="dr"?1:-1)),diff=entered===null?null:r2(entered-expected);const isBankish=["bank","card","aggregator"].includes(a.kind);
+  const recentClr=posts.filter(p=>isCleared(p.v,U.acc)).sort((x,y)=>(y.v.rec[U.acc]||"").localeCompare(x.v.rec[U.acc]||"")).slice(0,12);
+  const ulist=(arr,side)=>arr.length?`<table><tbody>${arr.map(p=>`<tr><td style="width:28px"><input type="checkbox" class="w" aria-label="Mark ${esc(p.v.no)} cleared" data-ach="tickbox" data-x="${p.v.id}|${U.acc}"></td><td style="white-space:nowrap">${fmtDate(p.date)}</td><td><span class="vno">${esc(p.v.no)}</span> ${esc(against(p.v,U.acc))}<div class="muted" style="font-size:12px">${esc(p.v.narr||"")}${p.v.ref?" · "+esc(p.v.ref):""}</div></td><td class="num ${side}">${inr.format(side==="dr"?p.dr:p.cr)}</td></tr>`).join("")}</tbody></table>`:`<p class="muted pb">None.</p>`;
+  return `<div class="panel pb"><div class="form">${fld("Ledger",`<select id="rc-acc" data-ui="acc.recon.acc">${optAcc(RECON_KINDS,U.acc)}</select>`)}${fld("Statement date",`<input type="date" id="rc-date" data-ui="acc.recon.date" value="${U.date}">`)}
+    ${fld("Closing balance per statement",`<input type="number" step="0.01" id="rc-bal" data-ui="acc.recon.bal" value="${esc(U.bal)}" placeholder="From the statement">`)}
+    ${fld("That balance is",`<select id="rc-side" data-ui="acc.recon.side"><option value="dr" ${U.side==="dr"?"selected":""}>${isBankish?"Money we hold (credit balance in bank)":"In our favour (they owe us)"}</option><option value="cr" ${U.side==="cr"?"selected":""}>${isBankish?"Overdrawn / amount we owe":"Against us (we owe them)"}</option></select>`)}</div></div>
+  <div class="grid2"><section class="panel"><h2>Reconciliation statement · ${fmtDate(U.date)}</h2><div class="pb brs">
+      <span>Balance as per our books</span><span class="num">${bal(book)}</span><span>Less: debits in books, not yet in statement</span><span class="num dr">− ${inr.format(sDr)}</span><span>Add: credits in books, not yet in statement</span><span class="num cr">+ ${inr.format(sCr)}</span>
+      <span class="tot">Statement should show</span><span class="num tot">${bal(expected)}</span>
+      ${entered!==null?`<span>Statement actually shows</span><span class="num">${bal(entered)}</span><span class="tot">Difference</span><span class="num tot">${Math.abs(diff)<0.005?`<span class="chip ok">Matched ✓</span>`:`<span class="chip bad">${money(Math.abs(diff))}</span>`}</span>`:`<span class="muted" style="grid-column:1/-1">Enter the statement's closing balance to see the difference.</span>`}</div>
+      ${entered!==null?`<div class="pb" style="padding-top:0"><button class="btn w ${Math.abs(diff)<0.005?"primary":""}" data-a="saveRec">Save as reconciled on ${fmtDate(U.date)}</button></div>`:""}${a.lastRec?`<div class="pb hint" style="padding-top:0">Last saved ${fmtDate(a.lastRec.date)} at ${bal(a.lastRec.bal)}${a.lastRec.diff?" · difference "+money(Math.abs(a.lastRec.diff)):""}</div>`:""}</section>
+    <section class="panel"><h2>Match a statement file</h2><div class="pb" style="display:flex;flex-direction:column;gap:10px">
+      <p class="hint" style="margin:0">Upload or paste the statement as CSV. Date, Description, Debit/Withdrawal and Credit/Deposit (or a signed Amount) columns are found automatically. Each line is matched to an open entry with the same amount within 5 days.</p>
+      <input type="file" id="rc-file" accept=".csv,text/csv,text/plain" aria-label="Statement CSV file"><textarea id="rc-paste" data-ui="acc.recon.paste" rows="3" placeholder="…or paste CSV rows here">${esc(U.paste||"")}</textarea>
+      <div class="row"><button class="btn" data-a="matchCsv">Match statement</button>${U.matches?`<button class="btn" data-a="clearCsv">Clear</button>`:""}</div>${U.csvErr?`<div class="err">${esc(U.csvErr)}</div>`:""}</div></section></div>
+  ${U.matches?matchPanel():""}
+  <div class="grid2"><section class="panel"><h2>Open debits · ${unDr.length} · ${money(sDr)}</h2><p class="hint" style="padding:4px 16px 0;margin:0">${isBankish?"Deposits and receipts":"Amounts charged to them"} not yet on the statement.</p><div class="tbl-wrap">${ulist(unDr,"dr")}</div></section>
+    <section class="panel"><h2>Open credits · ${unCr.length} · ${money(sCr)}</h2><p class="hint" style="padding:4px 16px 0;margin:0">${isBankish?"Payments and withdrawals":"Amounts credited to them"} not yet on the statement.</p><div class="tbl-wrap">${ulist(unCr,"cr")}</div></section></div>
+  <section class="panel"><h2>Recently cleared</h2><div class="tbl-wrap"><table><tbody>${recentClr.length?recentClr.map(p=>`<tr><td style="white-space:nowrap">${fmtDate(p.date)}</td><td><span class="vno">${esc(p.v.no)}</span> ${esc(against(p.v,U.acc))}</td><td class="num">${p.dr?`<span class="dr">${inr.format(p.dr)} Dr</span>`:`<span class="cr">${inr.format(p.cr)} Cr</span>`}</td><td><span class="chip ok">Cleared ${fmtDate(p.v.rec[U.acc])}</span></td><td><button class="btn small w" data-a="untick" data-x="${p.v.id}|${U.acc}">Undo</button></td></tr>`).join(""):`<tr><td class="muted">Nothing cleared yet.</td></tr>`}</tbody></table></div></section>`}
+function matchPanel(){const M=ui().recon.matches,matched=M.filter(m=>m.p),miss=M.filter(m=>!m.p);
+  return `<section class="panel"><h2>Statement match · ${matched.length} matched · ${miss.length} not in books</h2><div class="pb row">${matched.length?`<button class="btn primary w" data-a="applyMatches">Mark ${matched.length} matched as cleared</button>`:""}<span class="hint">A statement withdrawal/debit matches a credit in our books; a deposit/credit matches a debit.</span></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Statement date</th><th>Description</th><th class="num">Withdrawal</th><th class="num">Deposit</th><th>In our books</th></tr></thead><tbody>
+  ${M.map((m,i)=>`<tr><td style="white-space:nowrap">${fmtDate(m.r.date)}</td><td>${esc(m.r.desc)}</td><td class="num cr">${m.r.out?inr.format(m.r.out):""}</td><td class="num dr">${m.r.inn?inr.format(m.r.inn):""}</td><td>${m.p?`<span class="chip ok">${esc(m.p.v.no)}</span> <span class="muted">${fmtDate(m.p.date)} · ${esc(against(m.p.v,ui().recon.acc))}</span>`:`<span class="chip bad">Not in books</span> <button class="btn small w" data-a="addmiss" data-x="${i}">Add entry</button>`}</td></tr>`).join("")}</tbody></table></div></section>`}
+function statementRows(text){const rows=J.parseCSV(text),H=J.headerMap(rows,/date/i);if(!H)throw new Error("Could not find a header row with a Date column.");
+  const cd=H.col(/date/),cdesc=H.col(/desc|narr|partic|remark|detail/),cout=H.col(/withdraw|debit|dr\b/),cin=H.col(/deposit|credit|cr\b/),camt=H.col(/^amount|amt/);
+  if(cout<0&&cin<0&&camt<0)throw new Error("Need Debit/Withdrawal and Credit/Deposit columns, or a signed Amount column.");
+  const out=[];for(const r of rows.slice(H.hi+1)){const date=J.parseDate(r[cd]);if(!date)continue;let o=cout>=0?Math.abs(J.numOf(r[cout])):0,i=cin>=0?Math.abs(J.numOf(r[cin])):0;if(cout<0&&cin<0){const n=J.numOf(r[camt]);if(n<0)o=-n;else i=n}if(!o&&!i)continue;out.push({date,desc:cdesc>=0?r[cdesc]:"",out:r2(o),inn:r2(i)})}
+  if(!out.length)throw new Error("No dated rows with amounts were found.");return out}
+function runMatch(text){const U=ui().recon;U.csvErr="";try{const rows=statementRows(text),used=new Set(),open=(J.D.post?.get(U.acc)||[]).filter(p=>!isCleared(p.v,U.acc));
+    U.matches=rows.map(r=>{const amt=r.out||r.inn,side=r.out?"cr":"dr";let best=null,bd=99;for(const p of open){if(used.has(p.v.id))continue;const pa=side==="cr"?p.cr:p.dr;if(Math.abs(pa-amt)>0.005)continue;const dd=Math.abs(J.daysBetween(p.date,r.date));if(dd<=5&&dd<bd){best=p;bd=dd}}if(best)used.add(best.v.id);return {r,p:best}})}
+  catch(e){U.matches=null;U.csvErr=e.message}J.render()}
+J.act("tickbox",async el=>{const [vid,acc]=el.dataset.x.split("|");const d=ui().recon.date||J.get("vouchers",vid)?.date;const ok=await J.safe(()=>J.store.patch("vouchers",vid,{rec:{[acc]:el.checked?d:null}}));if(!ok)el.checked=!el.checked});
+J.act("untick",async el=>{const [vid,acc]=el.dataset.x.split("|");await J.safe(()=>J.store.patch("vouchers",vid,{rec:{[acc]:null}}),"Marked open again")});
+J.act("matchCsv",async()=>{const U=ui().recon;const file=await J.readFileInput("rc-file");if(file)runMatch(file);else if((U.paste||"").trim())runMatch(U.paste);else{U.csvErr="Choose a CSV file or paste the statement rows first.";J.render()}});
+J.act("clearCsv",()=>{const U=ui().recon;U.matches=null;U.csvErr="";J.render()});
+J.act("applyMatches",async()=>{const U=ui().recon,ms=U.matches.filter(m=>m.p);let n=0;for(const m of ms){if(await J.safe(()=>J.store.patch("vouchers",m.p.v.id,{rec:{[U.acc]:m.r.date}})))n++}U.matches=U.matches.filter(m=>!m.p);toast(n+" entries cleared");J.render()});
+J.act("addmiss",el=>{const U=ui().recon,m=U.matches[+el.dataset.x],k=J.get("accounts",U.acc)?.kind,money_=MONEY.includes(k);
+  if(m.r.out)J.newEntry(money_?"expense":"journal",{date:m.r.date,from:U.acc,amount:String(m.r.out),narr:m.r.desc});else J.newEntry(money_?"receipt":"journal",{date:m.r.date,into:U.acc,amount:String(m.r.inn),narr:m.r.desc})});
+J.act("saveRec",async()=>{const U=ui().recon,a=J.get("accounts",U.acc),book=balanceOf(U.acc,U.date),posts=(J.D.post?.get(U.acc)||[]).filter(p=>p.date<=U.date&&!isCleared(p.v,U.acc,U.date));const exp=r2(book-posts.reduce((s,p)=>s+p.dr-p.cr,0)),ent=r2((+U.bal||0)*(U.side==="dr"?1:-1));
+  await J.safe(()=>J.store.put("accounts",{...a,lastRec:{date:U.date,bal:ent,diff:r2(ent-exp)}}),"Reconciliation saved")});
+
+// ----- Reports -----
+function vReports(){const U=ui().report;if(!U.asOf)U.asOf=today();const tabs=[["tb","Trial balance"],["pl","Profit & loss"],["exp","Expenses by month"],["gst","GST summary"],["age","Payables ageing"]];let body="";
+  const gh=g=>`<tr><td colspan="9" style="font-weight:700;color:var(--bahi);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase">${esc(g)}</td></tr>`;
+  if(U.tab==="tb"){const accs=J.all("accounts").map(a=>({a,b:balanceOf(a.id,U.asOf)})).filter(x=>Math.abs(x.b)>0.004);const groups={};for(const x of accs)(groups[KINDS[x.a.kind]?.g||"Other"]??=[]).push(x);const od=r2(J.all("accounts").reduce((s,a)=>s+(+a.opening||0),0));if(Math.abs(od)>0.004)(groups["Capital"]??=[]).push({a:{id:"",name:"Difference in opening balances",kind:"capital",diff:1},b:-od});const tdr=accs.reduce((s,x)=>s+Math.max(0,x.b),0)+Math.max(0,-od),tcr=accs.reduce((s,x)=>s+Math.max(0,-x.b),0)+Math.max(0,od);
+    body=`<div class="filters">${fld("As on",`<input type="date" id="rp-asof" data-ui="acc.report.asOf" value="${U.asOf}">`)}<button class="btn" data-a="exportTB">Export CSV</button></div><div class="panel"><div class="tbl-wrap"><table><thead><tr><th>Ledger</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead><tbody>
+    ${Object.keys(groups).sort((a,b)=>GROUP_ORDER.indexOf(a)-GROUP_ORDER.indexOf(b)).map(g=>gh(g)+groups[g].sort((a,b)=>a.a.name.localeCompare(b.a.name)).map(x=>`<tr><td>${x.a.diff?`<span class="chip warn">${esc(x.a.name)}</span> <span class="hint">openings don't net to zero; adjust capital or the opening balances</span>`:`<button class="linkbtn" data-a="openLedger" data-x="${x.a.id}">${esc(x.a.name)}</button>`}</td><td class="num dr">${x.b>0?inr.format(x.b):""}</td><td class="num cr">${x.b<0?inr.format(-x.b):""}</td></tr>`).join("")).join("")||`<tr><td colspan="3" class="muted">No balances yet.</td></tr>`}
+    </tbody><tfoot><tr><td>Total ${Math.abs(tdr-tcr)<0.01?`<span class="chip ok">Balanced</span>`:`<span class="chip bad">Out by ${money(Math.abs(tdr-tcr))} — check opening balances</span>`}</td><td class="num">${inr.format(tdr)}</td><td class="num">${inr.format(tcr)}</td></tr></tfoot></table></div></div>`}
+  if(U.tab==="pl"){const [from,to]=periodRange(U.period,U);const inc=accsOf(["income"]).map(a=>{const m=movement(a.id,from,to);return {a,v:r2(m.cr-m.dr)}}).filter(x=>x.v);const exps=accsOf(["expense"]).map(a=>{const m=movement(a.id,from,to);return {a,v:r2(m.dr-m.cr)}}).filter(x=>x.v);
+    const food=exps.filter(x=>x.a.sys==="purch"||x.a.sys==="cogs"),labour=exps.filter(x=>x.a.sys==="salary"),opex=exps.filter(x=>!food.includes(x)&&!labour.includes(x));const sum=a=>a.reduce((s,x)=>s+x.v,0);
+    const ti=sum(inc),tf=sum(food),tl=sum(labour),to2=sum(opex),gp=ti-tf,np=gp-tl-to2,pct=v=>ti?` <span class="muted">${(v/ti*100).toFixed(1)}%</span>`:"";
+    const sec=(t,arr)=>gh(t)+(arr.map(x=>`<tr><td>${esc(x.a.name)}</td><td class="num">${money(x.v)}</td></tr>`).join("")||`<tr><td class="muted" colspan="2">None</td></tr>`);
+    body=`<div class="filters">${periodSeg("acc.report",U.period,U)}</div><div class="panel" style="max-width:720px"><div class="tbl-wrap"><table><tbody>
+      ${sec("Sales (net of GST)",inc)}<tr><td><b>Total sales</b></td><td class="num"><b>${money(ti)}</b></td></tr>${sec("Food cost (COGS)",food)}<tr><td><b>Gross profit</b>${pct(gp)}</td><td class="num"><b>${money(gp)}</b></td></tr>
+      ${sec("Labour cost",labour)}${sec("Operating overheads",opex)}<tr><td><b>Labour + overheads</b>${pct(tl+to2)}</td><td class="num"><b>${money(tl+to2)}</b></td></tr></tbody>
+      <tfoot><tr><td>${np>=0?"Net profit":"Net loss"}${pct(np)}</td><td class="num" style="color:${np>=0?"var(--ok)":"var(--bad)"}">${money(Math.abs(np))}</td></tr></tfoot></table></div></div>
+      <p class="hint">Food cost is the kitchen purchases head${sysAcc("cogs")?" plus stock consumed":""}. Sales exclude GST. Closing stock is shown under Inventory, not adjusted here.</p>`}
+  if(U.tab==="exp"){const fy=fyOf(today()),ms=monthsBetween(fy.start.slice(0,7),today().slice(0,7));const rows=accsOf(["expense"]).map(a=>({a,vals:ms.map(m=>{const mv=movement(a.id,m+"-01",J.monthEnd(m));return r2(mv.dr-mv.cr)})})).filter(r=>r.vals.some(v=>v));const mt=ms.map((_,i)=>rows.reduce((s,r)=>s+r.vals[i],0));
+    body=`<div class="filters"><span class="muted">${fy.label} to date</span><button class="btn" data-a="exportExp">Export CSV</button></div><div class="panel"><div class="tbl-wrap"><table><thead><tr><th>Head</th>${ms.map(m=>`<th class="num">${monthLabel(m)}</th>`).join("")}<th class="num">Total</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.a.name)}</td>${r.vals.map(v=>`<td class="num">${v?inr0.format(v):'<span class="muted">–</span>'}</td>`).join("")}<td class="num"><b>${inr0.format(r.vals.reduce((s,v)=>s+v,0))}</b></td></tr>`).join("")||`<tr><td colspan="${ms.length+2}" class="muted">No expenses this year yet.</td></tr>`}
+    </tbody><tfoot><tr><td>Total</td>${mt.map(v=>`<td class="num">${inr0.format(v)}</td>`).join("")}<td class="num">${inr0.format(mt.reduce((s,v)=>s+v,0))}</td></tr></tfoot></table></div></div>`}
+  if(U.tab==="gst")body=gstReport();
+  if(U.tab==="age")body=ageing();
+  return `<div class="seg" role="tablist">${tabs.map(([k,l])=>`<button data-set="acc.report.tab=${k}" aria-pressed="${U.tab===k}">${l}</button>`).join("")}</div>${body}`}
+function gstReport(){const fy=fyOf(today()),ms=monthsBetween(fy.start.slice(0,7),today().slice(0,7));const igst=sysAcc("igst")?.id,ogst=sysAcc("ogst")?.id;
+  const rows=ms.map(m=>{const from=m+"-01",to=J.monthEnd(m);const out={},inp={};let outTax=0,itc=0;
+    for(const v of J.D.vs||[]){if(v.date<from||v.date>to)continue;for(const l of v.lines){if(l.a===ogst)outTax+=l.cr-l.dr;if(l.a===igst)itc+=l.dr-l.cr}
+      for(const [r,[tx,t]] of Object.entries(v.gst?.out||{})){out[r]=out[r]||[0,0];out[r][0]+=tx;out[r][1]+=t}for(const [r,[tx,t]] of Object.entries(v.gst?.in||{})){inp[r]=inp[r]||[0,0];inp[r][0]+=tx;inp[r][1]+=t}}
+    return {m,out,inp,outTax:r2(outTax),itc:r2(itc)}});
+  const rates=[...new Set(rows.flatMap(r=>Object.keys(r.out)))].sort((a,b)=>a-b);
+  return `<p class="hint">Working sheets for your GST filing, built from posted entries. Outward supplies by rate are what GSTR-1 needs; output tax less input tax credit is the GSTR-3B net. Confirm with your CA before filing.</p>
+  <div class="panel"><h2>GSTR-3B summary</h2><div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Output GST</th><th class="num">Input tax credit</th><th class="num">Net payable</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td>${monthLabel(r.m)}</td><td class="num">${inr.format(r.outTax)}</td><td class="num">${inr.format(r.itc)}</td><td class="num"><b>${r.outTax-r.itc>=0?inr.format(r.outTax-r.itc):"("+inr.format(r.itc-r.outTax)+") carry fwd"}</b></td></tr>`).join("")}</tbody></table></div></div>
+  <div class="panel"><h2>GSTR-1 outward supplies by rate</h2><div class="tbl-wrap"><table><thead><tr><th>Month</th>${rates.map(r=>`<th class="num">${r}% taxable</th><th class="num">${r}% tax</th>`).join("")||"<th>—</th>"}</tr></thead><tbody>
+  ${rows.map(r=>`<tr><td>${monthLabel(r.m)}</td>${rates.map(x=>`<td class="num">${inr.format(r.out[x]?.[0]||0)}</td><td class="num">${inr.format(r.out[x]?.[1]||0)}</td>`).join("")||"<td class='muted'>No sales with GST yet</td>"}</tr>`).join("")}</tbody></table></div></div>`}
+function ageing(){const t=today();const rows=accsOf(["vendor"]).map(a=>{let out=-balanceOf(a.id);if(out<=0.004)return null;const bills=(J.D.post.get(a.id)||[]).filter(p=>p.cr>0).slice().reverse();const b={b0:0,b30:0,b60:0,b90:0,over:0};let left=out;
+    for(const p of bills){if(left<=0)break;const amt=Math.min(left,p.cr);left-=amt;const age=J.daysBetween(p.date,t);const due=p.v.f?.due||J.addDays(p.date,+a.terms||0);if(due<t)b.over+=amt;if(age<=30)b.b0+=amt;else if(age<=60)b.b30+=amt;else if(age<=90)b.b60+=amt;else b.b90+=amt}
+    if(left>0)b.b90+=left;return {a,out,...b}}).filter(Boolean).sort((x,y)=>y.out-x.out);const T=k=>rows.reduce((s,r)=>s+r[k],0);
+  return `<div class="panel"><div class="tbl-wrap"><table><thead><tr><th>Vendor</th><th class="num">Outstanding</th><th class="num">0–30 days</th><th class="num">31–60</th><th class="num">61–90</th><th class="num">90+</th><th class="num">Past due date</th></tr></thead><tbody>
+  ${rows.length?rows.map(r=>`<tr><td><button class="linkbtn" data-a="openLedger" data-x="${r.a.id}">${esc(r.a.name)}</button></td><td class="num"><b>${inr.format(r.out)}</b></td><td class="num">${inr.format(r.b0)}</td><td class="num">${inr.format(r.b30)}</td><td class="num">${inr.format(r.b60)}</td><td class="num">${inr.format(r.b90)}</td><td class="num">${r.over>0.004?`<span class="chip bad">${inr.format(r.over)}</span>`:"—"}</td></tr>`).join(""):J.emptyRow(7,"No vendor dues","Credit purchases show here until paid.")}
+  </tbody>${rows.length?`<tfoot><tr><td>Total</td>${["out","b0","b30","b60","b90","over"].map(k=>`<td class="num">${inr.format(T(k))}</td>`).join("")}</tr></tfoot>`:""}</table></div></div><p class="hint">Payments are applied to the oldest bills first. Due date uses the bill's due date, or the vendor's credit days.</p>`}
+J.act("exportTB",()=>{const U=ui().report;const rows=[["Ledger","Group","Debit","Credit"]];for(const a of J.all("accounts").sort((x,y)=>x.name.localeCompare(y.name))){const b=balanceOf(a.id,U.asOf);if(Math.abs(b)>0.004)rows.push([a.name,KINDS[a.kind]?.g,b>0?r2(b):"",b<0?r2(-b):""])}J.saveFile("trial-balance-"+U.asOf+".csv",J.toCSV(rows))});
+J.act("exportExp",()=>{const fy=fyOf(today()),ms=monthsBetween(fy.start.slice(0,7),today().slice(0,7));const rows=[["Head",...ms.map(monthLabel)]];for(const a of accsOf(["expense"]))rows.push([a.name,...ms.map(m=>{const mv=movement(a.id,m+"-01",J.monthEnd(m));return r2(mv.dr-mv.cr)})]);J.saveFile("expenses-by-month.csv",J.toCSV(rows))});
+
+// ----- Overview tab -----
+function vOverview(){const t=today(),[ms]=periodRange("month");const sum=k=>accsOf(k).reduce((s,a)=>s+balanceOf(a.id),0);
+  const exp=accsOf(["expense"]).map(a=>{const m=movement(a.id,ms,t);return {a,v:r2(m.dr-m.cr)}}).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);const expTot=exp.reduce((s,x)=>s+x.v,0);
+  const sales=accsOf(["income"]).reduce((s,a)=>{const m=movement(a.id,ms,t);return s+m.cr-m.dr},0);
+  const days=[...Array(14)].map((_,i)=>addDays(t,i-13));const agg=days.map(d=>{let s=0,e=0;for(const a of accsOf(["income"])){const m=movement(a.id,d,d);s+=m.cr-m.dr}for(const a of accsOf(["expense"])){const m=movement(a.id,d,d);e+=m.dr-m.cr}return {d,s,e}});const mx=Math.max(1,...agg.map(x=>Math.max(x.s,x.e)));
+  const recon=accsOf(RECON_KINDS).filter(a=>["bank","card","aggregator"].includes(a.kind)||unclearedCount(a.id)>0).map(a=>({a,n:unclearedCount(a.id),b:balanceOf(a.id)})).sort((x,y)=>y.n-x.n).slice(0,8);
+  return `<div class="kpis">${J.kpi("Cash & bank",money(sum(["cash","bank"])),accsOf(["cash","bank"]).length+" accounts","accounts/ledger")}${J.kpi("Payable to vendors",money(-sum(["vendor"])),"see ageing","accounts/reports")}${J.kpi("Receivable",money(sum(["customer","aggregator"])),"customers & aggregators","accounts/ledger")}${J.kpi("Card dues",money(-sum(["card"])),"credit cards","accounts/ledger")}${J.kpi("Sales · this month",money0(sales),"expenses "+money0(expTot),"accounts/reports")}</div>
+  <div class="grid2"><section class="panel"><h2>Expenses this month by head</h2><div class="pb">${exp.length?`<div class="bars">${exp.slice(0,8).map(x=>`<div class="bar"><span>${esc(x.a.name)}</span><span class="num">${money0(x.v)}</span><i><b style="width:${(x.v/exp[0].v*100).toFixed(1)}%"></b></i></div>`).join("")}</div>`:`<p class="muted">No expenses posted this month.</p>`}</div></section>
+  <section class="panel"><h2>Last 14 days</h2><div class="pb"><div class="legend"><span><i style="background:var(--ok)"></i>Sales</span><span><i style="background:var(--bahi)"></i>Expenses</span></div><div class="spark" role="img" aria-label="Daily sales and expenses">${agg.map(x=>`<div title="${fmtDate(x.d)} · Sales ${money0(x.s)} · Expenses ${money0(x.e)}"><span class="s" style="height:${(Math.max(0,x.s)/mx*100).toFixed(1)}%"></span><span class="e" style="height:${(Math.max(0,x.e)/mx*100).toFixed(1)}%"></span></div>`).join("")}</div><div class="row" style="justify-content:space-between;font-size:11.5px;color:var(--ink-3)"><span>${fmtDate(days[0])}</span><span>${fmtDate(t)}</span></div></div></section></div>
+  <section class="panel"><h2>Reconciliation status</h2><div class="tbl-wrap"><table><thead><tr><th>Ledger</th><th class="num">Balance</th><th>Uncleared</th><th>Last done</th><th></th></tr></thead><tbody>${recon.map(x=>`<tr><td>${esc(x.a.name)}<div class="muted" style="font-size:11.5px">${KINDS[x.a.kind].l}</div></td><td class="num">${bal(x.b)}</td><td>${x.n?`<span class="chip warn">${x.n} open</span>`:`<span class="chip ok">All cleared</span>`}</td><td class="muted">${x.a.lastRec?fmtDate(x.a.lastRec.date):"Never"}</td><td><button class="btn small" data-a="reconAcc" data-x="${x.a.id}">Reconcile</button></td></tr>`).join("")||`<tr><td class="muted">Add a bank account to start reconciling.</td></tr>`}</tbody></table></div></section>`}
+
+J.mod({id:"accounts",label:"Accounts",group:"Finance",icon:'<path d="M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4z"/><path d="M8 8h8M8 12h8M8 16h5"/>',sub:"Double-entry books: every module posts here.",
+  headBtns:()=>`<button class="btn w" data-a="impOpen" data-x="bank">Import statement</button><button class="btn primary w" data-a="goEntry">New entry</button>`,
+  badge:()=>{if(!J.D.post)return 0;return accsOf(["bank","card"]).reduce((s,a)=>s+unclearedCount(a.id),0)||0},
+  tabs:[["overview","Overview",vOverview],["entry","New entry",vEntry,wireEntry],["book","Day book",vBook],["ledger","Ledgers",vLedger],["recon","Reconcile",vRecon],["reports","Reports",vReports]]});
+J.act("goEntry",()=>{const E=ui().entry;if(!E.editId)E.f={};J.go("accounts","entry")});
+})();

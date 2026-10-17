@@ -1,0 +1,31 @@
+rules_version = '2';
+// JCGG Suite: only verified Google accounts that the owner has approved can read or write.
+// Replace OWNER_EMAIL with the owner's Google address (lower case) when you publish these rules
+// in the Firebase console. Keep this file's placeholder as it is in the public repository.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInWithGoogle() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && request.auth.token.email_verified == true;
+    }
+    function email() { return request.auth.token.email.lower(); }
+    function isOwner() { return signedInWithGoogle() && email() == 'OWNER_EMAIL'; }
+    function role() {
+      return get(/databases/$(database)/documents/meta/roles).data.get('map', {}).get(email(), null);
+    }
+    function isMember() { return isOwner() || (signedInWithGoogle() && role() != null); }
+    function canWrite() { return isOwner() || (isMember() && role() != 'Auditor'); }
+
+    // who has access: readable by members, changed only by the owner
+    match /meta/roles {
+      allow read: if isMember();
+      allow write: if isOwner();
+    }
+    // every other record (ledgers, entries, stock, KOT days, staff, attendance, payroll, assets, policies…)
+    match /{collection}/{docId} {
+      allow read: if isMember();
+      allow write: if canWrite() && !(collection == 'meta' && docId == 'roles');
+    }
+  }
+}
