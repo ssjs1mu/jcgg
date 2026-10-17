@@ -83,6 +83,8 @@ const store={
   async del(col,id){if(db&&col==="kots"){const o=S.c.kots.get(id);if(o){S.c.kots.delete(id);return store.patch("kotday",o.date,{orders:{[id]:null}})}return}if(db)await db.collection(col).doc(id).delete();else{S.c[col].delete(id);local.save();J.refresh()}}
 };
 J.store=store;
+// one-off read of records in a collection that is not kept in memory (e.g. attached files)
+J.fetchWhere=(col,field,val)=>new Promise((ok,no)=>{if(!db)return ok([]);let un=null;un=db.collection(col).where(field,"==",val).onSnapshot(s=>{if(s.fromCache&&!s.size)return;ok(s.docs.map(d=>({id:d.id,...d.data()})));setTimeout(()=>un&&un(),0)},e=>no(e))});
 async function safe(fn,okMsg){try{const r=await fn();if(okMsg)toast(okMsg);return r??true}catch(e){toast(e?.message&&!e.code?e.message:"Could not save ("+(e?.code||"error")+"). Check the connection and try again.");return false}}
 J.safe=safe;
 
