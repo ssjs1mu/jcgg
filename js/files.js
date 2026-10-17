@@ -39,13 +39,16 @@ J.act("fileView",el=>{const s=SRC[el.dataset.src]?.(el.dataset.x);const f0=s?.re
 const DS="https://www.googleapis.com/auth/drive.file";const TK="jcgg-drive-token";
 const tok=()=>{try{const t=JSON.parse(sessionStorage.getItem(TK)||"null");return t&&t.exp>Date.now()+60e3?t.t:null}catch(e){return null}};
 const meta=()=>J.get("meta","driveSync")||{};
-let dirty=false,timer=null,running=false,lastErr="";
-J.driveStatus=()=>{const m=meta();return {on:!!tok(),last:m.lastAt,by:m.by,err:lastErr,folder:m.folderId}};
+let dirty=false,timer=null,running=false,lastErr="",lastFix="";
+J.driveStatus=()=>{const m=meta();return {on:!!tok(),last:m.lastAt,by:m.by,err:lastErr,fix:lastFix,folder:m.folderId}};
 function paint(){const el=document.getElementById("driveState");if(!el)return;const st=J.driveStatus();el.textContent=st.on?(running?"Drive: backing up…":st.last?"Drive backup "+new Date(st.last).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}):"Drive: connected"):(lastErr?"Drive backup paused — tap":"Back up to Drive — tap");el.title=st.on?"Backed up to Google Drive (JCGG Suite Backups)":"Connect Google Drive to back up automatically"}
 J.driveConnect=async()=>{const p=new firebase.auth.GoogleAuthProvider();p.addScope(DS);p.setCustomParameters({login_hint:S.me?.email||""});
   try{const u=firebase.auth().currentUser;const r=u?await u.reauthenticateWithPopup(p):await firebase.auth().signInWithPopup(p);const t=r.credential?.accessToken;if(!t)throw new Error("Google did not return Drive access");sessionStorage.setItem(TK,JSON.stringify({t,exp:Date.now()+55*60e3}));lastErr="";paint();await J.driveBackup(true);return true}
   catch(e){lastErr=e.message||e.code||"cancelled";paint();toast("Drive not connected: "+(e.code==="auth/popup-blocked"?"allow pop-ups for this site":lastErr));return false}};
-async function api(path,opt={}){const t=tok();if(!t)throw new Error("Drive not connected");const r=await fetch("https://www.googleapis.com/"+path,{...opt,headers:{Authorization:"Bearer "+t,...(opt.headers||{})}});if(r.status===401){sessionStorage.removeItem(TK);throw new Error("Drive access expired — reconnect")}if(!r.ok)throw new Error("Drive error "+r.status);return r.status===204?null:r.json()}
+async function api(path,opt={}){const t=tok();if(!t)throw new Error("Drive not connected");const r=await fetch("https://www.googleapis.com/"+path,{...opt,headers:{Authorization:"Bearer "+t,...(opt.headers||{})}});if(r.status===401){sessionStorage.removeItem(TK);throw new Error("Drive access expired — reconnect")}if(!r.ok){let j={};try{j=await r.json()}catch(e){}const er=j.error||{};const why=(er.errors||[])[0]?.reason||(er.details||[]).find(d=>d.reason)?.reason||er.status||"";const pid=firebase.app().options.projectId;
+    if(/accessNotConfigured|SERVICE_DISABLED/i.test(why+" "+er.message))throw Object.assign(new Error("Google Drive API is switched off for this app's Google project. Turn it on once, then tap again."),{fix:"https://console.cloud.google.com/apis/library/drive.googleapis.com?project="+pid});
+    if(/insufficient|ACCESS_TOKEN_SCOPE_INSUFFICIENT|PERMISSION_DENIED/i.test(why+" "+er.status)){sessionStorage.removeItem(TK);throw new Error("Drive permission was not given. Tap again and tick the Google Drive box on Google's screen.")}
+    throw new Error("Drive error "+r.status+(er.message?": "+er.message:""))}return r.status===204?null:r.json()}
 async function ensureFolder(){const m=meta();if(m.folderId){try{const f=await api("drive/v3/files/"+m.folderId+"?fields=id,trashed");if(f&&!f.trashed)return m.folderId}catch(e){if(/expired|connected/.test(e.message))throw e}}
   const f=await api("drive/v3/files?fields=id",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"JCGG Suite Backups",mimeType:"application/vnd.google-apps.folder"})});await J.store.patch("meta","driveSync",{folderId:f.id});return f.id}
 async function putFile(id,name,folder,body){const b="jcgg"+uid();const metaPart=id?{name}:{name,parents:[folder],mimeType:"application/json"};
@@ -55,7 +58,7 @@ J.driveBackup=async manual=>{if(!tok()){paint();if(manual)return J.driveConnect(
   try{const folder=await ensureFolder();const o={exported:new Date().toISOString(),app:"JCGG Suite",version:2,by:S.me?.email||""};for(const k of J.DATA_KEYS)o[k]=J.all(k);const body=JSON.stringify(o);const m=meta();const day=today();
     const latest=await putFile(m.latestId,"jcgg-suite-latest.json",folder,body);const daily=await putFile(m.days?.[day],"jcgg-suite-"+day+".json",folder,body);
     await J.store.patch("meta","driveSync",{folderId:folder,latestId:latest.id,days:{[day]:daily.id},lastAt:Date.now(),by:S.me?.name||S.me?.email||"",size:body.length});lastErr="";if(manual)toast("Backed up to Google Drive · JCGG Suite Backups")}
-  catch(e){lastErr=e.message;if(manual)toast(e.message)}finally{running=false;paint();if(dirty)schedule()}};
+  catch(e){lastErr=e.message;lastFix=e.fix||"";if(manual)toast(e.message)}finally{running=false;paint();if(dirty)schedule()}};
 function schedule(){clearTimeout(timer);timer=setTimeout(()=>J.driveBackup(false),120e3)}
 // any saved change marks the book dirty; the backup follows two minutes after the last change
 const put0=J.store.put,patch0=J.store.patch,del0=J.store.del;
