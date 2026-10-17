@@ -100,7 +100,7 @@ T.att={label:"Attendance",group:"People",desc:"Either one row per person per day
     else{const d=asDate(r.date);if(!d){r.err.push("bad date");return}if(s&&J.H.stints(s).length&&!J.H.inService(s,d))r.err.push("not in service on "+d);const st=STATUS(r.status);if(st==="?")r.err.push("unknown status “"+str(r.status)+"”");
       const t=v=>{const x=asTime(v);return x&&x!=="00:00"?x:""};const i=t(r.in),ro=t(r.rout),ri=t(r.rin),ou=t(r.out);
       const rec={s:st&&st!=="?"?st:(i?"P":""),in:i||null,out:null,in2:null,out2:null,ot:asNum(r.ot)?asNum(r.ot):null,st:asTime(r.st)||null,note:str(r.note)||null,sh:null,auto:null};
-      if(ro&&ri){rec.out=ro;rec.in2=ri;rec.out2=ou||null}else rec.out=ou||null;if(i)rec.sh=J.R.inferShift(rec)||null;
+      if(ro&&ri){rec.out=ro;rec.in2=ri;rec.out2=ou||null}else rec.out=ou||null;if(i)rec.sh=J.R.inferShift(rec,s)||null;
       if(!rec.s&&!i)return r.skip=1;r.days[d]=rec;r.view=[str(r.code?r.code+" ":"")+str(r.name),d,rec.s||"",[i,ro&&ri?ro+" | "+ri:"",ou].filter(Boolean).join(" – ")+(rec.sh?" · "+rec.sh:"")+(rec.note?" · "+rec.note:"")]}},
   cols:["Staff","Date / month","Status","Detail"],
   async commit(recs,o,log){const byM={};for(const r of recs)for(const [d,rec] of Object.entries(r.days))((byM[d.slice(0,7)]??={})[String(+d.slice(8))]??={})[r.sid]=rec;

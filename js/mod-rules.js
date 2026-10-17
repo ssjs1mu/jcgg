@@ -23,10 +23,11 @@ R.shiftLabel=s=>{const sh=s?.sal?.shift&&R.rules().shifts[s.sal.shift];const seg
 R.segsFor=(s,rec)=>{const sh=rec?.sh&&R.rules().shifts[rec.sh];return sh?sh.segs:R.segsOf(s)};
 R.startOf=(s,rec)=>toMin(rec?.st)??toMin(R.segsFor(s,rec)[0]?.[0]);
 // which rule shift a day's punches belong to (closest start and finish); null if no punches
-R.inferShift=rec=>{const i=toMin(rec?.in);if(i==null)return null;const pun=rec.in2!=null&&rec.in2!==""?[rec.in,rec.out,rec.in2,rec.out2]:[rec.in,null,null,rec.out];let best=null,bd=1e9;
-  for(const [k,x] of Object.entries(R.rules().shifts)){const bnd=x.segs.length>1?[x.segs[0][0],x.segs[0][1],x.segs[1][0],x.segs[1][1]]:[x.segs[0][0],null,null,x.segs[0][1]];let d=0;for(let j=0;j<4;j++){const a=toMin(pun[j]),b=toMin(bnd[j]);if(a!=null&&b!=null)d+=Math.abs(a-b)}if(d<bd){bd=d;best=k}}return best};
+R.inferShift=(rec,s)=>{const i=toMin(rec?.in);if(i==null)return null;const pun=rec.in2!=null&&rec.in2!==""?[rec.in,rec.out,rec.in2,rec.out2]:[rec.in,null,null,rec.out];let best=null,bd=1e9;
+  const cands=[...(s&&!s.sal?.shift&&R.segsOf(s).length?[["",{segs:R.segsOf(s)}]]:[]),...Object.entries(R.rules().shifts)];for(const [k,x] of cands){const bnd=x.segs.length>1?[x.segs[0][0],x.segs[0][1],x.segs[1][0],x.segs[1][1]]:[x.segs[0][0],null,null,x.segs[0][1]];let d=0;for(let j=0;j<4;j++){const a=toMin(pun[j]),b=toMin(bnd[j]);if(a!=null&&b!=null)d+=Math.abs(a-b)}if(d<bd){bd=d;best=k}}return best};
 // minutes late on the first punch-in of the day
-R.lateMin=(s,rec)=>{if(!rec?.in)return 0;const st=R.startOf(s,rec),i=toMin(rec.in);if(st==null||i==null)return 0;return Math.max(0,i-st)};
+R.flexible=s=>/FLEX|EXEMPT|PART/i.test(s?.tracking||"");
+R.lateMin=(s,rec)=>{if(!rec?.in||R.flexible(s))return 0;const st=R.startOf(s,rec),i=toMin(rec.in);if(st==null||i==null)return 0;return Math.max(0,i-st)};
 R.lateFrac=mins=>{if(!mins)return 0;for(const [a,b,f] of R.rules().slabs)if(mins>=a&&mins<=b)return +f||0;return 1};
 R.slabText=mins=>{const f=R.lateFrac(mins);return f?Math.round(f*100)+"% of a day":"grace"};
 // minutes worked: two punch pairs if given, otherwise first-in to last-out less the scheduled rest break
