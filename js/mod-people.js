@@ -169,13 +169,13 @@ async function build(m){const run=J.get("payroll",m)||{};const old=J.get("vouche
   const people=J.staffList(true).filter(s=>H.inServiceRange(s,m+"-01",J.monthEnd(m))||oldIds.has(s.id));const L=[],per={};
   const A={sal:await sysId("salary","Staff Salary","expense"),ot:await sysId("ot","Overtime Wages","expense"),perk:await sysId("perks","Staff Perks & Bonus","expense"),ded:await sysId("salded","Late & Penalty Deductions","expense"),
     pf:"",esic:"",pt:"",tds:""};
-  for(const s of people){const c=J.payCalc(s,m,run.ov?.[s.id]||{});if(c.earned<=0&&c.otPay<=0&&c.bonus<=0&&!oldIds.has(s.id))continue;const tag=(s.code?s.code+" ":"")+s.name;per[s.id]={c,s};
+  for(const s of people){const c=J.payCalc(s,m,run.ov?.[s.id]||{});if(c.earned<=0&&c.finalOT<=0&&c.bonus<=0&&!oldIds.has(s.id))continue;const tag=(s.code?s.code+" ":"")+s.name;per[s.id]={c,s};
     const push=(a,dr,cr,n)=>{if(r2(dr)||r2(cr))L.push({a,dr:r2(dr),cr:r2(cr),n})};
-    push(A.sal,c.earned,0,tag+" · salary for "+c.paid+" paid days (P"+c.P+" H"+c.H+" L"+c.L+" W"+c.W+" A"+c.A+")");push(A.ot,c.otPay,0,tag+" · overtime "+c.ot+" h");push(A.perk,c.bonus,0,tag+" · perks / bonus");
-    push(A.ded,0,c.lateDed,tag+" · late deduction ("+c.late+" late marks)");push(A.ded,0,c.penalty,tag+" · penalty");
+    push(A.sal,c.earned,0,tag+" · salary for "+c.paid+" paid days (P"+c.P+" H"+c.H+" L"+c.L+" W"+c.W+" A"+c.A+")");push(A.ot,c.finalOT,0,tag+" · overtime "+c.ot+" h"+(c.shortH||c.lateDed?" less short duty "+c.shortH+" h and late, final OT":""));push(A.perk,c.bonus,0,tag+" · perks / bonus");
+    push(A.ded,0,c.fromSal,tag+" · short duty "+c.shortH+" h + late ("+c.late+" days) not covered by OT");push(A.ded,0,c.penalty,tag+" · penalty");
     for(const [k,nm] of [["pf","PF Payable"],["esic","ESIC Payable"],["pt","Professional Tax Payable"],["tds","TDS Payable (Salary)"]])if(c[k]){A[k]=A[k]||await sysId(k,nm,"tax");push(A[k],0,c[k],tag+" · "+nm.replace(" Payable",""))}
     push("adv-"+s.id,0,c.adv,"Advance recovered from "+monthLabel(m)+" salary");push("loan-"+s.id,0,c.loan,"Loan EMI from "+monthLabel(m)+" salary");
-    const net=r2(c.net);const f0=x=>J.inr.format(x);const parts=["salary "+f0(c.earned)+" ("+c.paid+" days)",c.otPay&&"OT "+f0(c.otPay),c.bonus&&"perks "+f0(c.bonus)].filter(Boolean).join(" + ");const less=[c.lateDed&&"late "+f0(c.lateDed),c.penalty&&"penalty "+f0(c.penalty),c.pt&&"PT "+f0(c.pt),c.pf&&"PF "+f0(c.pf),c.esic&&"ESIC "+f0(c.esic),c.tds&&"TDS "+f0(c.tds),c.adv&&"advance "+f0(c.adv),c.loan&&"loan EMI "+f0(c.loan)].filter(Boolean).join(", ");
+    const net=r2(c.net);const f0=x=>J.inr.format(x);const parts=["salary "+f0(c.earned)+" ("+c.paid+" days)",c.finalOT&&"final OT "+f0(c.finalOT)+" (OT "+c.ot+"h "+f0(c.otPay)+(c.shortDed?" − short "+c.shortH+"h "+f0(c.shortDed):"")+(c.lateDed?" − late "+f0(c.lateDed):"")+")",c.bonus&&"perks "+f0(c.bonus)].filter(Boolean).join(" + ");const less=[c.fromSal&&"short duty & late "+f0(c.fromSal),c.penalty&&"penalty "+f0(c.penalty),c.pt&&"PT "+f0(c.pt),c.pf&&"PF "+f0(c.pf),c.esic&&"ESIC "+f0(c.esic),c.tds&&"TDS "+f0(c.tds),c.adv&&"advance "+f0(c.adv),c.loan&&"loan EMI "+f0(c.loan)].filter(Boolean).join(", ");
     if(net>=0)push(s.id,0,net,"Net salary "+monthLabel(m)+": "+parts+(less?" − "+less:""));else push(s.id,-net,0,"Deductions exceed salary for "+monthLabel(m)+": "+parts+" − "+less)}
   return {L,per,old}}
 const netOf=(v,sid)=>r2((v?.lines||[]).filter(l=>l.a===sid).reduce((t,l)=>t+l.cr-l.dr,0));
