@@ -149,7 +149,7 @@ J.parseStaffBook=H.parseWorkbook;J.staffPreviewHtml=previewHtml;
 /* ---- tenure attendance fill, automatic month-end salary posting, adjustment entries and change log ---- */
 (()=>{
 const J=window.J,{S,esc,r2,money,money0,fmtDate,today,addDays,uid,toast,monthLabel,pad}=J;const H=J.H;
-const isWO=(s,date)=>s.sal?.weekOff!==undefined&&s.sal.weekOff!==""&&s.sal.weekOff!=null&&J.parseISO(date).getDay()===+s.sal.weekOff;
+const isWO=(s,date)=>J.R.isWeekOff(s,date);
 const canAuto=()=>S.mode==="cloud"&&S.ready&&!J.readOnly()&&["Super Admin","Admin","Accountant","Manager"].includes(J.myRole());
 const who=()=>S.me?.name||S.me?.email||"";
 // mark every unmarked day inside each stint (up to `upto`) as Present, or Week off on the weekly-off day
@@ -157,7 +157,7 @@ H.fillAttendance=async(upto=today(),only,redo)=>{const byM={};let n=0;
   for(const s of J.staffList(true)){if(only&&!only.includes(s.id))continue;const from0=J.settings().bizStart||"2023-06-22";for(const st of H.stints(s)){if(!st.join)continue;const end=st.exit&&st.exit<upto?st.exit:upto;
     const T=s.terms?.auto?s.terms:null;const endT=T&&(!st.exit||st.exit>=today())?(st.exit&&st.exit<today()?st.exit:today()):end;
     for(let d=st.join<from0?from0:st.join;d<=endT;d=addDays(d,1)){const m=d.slice(0,7),day=String(+d.slice(8));const have=J.get("attendance",m)?.days?.[day]?.[s.id];
-      const want=T&&!(T.days||[]).includes(J.parseISO(d).getDay())?"O":isWO(s,d)?"W":"P";if(have?.s&&!(T&&have.auto&&have.s!==want)&&!(redo&&have.auto&&have.s!==want))continue;((byM[m]??={})[day]??={})[s.id]={...(have||{}),s:want,auto:1};n++}}}
+      const want=T&&!(T.days||[]).includes(J.parseISO(d).getDay())?"O":isWO(s,d)?"W":"P";if(have?.s&&!(have.auto&&have.s!==want&&(T||redo||(want!=="O"&&have.s!=="O"))))continue;((byM[m]??={})[day]??={})[s.id]={...(have||{}),s:want,auto:1};n++}}}
   for(const [m,days] of Object.entries(byM))await J.store.patch("attendance",m,{days});return n};
 // One salary voucher per month (SA/…, dated the last day) carrying every person's breakup on its own lines:
 //   Dr Staff Salary (salary for paid days) · Dr Overtime Wages · Dr Staff Perks & Bonus
