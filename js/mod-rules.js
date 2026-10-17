@@ -19,7 +19,12 @@ const DOWL=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturda
 R.segsOf=s=>{const sh=s?.sal?.shift&&R.rules().shifts[s.sal.shift];if(sh)return sh.segs;const st=s?.sal?.start,en=s?.sal?.end;if(!st)return [];const rest=String(s?.sal?.rest||"").match(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/);
   return rest&&en?[[st,rest[1].padStart(5,"0")],[rest[2].padStart(5,"0"),en]]:[[st,en||""]]};
 R.shiftLabel=s=>{const sh=s?.sal?.shift&&R.rules().shifts[s.sal.shift];const segs=R.segsOf(s);return (sh?sh.label+" · ":"")+segs.map(x=>x[0]+"–"+(x[1]||"?")).join(", ")};
-R.startOf=(s,rec)=>toMin(rec?.st)??toMin(R.segsOf(s)[0]?.[0]);
+// the shift worked on a given day: the day's own shift (rec.sh) if set, otherwise the person's usual shift
+R.segsFor=(s,rec)=>{const sh=rec?.sh&&R.rules().shifts[rec.sh];return sh?sh.segs:R.segsOf(s)};
+R.startOf=(s,rec)=>toMin(rec?.st)??toMin(R.segsFor(s,rec)[0]?.[0]);
+// which rule shift a day's punches belong to (closest start and finish); null if no punches
+R.inferShift=rec=>{const i=toMin(rec?.in);if(i==null)return null;const pun=rec.in2!=null&&rec.in2!==""?[rec.in,rec.out,rec.in2,rec.out2]:[rec.in,null,null,rec.out];let best=null,bd=1e9;
+  for(const [k,x] of Object.entries(R.rules().shifts)){const bnd=x.segs.length>1?[x.segs[0][0],x.segs[0][1],x.segs[1][0],x.segs[1][1]]:[x.segs[0][0],null,null,x.segs[0][1]];let d=0;for(let j=0;j<4;j++){const a=toMin(pun[j]),b=toMin(bnd[j]);if(a!=null&&b!=null)d+=Math.abs(a-b)}if(d<bd){bd=d;best=k}}return best};
 // minutes late on the first punch-in of the day
 R.lateMin=(s,rec)=>{if(!rec?.in)return 0;const st=R.startOf(s,rec),i=toMin(rec.in);if(st==null||i==null)return 0;return Math.max(0,i-st)};
 R.lateFrac=mins=>{if(!mins)return 0;for(const [a,b,f] of R.rules().slabs)if(mins>=a&&mins<=b)return +f||0;return 1};
@@ -27,7 +32,7 @@ R.slabText=mins=>{const f=R.lateFrac(mins);return f?Math.round(f*100)+"% of a da
 // minutes worked: two punch pairs if given, otherwise first-in to last-out less the scheduled rest break
 R.workMin=(s,rec)=>{if(!rec)return 0;const i=toMin(rec.in),o=toMin(rec.out),i2=toMin(rec.in2),o2=toMin(rec.out2);const span=(a,b)=>a==null||b==null?0:(b>=a?b-a:b+1440-a);
   if(i2!=null||o2!=null){return span(i,o)+span(i2,o2)}
-  if(i==null||o==null)return 0;let w=span(i,o);const segs=R.segsOf(s);for(let k=0;k+1<segs.length;k++){const ra=toMin(segs[k][1]),rb=toMin(segs[k+1][0]);if(ra==null||rb==null)continue;const ov=Math.max(0,Math.min(o>=i?o:o+1440,rb)-Math.max(i,ra));w-=ov}return Math.max(0,w)};
+  if(i==null||o==null)return 0;let w=span(i,o);const segs=R.segsFor(s,rec);for(let k=0;k+1<segs.length;k++){const ra=toMin(segs[k][1]),rb=toMin(segs[k+1][0]);if(ra==null||rb==null)continue;const ov=Math.max(0,Math.min(o>=i?o:o+1440,rb)-Math.max(i,ra));w-=ov}return Math.max(0,w)};
 // overtime hours: a number typed on the day wins; otherwise time worked beyond the daily limit
 R.otHours=(s,rec)=>{if(rec&&rec.ot!==""&&rec.ot!=null&&!isNaN(+rec.ot))return +rec.ot;const w=R.workMin(s,rec);const lim=(+R.rules().otAfter||10)*60;return w>lim?Math.round((w-lim)/60*100)/100:0};
 R.autoOT=(s,rec)=>{const w=R.workMin(s,rec);const lim=(+R.rules().otAfter||10)*60;return w>lim?Math.round((w-lim)/60*100)/100:0};
