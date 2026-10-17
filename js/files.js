@@ -1,0 +1,66 @@
+/* Attachments (identity, bank, policy documents): stored in Firestore in pieces (each record is limited to 1 MB),
+   a small thumbnail kept on the owner record, full view in a lightbox. Also: automatic backup of the book to Google Drive. */
+(()=>{
+const J=window.J,{S,esc,toast,uid,today}=J;
+const CH=700000;
+const readB64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result));r.onerror=no;r.readAsDataURL(f)});
+const loadImg=src=>new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=src});
+function scaleTo(img,max,q){const k=Math.min(1,max/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));const c=document.createElement("canvas");c.width=Math.round((img.naturalWidth||img.width)*k);c.height=Math.round((img.naturalHeight||img.height)*k);const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);return c.toDataURL("image/jpeg",q)}
+async function pdfThumb(dataUrl){try{const lib=await J.loadPdfJs();const bin=atob(dataUrl.split(",")[1]);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);const pdf=await lib.getDocument({data:u}).promise;const pg=await pdf.getPage(1);const vp0=pg.getViewport({scale:1});const vp=pg.getViewport({scale:320/vp0.width});const c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;await pg.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;return {thumb:c.toDataURL("image/jpeg",0.7),pages:pdf.numPages}}catch(e){return {thumb:"",pages:0}}}
+// save a File: images are resized to 2000 px on the long side (sharp enough to read an ID card), PDFs kept as they are
+J.fileSave=async(file,col="files",onStep)=>{if(file.size>15e6)throw new Error(file.name+" is over 15 MB");let url=await readB64(file);let type=file.type||"application/octet-stream";let thumb="",pages=0;
+  if(/^image\//.test(type)){const img=await loadImg(url);thumb=scaleTo(img,320,0.7);if(file.size>600e3||!/jpe?g|png/.test(type)){url=scaleTo(img,2000,0.85);type="image/jpeg"}}
+  else if(type==="application/pdf"){const t=await pdfThumb(url);thumb=t.thumb;pages=t.pages}
+  const b64=url.split(",")[1];const fid="f-"+uid();const of=Math.ceil(b64.length/CH)||1;
+  for(let i=0;i<of;i++){onStep&&onStep(i+1,of);await J.store.put(col,{id:fid+"-"+i,fid,i,of,data:b64.slice(i*CH,(i+1)*CH)})}
+  return {fid,col,name:file.name,type,size:Math.round(b64.length*0.75),of,thumb,pages,at:Date.now(),by:S.me?.name||S.me?.email||""}};
+J.fileBlob=async f=>{const parts=await J.fetchWhere(f.col||"files","fid",f.fid);if(parts.length<(f.of||1))throw new Error("This file is incomplete — attach it again");const b64=parts.sort((a,b)=>a.i-b.i).map(x=>x.data).join("");const bin=atob(b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:f.type})};
+J.fileDrop=async f=>{try{const parts=await J.fetchWhere(f.col||"files","fid",f.fid);for(const p of parts)await J.store.del(f.col||"files",p.id)}catch(e){}};
+// thumbnails grid; each opens the full document
+J.thumbsHtml=(list,opt={})=>`<div class="thumbs">${(list||[]).map((f,i)=>`<figure class="thumb"><button type="button" class="thumb-img" data-a="fileView" data-src="${esc(opt.src||"")}" data-x="${esc(opt.owner||"")}" data-i="${i}" aria-label="Open ${esc(f.cat||f.name)}">${f.thumb?`<img src="${f.thumb}" alt="">`:`<span class="thumb-ph">${/pdf/.test(f.type)?"PDF":"FILE"}</span>`}</button><figcaption><b>${esc(f.cat||"Document")}</b><span class="hint">${esc(f.name)}${f.pages?" · "+f.pages+" page"+(f.pages>1?"s":""):""}</span>${opt.del?`<button type="button" class="linkbtn danger" data-a="${opt.del}" data-x="${esc(opt.owner||"")}" data-i="${i}">Remove</button>`:""}</figcaption></figure>`).join("")||`<p class="muted" style="margin:0">${esc(opt.empty||"Nothing attached yet.")}</p>`}</div>`;
+// where each kind of owner keeps its list of files
+const SRC={staff:id=>({rec:J.get("accounts",id),col:"accounts",key:"docs"}),policy:id=>({rec:J.get("policies",id),col:"policies",key:"files",fcol:"polfiles"})};
+J.fileSrc=SRC;
+let lbUrl=null;
+function closeLb(){document.getElementById("lightbox")?.remove();if(lbUrl){URL.revokeObjectURL(lbUrl);lbUrl=null}document.removeEventListener("keydown",lbKey)}
+function lbKey(e){if(e.key==="Escape")closeLb()}
+J.fileView=async(f,title)=>{closeLb();const box=document.createElement("div");box.id="lightbox";box.className="lightbox";box.setAttribute("role","dialog");box.setAttribute("aria-label",title||f.name);
+  box.innerHTML=`<div class="lb-bar"><b>${esc(title||f.cat||f.name)}</b><span class="hint">${esc(f.name)}</span><span style="margin-left:auto" class="row"><a class="btn small" id="lb-open" target="_blank" rel="noopener" hidden>Open in new tab</a><a class="btn small" id="lb-dl" hidden>Download</a><button type="button" class="btn small" id="lb-x">Close ✕</button></span></div><div class="lb-body" id="lb-body"><p class="hint" style="color:#fff">Loading…</p></div>`;
+  document.body.appendChild(box);box.querySelector("#lb-x").onclick=closeLb;box.addEventListener("click",e=>{if(e.target===box||e.target.id==="lb-body")closeLb()});document.addEventListener("keydown",lbKey);
+  try{const blob=await J.fileBlob(f);lbUrl=URL.createObjectURL(blob);const body=box.querySelector("#lb-body");
+    body.innerHTML=/^image\//.test(f.type)?`<img src="${lbUrl}" alt="${esc(f.name)}" class="lb-img">`:/pdf/.test(f.type)?`<iframe src="${lbUrl}" title="${esc(f.name)}" class="lb-pdf"></iframe>`:`<p style="color:#fff">Preview not available — use Download.</p>`;
+    const o=box.querySelector("#lb-open"),d=box.querySelector("#lb-dl");o.href=lbUrl;o.hidden=false;d.href=lbUrl;d.download=f.name;d.hidden=false}
+  catch(e){box.querySelector("#lb-body").innerHTML=`<p style="color:#fff">${esc(e.message||"Could not open the file")}</p>`}};
+J.act("fileView",el=>{const s=SRC[el.dataset.src]?.(el.dataset.x);const f0=s?.rec?.[s.key]?.[+el.dataset.i];const f=f0&&{col:s.fcol||"files",...f0};if(f)J.fileView(f,(s.rec.name||s.rec.type||"")+" · "+(f.cat||f.name))});
+
+// ---------- Google Drive backup ----------
+// The signed-in Google account grants this app access to the files it creates in Drive (drive.file scope only).
+// Every change to the book is backed up a couple of minutes later: one "latest" file, plus one file per day.
+const DS="https://www.googleapis.com/auth/drive.file";const TK="jcgg-drive-token";
+const tok=()=>{try{const t=JSON.parse(sessionStorage.getItem(TK)||"null");return t&&t.exp>Date.now()+60e3?t.t:null}catch(e){return null}};
+const meta=()=>J.get("meta","driveSync")||{};
+let dirty=false,timer=null,running=false,lastErr="";
+J.driveStatus=()=>{const m=meta();return {on:!!tok(),last:m.lastAt,by:m.by,err:lastErr,folder:m.folderId}};
+function paint(){const el=document.getElementById("driveState");if(!el)return;const st=J.driveStatus();el.textContent=st.on?(running?"Drive: backing up…":st.last?"Drive backup "+new Date(st.last).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}):"Drive: connected"):(lastErr?"Drive backup paused — tap":"Back up to Drive — tap");el.title=st.on?"Backed up to Google Drive (JCGG Suite Backups)":"Connect Google Drive to back up automatically"}
+J.driveConnect=async()=>{const p=new firebase.auth.GoogleAuthProvider();p.addScope(DS);p.setCustomParameters({login_hint:S.me?.email||""});
+  try{const u=firebase.auth().currentUser;const r=u?await u.reauthenticateWithPopup(p):await firebase.auth().signInWithPopup(p);const t=r.credential?.accessToken;if(!t)throw new Error("Google did not return Drive access");sessionStorage.setItem(TK,JSON.stringify({t,exp:Date.now()+55*60e3}));lastErr="";paint();await J.driveBackup(true);return true}
+  catch(e){lastErr=e.message||e.code||"cancelled";paint();toast("Drive not connected: "+(e.code==="auth/popup-blocked"?"allow pop-ups for this site":lastErr));return false}};
+async function api(path,opt={}){const t=tok();if(!t)throw new Error("Drive not connected");const r=await fetch("https://www.googleapis.com/"+path,{...opt,headers:{Authorization:"Bearer "+t,...(opt.headers||{})}});if(r.status===401){sessionStorage.removeItem(TK);throw new Error("Drive access expired — reconnect")}if(!r.ok)throw new Error("Drive error "+r.status);return r.status===204?null:r.json()}
+async function ensureFolder(){const m=meta();if(m.folderId){try{const f=await api("drive/v3/files/"+m.folderId+"?fields=id,trashed");if(f&&!f.trashed)return m.folderId}catch(e){if(/expired|connected/.test(e.message))throw e}}
+  const f=await api("drive/v3/files?fields=id",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"JCGG Suite Backups",mimeType:"application/vnd.google-apps.folder"})});await J.store.patch("meta","driveSync",{folderId:f.id});return f.id}
+async function putFile(id,name,folder,body){const b="jcgg"+uid();const metaPart=id?{name}:{name,parents:[folder],mimeType:"application/json"};
+  const data=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metaPart)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${b}--`;
+  try{return await api("upload/drive/v3/files"+(id?"/"+id:"")+"?uploadType=multipart&fields=id",{method:id?"PATCH":"POST",headers:{"Content-Type":"multipart/related; boundary="+b},body:data})}catch(e){if(id&&/404/.test(e.message))return putFile(null,name,folder,body);throw e}}
+J.driveBackup=async manual=>{if(!tok()){paint();if(manual)return J.driveConnect();return}if(running){dirty=true;return}running=true;dirty=false;paint();
+  try{const folder=await ensureFolder();const o={exported:new Date().toISOString(),app:"JCGG Suite",version:2,by:S.me?.email||""};for(const k of J.DATA_KEYS)o[k]=J.all(k);const body=JSON.stringify(o);const m=meta();const day=today();
+    const latest=await putFile(m.latestId,"jcgg-suite-latest.json",folder,body);const daily=await putFile(m.days?.[day],"jcgg-suite-"+day+".json",folder,body);
+    await J.store.patch("meta","driveSync",{folderId:folder,latestId:latest.id,days:{[day]:daily.id},lastAt:Date.now(),by:S.me?.name||S.me?.email||"",size:body.length});lastErr="";if(manual)toast("Backed up to Google Drive · JCGG Suite Backups")}
+  catch(e){lastErr=e.message;if(manual)toast(e.message)}finally{running=false;paint();if(dirty)schedule()}};
+function schedule(){clearTimeout(timer);timer=setTimeout(()=>J.driveBackup(false),120e3)}
+// any saved change marks the book dirty; the backup follows two minutes after the last change
+const put0=J.store.put,patch0=J.store.patch,del0=J.store.del;
+const mark=col=>{if(col!=="files"&&col!=="polfiles"&&!(col==="meta"))if(tok()){dirty=true;schedule()}};
+J.store.put=async(c,d)=>{const r=await put0(c,d);mark(c);return r};J.store.patch=async(c,i,p)=>{const r=await patch0(c,i,p);if(!(c==="meta"&&i==="driveSync"))mark(c);return r};J.store.del=async(c,i)=>{const r=await del0(c,i);mark(c);return r};
+J.act("driveSync",()=>J.driveBackup(true));
+setInterval(paint,30e3);document.addEventListener("DOMContentLoaded",paint);setTimeout(paint,1500);
+})();
