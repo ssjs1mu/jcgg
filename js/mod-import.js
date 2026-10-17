@@ -1,6 +1,6 @@
 /* Import centre: bring old data in from CSV or Excel — column mapping, row-by-row validation, duplicate checks, keyword rules, undo */
 (()=>{
-const J=window.J,{S,esc,inr,r2,r3,money,fmtDate,today,uid,fld,txt,num,dateI,selO,toast,daysBetween,addDays,monthLabel}=J;
+const J=window.J,{S,esc,inr,inr0,r2,r3,money,fmtDate,today,uid,fld,txt,num,dateI,selO,toast,daysBetween,addDays,monthLabel}=J;
 const ui=()=>J.ui("imp",{type:"",step:1,file:"",sheets:[],sheet:"",rows:[],hdr:0,map:{},opt:{},recs:null,page:0,done:null,err:""});
 let BOOK=null;const wb={book:null};
 
@@ -176,6 +176,35 @@ T.open={label:"Ledger opening balances",group:"Accounts",desc:"Balances of every
   summary:recs=>{const d=recs.reduce((s,r)=>s+Math.max(0,r.b),0),c=recs.reduce((s,r)=>s+Math.max(0,-r.b),0);return "Dr "+money(d)+" · Cr "+money(c)+(Math.abs(d-c)>0.01?" · differs by "+money(Math.abs(d-c))+" (put the difference in capital)":" · balanced")},
   async commit(recs,o,log){for(const r of recs){const a=r.ex?{...r.ex,opening:r.b}:{id:r.k+"-"+uid(),name:str(r.name),kind:r.k,opening:r.b,active:true,phone:str(r.phone),gstin:str(r.gstin).toUpperCase(),imp:log.id};if(r.ex&&str(r.phone))a.phone=str(r.phone);await J.store.put("accounts",a);S.c.accounts.set(a.id,a);if(!r.ex)log.add("accounts",a.id);log.tick()}}};
 
+// ---- staff KOT register: one row per dish per day, one column per person (quantity) ----
+const SKF=[F("date","Date",/^date|day/,1),F("item","Item",/item|dish|particular/,1),F("rate","Rate",/rate|price/,1)];
+function skPersons(){const U=ui();const hdr=(U.rows[U.hdr]||[]).map(c=>str(c));const used=new Set(Object.values(U.map||{}).filter(v=>v!=null&&v!==""));return hdr.map((h,i)=>({h,i})).filter(x=>x.h&&!used.has(x.i)&&!/^(plate|plates|amount|amt|qty|quantity|total|sl|s ?no|no\.?|#|value)$/i.test(norm(x.h)))}
+function skDates(){const U=ui();const di=U.map?.date;if(di==null)return [];return U.rows.slice(U.hdr+1).map(r=>asDate(r[di])).filter(Boolean).sort()}
+function skGuess(h,from,to){const al=J.get("meta","kotAliases")?.map||{};if(al[h])return al[h];const n=norm(h).replace(/\s+/g,"");if(n.length<3)return "";const cands=J.staffList(true).filter(s=>!from||J.H.inServiceRange(s,from,to));const tok=s=>norm(s.name).split(/\s+/);
+  const hit=cands.filter(s=>tok(s).some(t=>t===n||(n.length>=4&&t.startsWith(n))));return hit.length===1?hit[0].id:""}
+function skMenu(name){const n=norm(name);return J.all("menu").filter(m=>m.active!==false&&norm(m.name)===n)}
+T.staffkot={label:"Staff KOT register",group:"People",desc:"Staff food sheet: Date, Item, Rate and one column per person with the quantity taken. Each column is linked to a staff member (remembered for next time); every line is checked against the person's working dates and the Kitchen menu staff rate before it is added. One KOT per person per day; uploading the same days again replaces them.",
+  fields:SKF,
+  opts:o=>{const ps=skPersons();const ds=skDates();const from=ds[0],to=ds.at(-1);o.pmap=o.pmap||{};for(const p of ps)if(o.pmap[p.h]===undefined)o.pmap[p.h]=skGuess(p.h,from,to);
+    const staff=J.staffList(true).filter(s=>!from||J.H.inServiceRange(s,from,to)).sort((a,b)=>(a.code||"").localeCompare(b.code||""));
+    return `<p class="hint" style="margin:0">${ps.length} person columns${from?" · "+fmtDate(from)+" to "+fmtDate(to):""}. Link each column to the staff member it belongs to; leave “Not linked” to hold it back.</p><div class="form">${ps.map(p=>fld(esc(p.h),`<select data-ach="skMap" data-x="${esc(p.h)}" id="skm-${p.i}"><option value="">Not linked — hold back</option>${staff.map(s=>`<option value="${s.id}" ${o.pmap[p.h]===s.id?"selected":""}>${esc((s.code?s.code+" · ":"")+s.name)}</option>`).join("")}</select>`)).join("")}</div>
+    <label class="row" style="gap:6px"><input type="checkbox" id="io-sksheet" data-ui="imp.opt.useSheet" ${o.useSheet?"checked":""}> Accept the sheet's rate when it differs from the menu (otherwise such lines are held back)</label>`},
+  prep(r,o){const d=asDate(r.date);const item=str(r.item);if(!d&&!item)return r.skip=1;if(!d){r.err.push("bad date");return}if(!item){r.err.push("no item");return}const rate=asNum(r.rate);if(!(rate>=0)){r.err.push("no rate");return}
+    const ms=skMenu(item);const exp=[...new Set(ms.map(m=>{const s=J.menuRate(m,"staff");return s!=null&&s>0?s:J.menuRate(m,"gr")}).filter(v=>v!=null))];const mm=ms.find(m=>{const s=J.menuRate(m,"staff");return (s!=null&&s>0?s:J.menuRate(m,"gr"))===rate})||ms.find(m=>m.cat==="STAFF")||ms[0];
+    const priceOk=exp.includes(rate);r.lines=[];r.held=[];
+    for(const p of skPersons()){const q=asNum(r._row[p.i]);if(!(q>0))continue;const sid=o.pmap?.[p.h];const s=sid&&J.get("accounts",sid);let why="";
+      if(!s)why=p.h+" not linked to a staff member";else if(J.H.stints(s).length&&!J.H.inService(s,d))why=s.name+" not in service on "+fmtDate(d);else if(!ms.length)why="“"+item+"” is not on the Kitchen menu";else if(!priceOk&&!o.useSheet)why="rate ₹"+rate+" ≠ menu ₹"+exp.join("/");
+      if(why)r.held.push({h:p.h,q,amt:r2(q*rate),why});else r.lines.push({sid,q,rate,mid:mm?.id||"",name:mm?.name||item,basis:priceOk&&J.menuRate(mm,"staff")>0?"staff":priceOk?"gr":"sheet"})}
+    if(!r.lines.length&&!r.held.length)return r.skip=1;if(r.held.length)r.warn.push(r.held.map(x=>x.h+" ×"+x.q+": "+x.why).join("; "));if(!r.lines.length)r.err.push("nothing to add — "+r.held[0].why);
+    r.view=[d,item,"₹"+inr.format(rate)+(priceOk?"":" ⚠ menu ₹"+(exp.join("/")||"—")),r.lines.map(l=>(J.get("accounts",l.sid)?.name||"").split(" ")[0]+" ×"+l.q).join(", ")+(r.held.length?" · held: "+r.held.map(x=>x.h+" ×"+x.q).join(", "):"")]},
+  cols:["Date","Item","Rate","Staff × qty"],
+  async commit(recs,o,log){const g={};for(const r of recs)for(const l of r.lines){const d=asDate(r.date);const k=d+"|"+l.sid;(g[k]??={d,sid:l.sid,items:[]}).items.push({mid:l.mid,name:l.name,qty:l.q,rate:l.rate,basis:l.basis})}
+    await J.store.put("meta",{id:"kotAliases",map:{...(J.get("meta","kotAliases")?.map||{}),...Object.fromEntries(Object.entries(o.pmap||{}).filter(([,v])=>v))}});
+    const by=S.me?.name||S.me?.email||"";let n=0;const months=new Set();for(const x of Object.values(g).sort((a,b)=>a.d.localeCompare(b.d))){const s=J.get("accounts",x.sid);const id="sk-imp-"+x.d+"-"+x.sid;const total=r2(x.items.reduce((t,i)=>t+i.qty*i.rate,0));
+      await J.store.put("kots",{id,kind:"staff",status:"staff",date:x.d,m:x.d.slice(0,7),no:"SK-"+x.d.slice(2,4)+x.d.slice(5,7)+x.d.slice(8,10)+"-"+(s?.code||"").replace(/^JCGG-/,""),staff:x.sid,staffName:s?.name||"",items:x.items,total,by,at:Date.now(),imp:log.id});log.add("kots",id);months.add(x.d.slice(0,7));n++}
+    const held=recs.flatMap(r=>r.held||[]);const all=U_held();function U_held(){return (ui().recs||[]).flatMap(r=>r.held||[])}const hs={};for(const h of all){const k=h.h+" — "+(/not linked/.test(h.why)?"not linked to a staff member":/not in service/.test(h.why)?"outside working dates":/not on the Kitchen menu/.test(h.why)?"item not on menu":"rate differs from menu");hs[k]=(hs[k]||0)+h.amt}
+    log.note(n+" staff KOTs (one per person per day)");for(const [k,v] of Object.entries(hs))log.note("held back: "+k+" · ₹"+inr0.format(v));
+    if([...months].some(m=>m<=J.H.lastClosedMonth()))J.H.syncSoon("staff KOT register uploaded");log.tick(recs.length)}};
 T.menu={label:"Kitchen menu",group:"Sales",desc:"Menu from Excel: Item name, Category, Ground Floor, Mezzanine Floor, Gr.Flr.Breakfast, Mez.Flr.Breakfast, Staff Rates, Online (Y/N). Existing items with the same name are updated.",
   fields:[F("name","Item name",/item|dish|^name|particular|description/,1),F("cat","Category",/categ|group|section|course/),F("grBf","Gr. Flr. Breakfast",/(gr|ground).*(break|bf\b)/),F("mezBf","Mez. Flr. Breakfast",/mez.*(break|bf\b)/),F("gr","Ground Floor",/ground|gr\s*fl|^gr\b|^gf\b|gr floor/),F("mez","Mezzanine Floor",/mez/),F("staff","Staff rate",/staff/),F("online","Online (Y/N)",/online|swiggy|zomato/)],
   prep(r){const n=str(r.name);if(!n)return r.skip=1;const rt={};for(const k of ["gr","mez","grBf","mezBf","staff"]){const v=str(r[k]);rt[k]=v===""||v==="-"?"":asNum(v);if(rt[k]!==""&&!(rt[k]>=0))r.err.push(k+" rate not a number")}
@@ -212,7 +241,7 @@ function buildRecs(){const U=ui(),t=T[U.type],o=U.opt;const out=[];const g=t.gri
   if(t.stmt&&!m.out&&!m.inn&&!m.amt){U.err="Map either the Withdrawal and Deposit columns, or a single Amount column.";return}
   const prev=new Map((U.recs||[]).map(r=>[r.n,r]));if(t.stmt)o._pm={};
   for(let i=U.hdr+1;i<U.rows.length;i++){const row=U.rows[i];const r={n:i+1,err:[],warn:[],_m:m};for(const f of t.fields)if(m[f.k])r[f.k]=row[U.map[f.k]];if(isGrid){r._grid={};for(const [ci,d] of Object.entries(g))r._grid[d]=row[ci]}
-    const p=prev.get(r.n);if(p?.manual){r.counter=p.counter;r.manual=true}if(p&&p.inc!==undefined&&p.userInc)r.inc=p.inc,r.userInc=true;
+    r._row=row;const p=prev.get(r.n);if(p?.manual){r.counter=p.counter;r.manual=true}if(p&&p.inc!==undefined&&p.userInc)r.inc=p.inc,r.userInc=true;
     try{t.prep(r,o)}catch(e){r.err.push(e.message)}if(!r.skip)out.push(r)}
   if(t.stmt)markDups(out);U.recs=out;U.page=0;U.step=3;U.err=""}
 
@@ -257,6 +286,7 @@ J.act("impFile",async el=>{const f=el.files?.[0];if(!f)return;try{await readFile
 J.act("impSheet",el=>{ui().sheet=el.value;loadSheet();J.render()});
 J.act("impHdr",el=>{const U=ui();U.hdr=Math.max(0,Math.min(U.rows.length-1,(+el.value||1)-1));autoMap();U.recs=null;J.render()});
 J.act("impMap",el=>{const U=ui();U.map[el.dataset.x]=el.value===""?null:+el.value;U.recs=null;U.step=2;J.render()});
+J.act("skMap",el=>{const U=ui();U.opt.pmap=U.opt.pmap||{};U.opt.pmap[el.dataset.x]=el.value;U.recs=null});
 J.act("impCheck",()=>{buildRecs();J.render()});
 J.act("impPage",el=>{ui().page=+el.dataset.x;J.render()});
 J.act("impInc",el=>{const r=ui().recs.find(x=>x.n===+el.dataset.x);if(r){r.inc=el.checked;r.userInc=true}});
@@ -267,7 +297,7 @@ J.act("impTemplate",()=>{const t=T[ui().type];const head=t.grid&&ui().opt?.forma
 J.act("impGo",async el=>{const U=ui(),t=T[U.type];const recs=U.recs.filter(r=>!r.err.length&&r.inc!==false);if(!recs.length)return;el.disabled=true;const prog=document.getElementById("impProg");let done=0;
   const log={id:"imp-"+uid(),docs:{},notes:[],add(c,id){(this.docs[c]??=[]).includes(id)||this.docs[c].push(id)},note(n){this.notes.push(n)},tick(n=1){done+=n;if(prog)prog.textContent="Saving… "+Math.min(done,recs.length)+" / "+recs.length}};
   try{await t.commit(recs,U.opt,log);await J.store.put("meta",{id:log.id,type:U.type,file:U.file,rows:recs.length,at:Date.now(),docs:log.docs,notes:log.notes});
-    U.done="Imported "+recs.length+" rows from "+U.file+". You can undo this from Import history.";U.recs=null;U.step=2;toast("Import finished")}
+    U.done="Imported "+recs.length+" rows from "+U.file+"."+(log.notes.length?" "+log.notes.join(" · ")+".":"")+" You can undo this from Import history.";U.recs=null;U.step=2;toast("Import finished")}
   catch(e){U.err="Stopped after "+done+" rows: "+(e.message||e.code||"error")+". Rows saved so far are listed in Import history.";await J.store.put("meta",{id:log.id,type:U.type,file:U.file,rows:done,at:Date.now(),docs:log.docs,notes:log.notes,partial:true}).catch(()=>{})}
   J.render()});
 J.act("impUndo",async el=>{if(!el.dataset.armed){el.dataset.armed="1";el.textContent="Tap again to undo";return}const l=J.get("meta",el.dataset.x);if(!l)return;let n=0;const order=["vouchers","kots","moves","assets","items","menu","clients","accounts"];
