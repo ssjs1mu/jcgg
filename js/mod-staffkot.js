@@ -5,6 +5,21 @@ const ui=()=>J.ui("skot",{date:today(),staff:"",lines:[],q:"",fs:""});
 const WM=()=>J.staffMonth?J.staffMonth():today().slice(0,7);
 const kots=m=>J.all("kots").filter(k=>k.kind==="staff"&&(!m||k.date.startsWith(m))).sort((a,b)=>b.date.localeCompare(a.date)||(b.at||0)-(a.at||0));
 J.staffFood=(sid,m)=>r2(kots(m).filter(k=>k.staff===sid).reduce((t,k)=>t+(+k.total||0),0));
+// staff whose food is billed to a client (customer) ledger and credited to Sales, instead of being recovered from salary
+const billTo=()=>J.settings().kotClient||{};
+J.foodToClient=sid=>billTo()[sid]||"";
+const nrm=x=>String(x||"").toLowerCase().replace(/\s+/g," ").trim();
+async function clientAcc(sid){const s=J.get("accounts",sid);const nm=(s?.name||sid)+" — Client";let a=J.all("accounts").find(x=>x.kind==="customer"&&(x.foodOf===sid||nrm(x.name)===nrm(nm)));if(a){if(!a.foodOf){await J.store.patch("accounts",a.id,{foodOf:sid})}return a.id}
+  const cl=J.all("clients").find(c=>nrm(c.name)===nrm(s?.name));const id="cust-"+uid();const acc={id,name:nm,kind:"customer",opening:0,active:true,foodOf:sid,...(cl?{client:cl.id,phone:cl.phone||""}:{phone:s?.phone||""})};await J.store.put("accounts",acc);S.c.accounts.set(id,acc);return id}
+// one entry per month: Dr each client ledger · Cr Sales
+J.skClientSync=async m=>{const L=[];let tot=0;for(const [sid,acc] of Object.entries(billTo())){if(!acc||!J.get("accounts",acc))continue;const f=J.staffFood(sid,m);if(f>0){L.push({a:acc,dr:f,cr:0,n:(J.get("accounts",sid)?.name||"")+" · staff KOT food "+monthLabel(m)});tot=r2(tot+f)}}
+  const id="skc-"+m;const old=J.get("vouchers",id);if(!L.length){if(old)await J.store.del("vouchers",id);return}
+  const sales=J.sysAcc("sales")?.id||await J.ensureAcc("Dine-in Sales","income","sales");L.push({a:sales,dr:0,cr:tot,n:"Staff KOT food billed to client ledgers"});
+  const end=J.monthEnd(m),d=end>today()?today():end;const key=ls=>ls.map(l=>l.a+"|"+r2(l.dr)+"|"+r2(l.cr)).sort().join();if(old&&old.date===d&&key(old.lines)===key(L))return;
+  await J.postVoucher({...(old?{id}:{newId:id}),type:"sale",date:d,lines:L,party:L.length===2?L[0].a:"",ref:m,src:{col:"kots",id:m,label:"Staff KOT"},narr:"Staff KOT food billed to client ledger — "+monthLabel(m)})};
+J.act("skBillTo",async el=>{const sid=el.dataset.x;const cur=J.get("meta","settings")||{id:"settings"};const map={...(cur.kotClient||{})};const nm=J.get("accounts",sid)?.name||"";
+  if(el.value==="client")map[sid]=await clientAcc(sid);else delete map[sid];
+  await J.safe(()=>J.store.put("meta",{...cur,id:"settings",kotClient:map}),el.value==="client"?nm+"'s food goes to client ledger, credited to Sales":nm+"'s food is recovered from salary again");J.H?.syncSoon?.("staff food billing for "+nm+" changed")});
 const inSvcOn=(s,d)=>J.H?.stints(s).length?J.H.inService(s,d):s.active!==false;
 // one entry per dish name for staff: the STAFF-category item wins, then the one with a staff rate
 const staffMenu=()=>{const by=new Map();for(const m of (J.menuItems?J.menuItems():[])){const k=m.name.trim().toLowerCase();const cur=by.get(k);const score=x=>(x.cat==="STAFF"?2:0)+(J.menuRate(x,"staff")>0?1:0);if(!cur||score(m)>score(cur))by.set(k,m)}return [...by.values()].sort((a,b)=>a.name.localeCompare(b.name))};
@@ -30,7 +45,7 @@ J.act("skDel",async el=>{const k=J.all("kots").find(x=>x.id===el.dataset.x);awai
 function vBill(){const m=WM();const by={};for(const k of kots(m)){const x=by[k.staff]??={sid:k.staff,name:k.staffName,n:0,total:0,items:{}};x.n++;x.total+=k.total;for(const i of k.items){const it=x.items[i.name]??={qty:0,amt:0};it.qty+=i.qty;it.amt+=i.qty*i.rate}}
   const rows=Object.values(by).sort((a,b)=>b.total-a.total);const on=J.settings().staffFoodRecover!==false;
   return `<div class="filters">${fld("Month",`<input type="month" id="sk-bm" data-ui="staff.wm" value="${m}">`)}<label class="row" style="gap:6px"><input type="checkbox" data-ach="skRecover" id="sk-rec" ${on?"checked":""}> Recover staff food from salary</label><button class="btn" data-a="skPrint" style="margin-left:auto">Print / PDF</button></div>
-  <div class="panel"><div class="tbl-wrap"><table><thead><tr><th>Staff</th><th class="num">KOTs</th><th>Items</th><th class="num">Food bill</th><th>Salary</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.name)}</b></td><td class="num">${r.n}</td><td class="muted">${Object.entries(r.items).map(([n,i])=>esc(n)+" × "+i.qty).join(", ")}</td><td class="num"><b>${inr.format(r2(r.total))}</b></td><td>${on?"Deducted in "+monthLabel(m)+" salary":"Not deducted"}</td></tr>`).join("")||J.emptyRow(5,"No staff food in "+monthLabel(m))}</tbody>
+  <div class="panel"><div class="tbl-wrap"><table><thead><tr><th>Staff</th><th class="num">KOTs</th><th>Items</th><th class="num">Food bill</th><th>Billed to</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.name)}</b></td><td class="num">${r.n}</td><td class="muted">${Object.entries(r.items).map(([n,i])=>esc(n)+" × "+i.qty).join(", ")}</td><td class="num"><b>${inr.format(r2(r.total))}</b></td><td>${(()=>{const c=J.foodToClient(r.sid);return `<select data-ach="skBillTo" data-x="${r.sid}" id="skb-${r.sid}" aria-label="Billing for ${esc(r.name)}"><option value="">${on?"Deducted from "+monthLabel(m)+" salary":"Salary (recovery off)"}</option><option value="client" ${c?"selected":""}>Client ledger → Sales${c?" · "+esc(J.get("accounts",c)?.name||""):""}</option></select>`})()}</td></tr>`).join("")||J.emptyRow(5,"No staff food in "+monthLabel(m))}</tbody>
   ${rows.length?`<tfoot><tr><td>Total</td><td class="num">${rows.reduce((t,r)=>t+r.n,0)}</td><td></td><td class="num">${inr.format(r2(rows.reduce((t,r)=>t+r.total,0)))}</td><td></td></tr></tfoot>`:""}</table></div></div>`}
 J.act("skRecover",async el=>{const cur=J.get("meta","settings")||{id:"settings"};await J.safe(()=>J.store.put("meta",{...cur,id:"settings",staffFoodRecover:el.checked}),el.checked?"Staff food will be recovered from salary":"Staff food will not be deducted");J.H?.syncSoon?.("staff food recovery "+(el.checked?"on":"off"))});
 J.act("skPrint",()=>{const m=WM();const list=kots(m).slice().reverse();const by={};for(const k of list)(by[k.staff]??=[]).push(k);

@@ -202,6 +202,7 @@ H.syncMonth=async(m,reason)=>{const st=J.settings();J.derive&&J.derive();if(m>=H
 H.logChange=async(m,entry)=>{const cur=J.get("payroll",m)||{};await J.store.patch("payroll",m,{log:[...(Array.isArray(cur.log)?cur.log:[]),{at:Date.now(),by:who(),...entry}]})};
 let busy=false,again=false,tmr=null;
 H.syncAll=async(reason)=>{if(!canAuto())return;if(busy){again=true;return}busy=true;try{let main=0,adj=0;const months=J.monthsBetween(J.settings().payrollFrom||J.settings().startMonth,H.lastClosedMonth());for(const m of months){const r=await H.syncMonth(m,reason);main+=r.main;adj+=r.adj}
+    if(J.skClientSync)for(const m of J.monthsBetween(J.settings().payrollFrom||J.settings().startMonth,J.today().slice(0,7)))await J.skClientSync(m);
     if(main||adj)toast((main?main+" monthly salary entr"+(main>1?"ies":"y")+" posted":"")+(main&&adj?", ":"")+(adj?adj+" salary entr"+(adj>1?"ies":"y")+" updated":""))}catch(e){console.error(e)}finally{busy=false;if(again){again=false;H.syncSoon(reason)}}};
 H.syncSoon=reason=>{clearTimeout(tmr);tmr=setTimeout(()=>H.syncAll(reason),1500)};
 // once per session, after the books have loaded: fill tenure attendance to yesterday, then post/adjust closed months
