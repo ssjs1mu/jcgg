@@ -383,3 +383,5 @@ html[data-mod="jdash"],[data-go="jdash"]{--mc:var(--m-jdash)}
 .kitacc{border:1px solid var(--rule);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--wash)}
 .loglog td{vertical-align:top;font-size:12.5px}
 .nowrap{white-space:nowrap}
+.kitmsg{white-space:pre-wrap;font-size:13px;background:var(--wash);border:1px solid var(--rule);border-radius:8px;padding:10px;max-height:260px;overflow:auto}
+a.btn{text-decoration:none}a.btn:not(.primary){color:inherit}
