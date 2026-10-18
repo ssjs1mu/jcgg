@@ -153,7 +153,7 @@ J.deviceInfo=async()=>{const ua=navigator.userAgent||"";const o={ua:ua.slice(0,3
   let id="",label="";try{id=localStorage.getItem("jcgg-device-id")||"";if(!id){id=(crypto.randomUUID?.()||String(Math.random()).slice(2)).slice(0,18);localStorage.setItem("jcgg-device-id",id)}label=localStorage.getItem("jcgg-device-name")||""}catch(e){}
   Object.assign(o,{deviceId:id,deviceName:label||[model||type,os].filter(Boolean).join(" · "),deviceType:type,model,os:[os,osv].filter(Boolean).join(" "),browser:br.filter(Boolean).join(" "),
     screen:screen.width+"×"+screen.height,tz:Intl.DateTimeFormat().resolvedOptions().timeZone||"",lang:navigator.language||"",online:navigator.onLine,localTime:new Date().toString().slice(0,33)});
-  try{const c=new AbortController();setTimeout(()=>c.abort(),2500);const r=await fetch("https://api.ipify.org?format=json",{signal:c.signal,cache:"no-store"});o.ip=(await r.json()).ip||""}catch(e){o.ip=""}
+  try{const c=new AbortController();setTimeout(()=>c.abort(),5000);const r=await fetch("https://api.ipify.org?format=json",{signal:c.signal,cache:"no-store"});o.ip=(await r.json()).ip||""}catch(e){o.ip=""}
   return o};
 J.logLogin=async(event,extra={})=>{try{if(!fdb)return;const me=S.me||{};const d=await J.deviceInfo();
   const rec={...d,...extra,event,email:String(extra.email||me.email||"").toLowerCase().slice(0,120),uid:event==="failed"?"":(me.id||""),name:event==="failed"?"":(me.name||""),
