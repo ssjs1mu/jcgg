@@ -35,7 +35,14 @@ const steps=t=>{const L=String(t||"").split(/\n+/).map(x=>x.trim()).filter(Boole
 const nk=s=>String(s||"").toUpperCase().replace(/[’`‘]/g,"'").replace(/\[[^\]]*\]/g," ").replace(/\((?:S|R|SEASONAL)\)/g," ").replace(/\bPCS?\b/g," ").replace(/[^A-Z0-9 ]/g," ").replace(/\s+/g," ").trim();
 J.recipeKey=nk;
 J.loadRecipeLib=()=>J.RECIPE_LIB?Promise.resolve(J.RECIPE_LIB):(J._rlibP??=new Promise((ok,no)=>{const sc=document.createElement("script");sc.src="js/recipe-lib.js?v="+(document.querySelector('script[src*="mod-kitchen"]')?.src.split("v=")[1]||"1");sc.onload=()=>ok(J.RECIPE_LIB||{});sc.onerror=()=>{J._rlibP=null;no(new Error("Recipe library did not load"))};document.head.appendChild(sc)}));
-const libFor=name=>{const L=J.RECIPE_LIB;if(!L)return null;const k=nk(name);return L.idx?.[k]||L.idx?.[k.replace(/\b(JC S|JOSHI S) SPL\b/,"").trim()]||null};
+const TYPO=[[/\bNOODILES?\b/g,"NOODLES"],[/\bMAXICAN\b/g,"MEXICAN"],[/\bLAGON\b/g,"LAGOON"],[/\bIDLE\b/g,"IDLI"],[/\bBIRYANI\b/g,"BIRIYANI"],[/\bCHOCOLATA\b/g,"CHOCOLATE"],[/\bKICHUDI|KHICHDI|KHICHUDI\b/g,"KHICHADI"]];
+const libKeys=name=>{const out=[];const add=s=>{s=String(s||"").replace(/\s+/g," ").trim();if(s&&!out.includes(s))out.push(s)};
+  const base=[nk(name),nk(String(name||"").split(/\s[-–]\s/)[0])];
+  for(let k of base){add(k);let t=k;for(const [re,to] of TYPO)t=t.replace(re,to);add(t);
+    const v=[t.replace(/\b(JC S|JOSHI S) SPL\b/,""),t.replace(/\s(DRY GRAVY|DRY|GRAVY)$/,""),t.replace(/^TANDOORI\s/,""),t.replace(/\s\d+(\s\d+)*\s?(LTR|LITRE|L|ML|GM|G)$/,"")];v.forEach(add);
+    add(t.replace(/\b(JC S|JOSHI S) SPL\b/,"").replace(/^TANDOORI\s/,"").replace(/\s(DRY GRAVY|DRY|GRAVY)$/,""))}
+  return out};
+const libFor=name=>{const L=J.RECIPE_LIB;if(!L?.idx)return null;for(const k of libKeys(name))if(L.idx[k])return L.idx[k];return null};
 J.recipeFromLib=name=>{const e=libFor(name);if(!e)return null;const split=t=>String(t||"").split("|").map(x=>x.trim()).filter(Boolean).join("\n");const recipe={};
   for(const [l] of LANGS){const a=e[l];if(!a)continue;recipe[l]={ing:split(a[0]),prep:split(a[1]),cook:split(a[2]),...(a[3]?{serve:split(a[3])}:{})}}
   const n=e.n||[];const nutrition={};["kcal","protein","carbs","fat","fibre","sugar","sodium"].forEach((k,i)=>{if(n[i]!=null)nutrition[k]=n[i]});nutrition.basis="per serving, approximate";
