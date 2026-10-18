@@ -51,11 +51,11 @@ Object.assign(J,{fld,txt,num,dateI,selO,area,formData});
 
 // ---------- collections & state ----------
 // monthly collections are partitioned by field `m` (YYYY-MM) and subscribed per month
-const COLS={accounts:"full",vouchers:"monthly",items:"full",moves:"monthly",menu:"full",kotday:"monthly",recipes:"full",contacts:"full",attendance:"full",trades:"full",ohlc:"full",watch:"full",assets:"full",policies:"full",payroll:"full",clients:"full",meta:"full"};
+const COLS={accounts:"full",vouchers:"monthly",items:"full",moves:"monthly",menu:"full",kotday:"monthly",recipes:"full",contacts:"full",attendance:"full",trades:"full",ohlc:"full",watch:"full",assets:"full",policies:"full",payroll:"full",clients:"full",kitchenusers:"full",meta:"full"};
 const S={c:{},monthDocs:{},route:{mod:"home",tab:""},mode:"connecting",ready:false,ui:{},err:null,me:{role:"Super Admin",id:null,name:""}};
 for(const k in COLS)S.c[k]=new Map();S.c.kots=new Map();
 // kots are stored grouped per day in `kotday` (one record per day keeps the book far under the 25,000-record cap)
-const DATA_KEYS=Object.keys(COLS).filter(k=>k!=="kotday").concat("kots");
+const DATA_KEYS=Object.keys(COLS).filter(k=>k!=="kotday"&&k!=="kitchenusers").concat("kots");
 J.S=S;J.COLS=COLS;J.DATA_KEYS=DATA_KEYS;
 const WINDOW={vouchers:1,moves:3,kotday:24};
 function rebuildKots(){const m=new Map();for(const d of S.c.kotday.values())for(const [id,o] of Object.entries(d.orders||{}))if(o)m.set(id,{...o,id});S.c.kots=m}
@@ -63,7 +63,7 @@ J.all=col=>[...S.c[col].values()];
 J.get=(col,id)=>S.c[col].get(id);
 J.settings=()=>({business:"JCGG",startMonth:"2026-04",tables:12,targetFood:32,pfOn:false,esicOn:false,ptOn:true,otRate:1,payrollFrom:"2023-06",bizStart:"2023-06-22",lateDed:0,...(S.c.meta.get("settings")||{})});
 J.bookFrom=()=>{const s=J.settings();return [s.startMonth||"2026-04",s.payrollFrom||s.startMonth||"2026-04"].sort()[0]};
-let db=null,fdb=null;J.cap={};
+let db=null,fdb=null;J.cap={};J.fdb=()=>fdb;
 // Firestore cannot hold arrays directly inside arrays, so nested arrays are wrapped as {__a:[...]} on write and unwrapped on read
 const enc=v=>Array.isArray(v)?v.map(x=>Array.isArray(x)?{__a:enc(x)}:enc(x)):v&&typeof v==="object"?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,enc(x)])):v;
 const dec=v=>Array.isArray(v)?v.map(x=>x&&typeof x==="object"&&!Array.isArray(x)&&Object.keys(x).length===1&&"__a" in x?dec(x.__a):dec(x)):v&&typeof v==="object"?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,dec(x)])):v;
@@ -104,6 +104,11 @@ function subscribe(){
       if(col==="accounts"&&!s.size&&!s.fromCache&&S.me.owner&&!J._seeded&&J.seedCloud){J._seeded=true;J.seedCloud()}if(got.has("accounts")&&got.has("meta"))S.ready=true;J.refresh()},onErr))}
   subMonthly();
 }
+function subscribeKitchen(){let got=0;const done=()=>{if(++got>=2&&!S.ready){S.ready=true}J.refresh()};
+  unsubs.push(fdb.collection("menu").limit(1000).onSnapshot(s=>{S.c.menu=new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));done()},onErr));
+  unsubs.push(fdb.collection("meta").doc("settings").onSnapshot(d=>{if(d.exists)S.c.meta.set("settings",{id:"settings",...d.data()});done()},()=>done()));
+  unsubs.push(fdb.collection("kitchenusers").doc(S.me.email).onSnapshot(d=>{const k=d.exists?d.data():null;if(k)S.me.kitUntil=k.until||0;if(!k||k.active!==true||(k.until&&Date.now()>=k.until)||(S.me.method==="password"&&k.uid!==S.me.id)){J._gateMsg="Your kitchen login has been closed. Contact the owner.";J.signOut("revoked")}},()=>{}));
+  if(J._kitTimer)clearInterval(J._kitTimer);J._kitTimer=setInterval(()=>{if(S.me.kitUntil&&Date.now()>=S.me.kitUntil){J._gateMsg="Your kitchen login has been closed. Contact the owner.";J.signOut("expired")}},60000)}
 function subMonthly(){mUnsubs.forEach(u=>u());mUnsubs=[];
   const end=(()=>{const d=new Date();d.setMonth(d.getMonth()+2);return iso(d).slice(0,7)})();const months=monthsBetween(J.bookFrom(),end);
   for(const [col,kind] of Object.entries(COLS)){if(kind!=="monthly")continue;S.monthDocs[col]={};const w=WINDOW[col]||1;
@@ -120,32 +125,71 @@ J.boot=async()=>{
   const auth=firebase.auth();auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
   auth.getRedirectResult().catch(e=>J.gate("login",e.message));
   auth.onAuthStateChanged(async u=>{
-    if(!u){S.ready=false;J.gate("login");return}
-    const google=u.providerData.some(p=>p.providerId==="google.com");if(!google||!u.emailVerified){await auth.signOut();J.gate("login","Only verified Google accounts can sign in.");return}
-    const email=(u.email||"").toLowerCase();S.me={id:u.uid,email,name:u.displayName||email,photo:u.photoURL||"",owner:!!cfg.ownerHash&&(await J.sha256(email))===cfg.ownerHash};
-    J.gate(null);db=fsAdapter(fdb);J.cap={db};S.mode="cloud";subscribe();updateSync();J.render()});
+    if(!u){S.ready=false;let gm="";try{gm=sessionStorage.getItem("jcgg-gate-msg")||""}catch(e){}J.gate("login",J._gateMsg||gm);J._gateMsg="";return}
+    const prov=u.providerData.map(p=>p.providerId);const google=prov.includes("google.com")&&u.emailVerified;const pw=prov.includes("password");
+    const email=(u.email||"").toLowerCase();
+    S.me={id:u.uid,email,name:u.displayName||email,photo:u.photoURL||"",method:google?"google":pw?"password":"other",owner:google&&!!cfg.ownerHash&&(await J.sha256(email))===cfg.ownerHash};
+    // kitchen staff: access comes from kitchenusers/<gmail>, created when they join the kitchen and closed when they are relieved
+    let kit=null;if(email&&!S.me.owner){try{const d=await fdb.collection("kitchenusers").doc(email).get();if(d.exists)kit=d.data()}catch(e){}}
+    const kitOk=!!kit&&kit.active===true&&(!kit.until||Date.now()<kit.until)&&(google||(pw&&kit.uid===u.uid));
+    if(kitOk){S.me.kitchen=true;S.me.name=kit.name||S.me.name;S.me.staffId=kit.staffId||"";S.me.kitCode=kit.code||"";S.me.kitUntil=kit.until||0}
+    if(!google&&!kitOk){const why=kit&&kit.active!==true?"revoked":kit&&kit.until&&Date.now()>=kit.until?"expired":"no-access";
+      await J.logLogin("denied",{reason:why});await auth.signOut();J.gate("login",why==="no-access"?"This login has no access. Kitchen staff sign in with the Gmail ID and PAN registered in their staff record.":"Your kitchen login has been closed. Contact the owner.");return}
+    await J.logLogin(sessionStorage.getItem("jcgg-login-pending")?"login":"open");sessionStorage.removeItem("jcgg-login-pending");
+    try{sessionStorage.removeItem("jcgg-gate-msg")}catch(e){}J.gate(null);db=fsAdapter(fdb);J.cap={db};S.mode="cloud";if(S.me.kitchen)subscribeKitchen();else subscribe();updateSync();J.render()});
   window.addEventListener("online",updateSync);window.addEventListener("offline",updateSync);
 };
+// ---------- login log: every sign-in, app open, sign-out, failed or refused attempt, with device details ----------
+J.deviceInfo=async()=>{const ua=navigator.userAgent||"";const o={ua:ua.slice(0,300)};let hi={};
+  try{if(navigator.userAgentData?.getHighEntropyValues)hi=await navigator.userAgentData.getHighEntropyValues(["model","platform","platformVersion","fullVersionList"])}catch(e){}
+  const m=(re)=>(ua.match(re)||[])[1]||"";
+  let os=hi.platform||"",osv=hi.platformVersion||"";
+  if(/Android/.test(ua)){os="Android";osv=m(/Android ([\d.]+)/)||osv}else if(/iPhone|iPad|iPod/.test(ua)){os=/iPad/.test(ua)?"iPadOS":"iOS";osv=m(/OS ([\d_]+)/).replace(/_/g,".")}
+  else if(/Windows NT/.test(ua)){os="Windows";osv=hi.platformVersion?(+hi.platformVersion.split(".")[0]>=13?"11":"10"):m(/Windows NT ([\d.]+)/)}else if(/Mac OS X/.test(ua)){os="macOS";osv=m(/Mac OS X ([\d_]+)/).replace(/_/g,".")}else if(/CrOS/.test(ua))os="ChromeOS";else if(/Linux/.test(ua))os="Linux";
+  const bl=(hi.fullVersionList||[]).find(b=>!/Not.?A.?Brand|Chromium/i.test(b.brand));
+  const br=bl?[bl.brand.replace("Google ",""),bl.version.split(".")[0]]:/Edg\//.test(ua)?["Edge",m(/Edg\/(\d+)/)]:/OPR\//.test(ua)?["Opera",m(/OPR\/(\d+)/)]:/SamsungBrowser/.test(ua)?["Samsung Internet",m(/SamsungBrowser\/(\d+)/)]:/CriOS/.test(ua)?["Chrome",m(/CriOS\/(\d+)/)]:/FxiOS|Firefox/.test(ua)?["Firefox",m(/(?:FxiOS|Firefox)\/(\d+)/)]:/Chrome\//.test(ua)?["Chrome",m(/Chrome\/(\d+)/)]:/Safari/.test(ua)?["Safari",m(/Version\/(\d+)/)]:["Browser",""];
+  const model=hi.model||m(/Android [\d.]+; (?:[a-z]{2}-[a-z]{2}; )?([^;)]+?)(?: Build|\))/i).replace(/^K$/,"")||(/iPhone/.test(ua)?"iPhone":/iPad/.test(ua)?"iPad":"");
+  const type=/iPad|Tablet/.test(ua)||(/Android/.test(ua)&&!/Mobile/.test(ua))?"Tablet":/Mobi|iPhone|Android/.test(ua)?"Mobile":"Desktop";
+  let id="",label="";try{id=localStorage.getItem("jcgg-device-id")||"";if(!id){id=(crypto.randomUUID?.()||String(Math.random()).slice(2)).slice(0,18);localStorage.setItem("jcgg-device-id",id)}label=localStorage.getItem("jcgg-device-name")||""}catch(e){}
+  Object.assign(o,{deviceId:id,deviceName:label||[model||type,os].filter(Boolean).join(" · "),deviceType:type,model,os:[os,osv].filter(Boolean).join(" "),browser:br.filter(Boolean).join(" "),
+    screen:screen.width+"×"+screen.height,tz:Intl.DateTimeFormat().resolvedOptions().timeZone||"",lang:navigator.language||"",online:navigator.onLine,localTime:new Date().toString().slice(0,33)});
+  try{const c=new AbortController();setTimeout(()=>c.abort(),2500);const r=await fetch("https://api.ipify.org?format=json",{signal:c.signal,cache:"no-store"});o.ip=(await r.json()).ip||""}catch(e){o.ip=""}
+  return o};
+J.logLogin=async(event,extra={})=>{try{if(!fdb)return;const me=S.me||{};const d=await J.deviceInfo();
+  const rec={...d,...extra,event,email:String(extra.email||me.email||"").toLowerCase().slice(0,120),uid:event==="failed"?"":(me.id||""),name:event==="failed"?"":(me.name||""),
+    role:event==="failed"?"":me.owner?"Super Admin":me.kitchen?"Kitchen Staff":(J.get?.("meta","roles")?.map?.[me.email]||"Google account"),method:me.method||(event==="failed"?"password":""),at:Date.now(),srv:firebase.firestore.FieldValue.serverTimestamp()};
+  await fdb.collection("loginlog").add(rec)}catch(e){console.warn("login log not written",e?.code||e)}};
+J.pwSignIn=async f=>{const email=f.email.value.trim().toLowerCase(),pan=f.pan.value.trim().toUpperCase();const err=f.querySelector(".err");const btn=f.querySelector("button");const show=m=>{err.hidden=false;err.textContent=m};err.hidden=true;
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))return show("Enter your Gmail ID.");if(!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan))return show("Enter your 10-character PAN, e.g. ABCDE1234F.");
+  btn.disabled=true;const old=btn.textContent;btn.textContent="Signing in…";sessionStorage.setItem("jcgg-login-pending","1");
+  try{await firebase.auth().signInWithEmailAndPassword(email,pan)}catch(e){sessionStorage.removeItem("jcgg-login-pending");const c=(e.code||"").replace("auth/","");await J.logLogin("failed",{email,reason:c||"error"});
+    show(/invalid-credential|wrong-password|user-not-found|invalid-login|invalid-email/.test(c)?"Gmail ID or PAN is not correct, or this login has not been created yet.":c==="too-many-requests"?"Too many tries. Wait a few minutes and try again.":c==="operation-not-allowed"?"Kitchen staff login is not switched on yet. Ask the owner.":c==="network-request-failed"?"No internet connection.":e.message);btn.disabled=false;btn.textContent=old}};
+document.addEventListener("submit",ev=>{if(ev.target.id==="kitLogin"){ev.preventDefault();J.pwSignIn(ev.target)}});
 J.sha256=async s=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)))].map(b=>b.toString(16).padStart(2,"0")).join("");
-J.signIn=async()=>{const p=new firebase.auth.GoogleAuthProvider();p.setCustomParameters({prompt:"select_account"});try{await firebase.auth().signInWithPopup(p)}catch(e){if(/popup-blocked|operation-not-supported|cancelled-popup/.test(e.code||""))return firebase.auth().signInWithRedirect(p);if(!/popup-closed/.test(e.code||""))J.gate("login",e.message)}};
-J.signOut=async()=>{unsubs.forEach(u=>u());mUnsubs.forEach(u=>u());unsubs=[];mUnsubs=[];for(const k in S.c)S.c[k]=new Map();S.ready=false;try{await fdb.terminate();await fdb.clearPersistence()}catch(e){}await firebase.auth().signOut();location.reload()};
+J.signIn=async()=>{sessionStorage.setItem("jcgg-login-pending","1");const p=new firebase.auth.GoogleAuthProvider();p.setCustomParameters({prompt:"select_account"});try{await firebase.auth().signInWithPopup(p)}catch(e){if(/popup-blocked|operation-not-supported|cancelled-popup/.test(e.code||""))return firebase.auth().signInWithRedirect(p);if(!/popup-closed/.test(e.code||""))J.gate("login",e.message)}};
+J.signOut=async(why)=>{if(J._out)return;J._out=true;try{if(J._gateMsg)sessionStorage.setItem("jcgg-gate-msg",J._gateMsg)}catch(e){}try{await Promise.race([J.logLogin(why||"logout"),new Promise(r=>setTimeout(r,2500))])}catch(e){}unsubs.forEach(u=>u());mUnsubs.forEach(u=>u());unsubs=[];mUnsubs=[];for(const k in S.c)S.c[k]=new Map();S.ready=false;try{await fdb.terminate();await fdb.clearPersistence()}catch(e){}await firebase.auth().signOut();location.reload()};
 J.denied=()=>{if(J._denied)return;J._denied=true;J.gate("denied")};
 J.gate=(kind,msg)=>{const g=$("#gate");if(!kind){g.hidden=true;document.querySelector(".app").hidden=false;$("#mnav").hidden=false;return}
   document.querySelector(".app").hidden=true;$("#mnav").hidden=true;g.hidden=false;const biz=esc((S.c.meta.get("settings")||{}).business||"JCGG");
   const body={setup:`<h1>Almost ready</h1><p>This copy of the app has no Firebase project connected yet. Fill in <span class="mono">js/firebase-config.js</span> as described in the README, then reload.</p>`,
-    login:`<h1>${biz}</h1><p>Operations, stock, payroll and books. Sign in with the Google account your administrator has approved.</p>${msg?`<div class="err">${esc(msg)}</div>`:""}<button class="gbtn" data-a="signIn"><svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Sign in with Google</button><p class="hint">Google sign-in is the only way in. Your password is never seen by this app.</p>`,
-    denied:`<h1>No access yet</h1><p>You are signed in as <b>${esc(S.me.email||"")}</b>, but this account has not been given access. Ask the owner to add it under Settings → Users &amp; roles.</p><button class="btn" data-a="signOut">Sign out and use another account</button>`}[kind];
+    login:`<h1>${biz}</h1><p>Operations, stock, payroll and books. Sign in with the Google account your administrator has approved.</p>${msg?`<div class="err">${esc(msg)}</div>`:""}<button class="gbtn" data-a="signIn"><svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Sign in with Google</button><p class="hint">Owner, managers and office staff sign in with Google.</p>
+      <form class="kitlogin" id="kitLogin" autocomplete="on"><h2>Kitchen staff <span lang="hi">· रसोई स्टाफ़</span> <span lang="bn">· রান্নাঘর</span></h2>
+      <label>Gmail ID <span class="hint" lang="hi">(जीमेल)</span><input type="email" name="email" autocomplete="username" inputmode="email" required></label>
+      <label>Password = your PAN number <span class="hint" lang="hi">(पैन नंबर)</span> <span class="hint" lang="bn">(প্যান নম্বর)</span><input type="password" name="pan" autocomplete="current-password" required maxlength="10" style="text-transform:uppercase"></label>
+      <div class="err" hidden></div><button class="btn w" type="submit">Sign in · लॉग इन · লগ ইন</button></form>`,
+    denied:S.me.kitchen?`<h1>Login closed</h1><p>Your kitchen login is no longer active. Contact the owner.</p><button class="btn" data-a="signOut">Sign out</button>`:`<h1>No access yet</h1><p>You are signed in as <b>${esc(S.me.email||"")}</b>, but this account has not been given access. Ask the owner to add it under Settings → Users &amp; roles.</p><button class="btn" data-a="signOut">Sign out and use another account</button>`}[kind];
   g.innerHTML=`<div class="gcard">${body}</div>`};
 
 
 // ---------- roles ----------
 const ROLES=["Super Admin","Admin","Manager","Accountant","Chef","Auditor"];
-const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","accounts","inventory","kitchen","kot","staff","directory","assets","insurance"],"Accountant":["home","accounts","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*"};
+const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","accounts","inventory","kitchen","kot","staff","directory","assets","insurance"],"Accountant":["home","accounts","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*","Kitchen Staff":["kitchen"]};
 J.ROLES=ROLES;
-function myRole(){if(S.me.owner)return "Super Admin";return J.get("meta","roles")?.map?.[S.me.email]||"Manager"}
+function myRole(){if(S.me.owner)return "Super Admin";if(S.me.kitchen)return "Kitchen Staff";return J.get("meta","roles")?.map?.[S.me.email]||"Manager"}
 J.myRole=myRole;
-J.canSee=mod=>{const a=ACCESS[myRole()];return a==="*"||a.includes(mod)||mod==="settings"};
-J.readOnly=()=>myRole()==="Auditor";
+J.limited=()=>!!S.me.kitchen;
+J.canSee=mod=>{const r=myRole();if(mod==="jdash")return r==="Super Admin"||r==="Admin";const a=ACCESS[r]||[];return a==="*"||a.includes(mod)||(mod==="settings"&&!S.me.kitchen)};
+J.readOnly=()=>myRole()==="Auditor"||!!S.me.kitchen;
 
 // ---------- modules & routing ----------
 const MODS=[];J.MODS=MODS;
@@ -168,15 +212,16 @@ J.render=()=>{
   const v=$("#view");
   if(S.hold&&document.getElementById(S.hold)){J.holdRefresh?.forEach(f=>f());return}
   if(!S.ready){v.innerHTML=`<div class="empty" style="padding:80px 16px"><strong>Opening the books…</strong><span>Loading ledgers, stock, staff and records.</span></div>`;return}
-  let m=MODS.find(x=>x.id===S.route.mod);if(!m||!J.canSee(m.id)){m=MODS[0];S.route={mod:m.id,tab:m.tabs[0][0]}}
+  let m=MODS.find(x=>x.id===S.route.mod);if(!m||!J.canSee(m.id)){m=MODS.find(x=>J.canSee(x.id))||MODS[0];S.route={mod:m.id,tab:m.tabs[0][0]}}
   let tab=m.tabs.find(t=>t[0]===S.route.tab)||m.tabs[0];S.route.tab=tab[0];document.documentElement.dataset.mod=m.id;
   const vis=MODS.filter(x=>J.canSee(x.id));
   const mtop=`<div class="mtop"><select id="m-switch" aria-label="Module" data-a="switchmod">${vis.map(x=>`<option value="${x.id}" ${x.id===m.id?"selected":""}>${esc(x.label)}</option>`).join("")}</select></div>`;
   const bar=m.tabs.length>1?`<nav class="modbar" aria-label="${esc(m.label)} sections">${m.tabs.map(t=>`<button data-go="${m.id}" data-tab="${t[0]}" ${t[0]===tab[0]?'aria-current="page"':""}>${esc(t[1])}</button>`).join("")}</nav>`:"";
   let body;try{body=tab[2]()}catch(e){console.error(e);body=`<div class="err">This screen hit a problem: ${esc(e.message)}. Your data is safe; try another section or reload.</div>`}
-  v.innerHTML=mtop+(m.id!=="home"?`<div class="head"><div><h1>${esc(m.label)}</h1>${m.sub?`<p>${esc(m.sub)}</p>`:""}</div><div class="row">${m.headBtns?.()||""}</div></div>`:"")+bar+body;
-  tab[3]?.();
+  v.innerHTML=mtop+(m.id!=="home"?`<div class="head"><div><h1>${esc(m.label)}</h1>${m.sub?`<p>${esc(typeof m.sub==="function"?m.sub():m.sub)}</p>`:""}</div><div class="row">${m.headBtns?.()||""}</div></div>`:"")+bar+body;
+  tab[3]?.();J.afterRender.forEach(f=>{try{f(m.id)}catch(e){console.error(e)}});
 };
+J.afterRender=[];
 J.holdRefresh=[];
 
 // ---------- drawers ----------

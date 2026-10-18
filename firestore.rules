@@ -1,14 +1,22 @@
 rules_version = '2';
-// JCGG Suite: only verified Google accounts that the owner has approved can read or write.
+// JCGG Suite security rules.
 // Replace OWNER_EMAIL with the owner's Google address (lower case) when you publish these rules
 // in the Firebase console. Keep this file's placeholder as it is in the public repository.
+//
+// Who gets in:
+//  - The owner and approved Google accounts (Settings → Users & roles): everything their role allows.
+//  - Kitchen staff: a record in kitchenusers/<gmail> that the app creates when they join the kitchen and closes
+//    when they are relieved. They sign in with Google (same Gmail) or Gmail ID + PAN password, and can only
+//    read the menu/recipes and business settings. Access also stops by itself after the 'until' time (exit day).
+//  - Login log: anyone may add an entry about themselves (or a failed attempt); nobody can change or delete entries.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function authed() { return request.auth != null; }
+    function provider() { return request.auth.token.firebase.sign_in_provider; }
     function signedInWithGoogle() {
-      return request.auth != null
-        && request.auth.token.firebase.sign_in_provider == 'google.com'
-        && request.auth.token.email_verified == true;
+      return authed() && provider() == 'google.com' && request.auth.token.email_verified == true;
     }
+    function hasEmail() { return authed() && request.auth.token.get('email', null) != null; }
     function email() { return request.auth.token.email.lower(); }
     function isOwner() { return signedInWithGoogle() && email() == 'OWNER_EMAIL'; }
     function role() {
@@ -16,16 +24,49 @@ service cloud.firestore {
     }
     function isMember() { return isOwner() || (signedInWithGoogle() && role() != null); }
     function canWrite() { return isOwner() || (isMember() && role() != 'Auditor'); }
+    function isAdmin() { return isOwner() || (isMember() && role() in ['Super Admin', 'Admin']); }
+    function canAudit() { return isAdmin() || (isMember() && role() == 'Auditor'); }
+
+    function kitPath() { return /databases/$(database)/documents/kitchenusers/$(email()); }
+    function isKitchen() {
+      return hasEmail() && exists(kitPath())
+        && get(kitPath()).data.active == true
+        && (get(kitPath()).data.get('until', null) == null || request.time.toMillis() < get(kitPath()).data.until)
+        && (signedInWithGoogle() || (provider() == 'password' && get(kitPath()).data.get('uid', '') == request.auth.uid));
+    }
 
     // who has access: readable by members, changed only by the owner
     match /meta/roles {
       allow read: if isMember();
       allow write: if isOwner();
     }
+    // kitchen staff may read the business settings and the menu with its recipes — nothing else
+    match /meta/settings {
+      allow read: if isMember() || isKitchen();
+    }
+    match /menu/{id} {
+      allow read: if isMember() || isKitchen();
+    }
+    // kitchen logins: each person can read their own record; only the owner/admins create or close them
+    match /kitchenusers/{em} {
+      allow read: if isMember() || (hasEmail() && em == email());
+      allow write: if isAdmin();
+    }
+    // login log: append-only, server-timed
+    match /loginlog/{id} {
+      allow read: if canAudit();
+      allow create: if request.resource.data.srv == request.time
+        && request.resource.data.size() <= 40
+        && ((hasEmail() && request.resource.data.email == email())
+            || (!authed() && request.resource.data.event == 'failed'));
+      allow update, delete: if false;
+    }
     // every other record (ledgers, entries, stock, KOT days, staff, attendance, payroll, assets, policies…)
     match /{collection}/{docId} {
-      allow read: if isMember();
-      allow write: if canWrite() && !(collection == 'meta' && docId == 'roles');
+      allow read: if isMember() && collection != 'loginlog';
+      allow write: if canWrite()
+        && !(collection == 'meta' && docId == 'roles')
+        && !(collection in ['loginlog', 'kitchenusers']);
     }
   }
 }

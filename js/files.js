@@ -23,7 +23,7 @@ const SRC={staff:id=>({rec:J.get("accounts",id),col:"accounts",key:"docs"}),poli
 SRC.rec=o=>{const k=o.indexOf("|");const c=o.slice(0,k),i=o.slice(k+1);return {rec:J.get(c,i),col:c,key:"docs"}};
 J.fileSrc=SRC;
 // ---------- supporting documents on any record (entries, ledgers, stock, assets, policies, clients, contacts, trades, menu) ----------
-J.docsPanel=(col,id,title)=>{const r=J.get(col,id);const docs=r?.docs||[];const key=col+"|"+id;const dom=("dp-"+col+"-"+id).replace(/[^\w-]/g,"_");
+J.docsPanel=(col,id,title)=>{if(J.limited?.())return "";const r=J.get(col,id);const docs=r?.docs||[];const key=col+"|"+id;const dom=("dp-"+col+"-"+id).replace(/[^\w-]/g,"_");
   return `<section class="docs-panel" id="${dom}"><h3 class="ph" style="padding:6px 0 0">${esc(title||"Supporting documents")} ${docs.length?`<span class="chip plain">${docs.length}</span>`:""}</h3>
   <div class="row" style="flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:6px"><label class="f">Describe<input id="${dom}-cat" placeholder="Bill, receipt, quotation, warranty…" list="doc-kinds" style="min-width:200px"></label><datalist id="doc-kinds">${["Bill / invoice","Payment receipt","Quotation","Delivery challan","Warranty card","Agreement","Bank proof","Photo","Claim form","Survey report","Statement","Other"].map(x=>`<option value="${x}">`).join("")}</datalist>
   <label class="btn w" style="cursor:pointer">📎 Attach file<input type="file" multiple accept="image/*,application/pdf" data-ach="docAdd" data-x="${esc(key)}" id="${dom}-f" style="display:none"></label><label class="btn" style="cursor:pointer">📷 Take photo<input type="file" accept="image/*" capture="environment" data-ach="docAdd" data-x="${esc(key)}" id="${dom}-c" style="display:none"></label><span id="${dom}-p" class="hint"></span></div>
@@ -39,7 +39,7 @@ J.act("docDel",async el=>{if(!el.dataset.armed){el.dataset.armed="1";el.textCont
 J.docsDrawer=(col,id,title)=>J.drawer({title:"📎 "+(title||"Supporting documents"),wide:true,body:J.docsPanel(col,id,"Supporting documents")});
 J.act("docsOpen",el=>{const [col,id]=splitKey(el.dataset.x);J.docsDrawer(col,id,el.dataset.t||"")});
 // small button for list rows: shows the count, opens the documents
-J.docsBtn=(col,r,title)=>`<button type="button" class="btn small ${(r.docs||[]).length?"w":""}" data-a="docsOpen" data-x="${esc(col+"|"+r.id)}" data-t="${esc(title||r.name||r.no||"")}" title="Supporting documents" aria-label="Supporting documents${(r.docs||[]).length?" ("+r.docs.length+")":""}">📎${(r.docs||[]).length?" "+r.docs.length:""}</button>`;
+J.docsBtn=(col,r,title)=>J.limited?.()?"":`<button type="button" class="btn small ${(r.docs||[]).length?"w":""}" data-a="docsOpen" data-x="${esc(col+"|"+r.id)}" data-t="${esc(title||r.name||r.no||"")}" title="Supporting documents" aria-label="Supporting documents${(r.docs||[]).length?" ("+r.docs.length+")":""}">📎${(r.docs||[]).length?" "+r.docs.length:""}</button>`;
 let lbUrl=null;
 function closeLb(){document.getElementById("lightbox")?.remove();if(lbUrl){URL.revokeObjectURL(lbUrl);lbUrl=null}document.removeEventListener("keydown",lbKey)}
 function lbKey(e){if(e.key==="Escape")closeLb()}
@@ -60,7 +60,7 @@ const tok=()=>{try{const t=JSON.parse(sessionStorage.getItem(TK)||"null");return
 const meta=()=>J.get("meta","driveSync")||{};
 let dirty=false,timer=null,running=false,lastErr="",lastFix="";
 J.driveStatus=()=>{const m=meta();return {on:!!tok(),last:m.lastAt,by:m.by,err:lastErr,fix:lastFix,folder:m.folderId}};
-function paint(){const el=document.getElementById("driveState");if(!el)return;const st=J.driveStatus();el.textContent=st.on?(running?"Drive: backing up…":st.last?"Drive backup "+new Date(st.last).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}):"Drive: connected"):(lastErr?"Drive backup paused — tap":"Back up to Drive — tap");el.title=st.on?"Backed up to Google Drive (JCGG Suite Backups)":"Connect Google Drive to back up automatically"}
+function paint(){const el=document.getElementById("driveState");if(!el)return;el.hidden=!!J.limited?.();if(el.hidden)return;const st=J.driveStatus();el.textContent=st.on?(running?"Drive: backing up…":st.last?"Drive backup "+new Date(st.last).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}):"Drive: connected"):(lastErr?"Drive backup paused — tap":"Back up to Drive — tap");el.title=st.on?"Backed up to Google Drive (JCGG Suite Backups)":"Connect Google Drive to back up automatically"}
 J.driveConnect=async()=>{const p=new firebase.auth.GoogleAuthProvider();p.addScope(DS);p.setCustomParameters({login_hint:S.me?.email||""});
   try{const u=firebase.auth().currentUser;const r=u?await u.reauthenticateWithPopup(p):await firebase.auth().signInWithPopup(p);const t=r.credential?.accessToken;if(!t)throw new Error("Google did not return Drive access");sessionStorage.setItem(TK,JSON.stringify({t,exp:Date.now()+55*60e3}));lastErr="";paint();await J.driveBackup(true);return true}
   catch(e){lastErr=e.message||e.code||"cancelled";paint();toast("Drive not connected: "+(e.code==="auth/popup-blocked"?"allow pop-ups for this site":lastErr));return false}};

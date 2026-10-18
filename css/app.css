@@ -365,3 +365,21 @@ h3 .rcp-ref{font-size:12px}
 .rcp-pop-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--rule)}
 .rcp-pop-body{overflow:auto;padding:12px 16px 22px}
 @media print{.rcp-pop{display:none}}
+/* Joshi's Dashboard */
+:root{--m-jdash:#0F4C81}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--m-jdash:#7FB6E8}}
+:root[data-theme="dark"]{--m-jdash:#7FB6E8}
+html[data-mod="jdash"],[data-go="jdash"]{--mc:var(--m-jdash)}
+.jdash-layer{padding-top:0!important}
+.jdash-layer iframe{display:block;width:100%;height:calc(100vh - 210px);min-height:560px;border:0;border-radius:12px;background:#fff;box-shadow:var(--lift)}
+.jdash-layer:fullscreen{padding:0;max-width:none;background:#fff}
+.jdash-layer:fullscreen iframe{height:100vh;border-radius:0}
+@media (max-width:900px){.jdash-layer iframe{height:calc(100vh - 170px);min-height:480px}}
+/* kitchen staff login on the sign-in card */
+.kitlogin{display:flex;flex-direction:column;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid var(--rule);text-align:left}
+.kitlogin h2{font-size:15px;margin:0}
+.kitlogin label{display:flex;flex-direction:column;gap:4px;font-weight:500;font-size:13.5px}
+.kitlogin input{font-size:16px;padding:9px 10px}
+.kitacc{border:1px solid var(--rule);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--wash)}
+.loglog td{vertical-align:top;font-size:12.5px}
+.nowrap{white-space:nowrap}
