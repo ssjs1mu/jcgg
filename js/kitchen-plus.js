@@ -11,13 +11,21 @@ const K=()=>J.KIT;
 // ---------------- standard rates (indicative Kolkata market, ₹; replace with your purchase rates) ----------------
 // [key, match, unit (kg|l|pc), rate, g per cup, g per piece, g per tsp]
 const STD=[
+["Espresso shot",/espresso|shots?\b/i,"pc",10],["Packaged drink",/sprite|thums?p? ?up|coke|cola|chilled (pack|bottle)|bottles? chilled|bottle of/i,"pc",20],["Soda",/(?<!baking )soda(?! bicarb)/i,"pc",20],["Chips packet",/packet of chips|chips/i,"pc",20],
+["Mixed vegetables",/vegetables|veggies|leafy greens|bottle gourd|lauki|pumpkin|drumstick/i,"kg",60,130],["Green chutney",/chutney/i,"kg",120,240,,5],["Red / white sauce",/red sauce|white sauce|bechamel/i,"kg",150,250,,6],
+["Spring roll sheets",/spring.?roll sheet|wrapper/i,"pc",4],["Roti (cooked)",/\brotis?\b|chapati/i,"pc",6],["Bowl of dal",/bowl dal|dal bowl/i,"pc",20],["Bowl of sabji",/bowl .*sabji|sabji bowl/i,"pc",25],["Starter / sweet piece",/starter piece|small sweet|^\s*sweet\s*$|sweet (piece|dish)/i,"pc",15],
+["Manchurian portion",/portion .*manchurian/i,"pc",40],["Plain rice portion",/portion plain/i,"pc",15],["Idli (cooked)",/idlis?\b(?! rice| batter)/i,"pc",5],["Katori shells",/katori/i,"pc",3],
+["Sambar powder",/sambar powder|rasam powder/i,"kg",400,,,2.5],["Fenugreek seeds",/fenugreek seed|methi seed/i,"kg",120,,,4],["Mustard",/mustard(?! oil)/i,"kg",150,,,3.5],["Hoisin",/hoisin|oyster sauce/i,"kg",400,,,6],["Star anise",/star anise/i,"kg",1200,,0.5],
+["Nutmeg",/nutmeg|jaiphal/i,"kg",2000,,,2.5],["Paprika",/paprika/i,"kg",800,,,2.5],["Dried herbs",/mixed herbs|thyme|parsley|basil|rosemary/i,"kg",1500,,,1],["Bean sprouts",/sprout/i,"kg",120,100],["Olives",/olive(?! oil)/i,"kg",600,,3],
+["Melon seeds",/melon seed|magaz/i,"kg",900,140,,3],["Bhujiya",/bhujiya|sev\b|namkeen/i,"kg",300,60],["Syrup",/syrup|curacao/i,"l",500],["Mango pulp",/mango pulp/i,"kg",150,250],["Raw mango",/raw mango/i,"kg",80,,200],
+["Fruits",/mixed fruits|fruits|cherr|tutti|banana/i,"kg",150,150,100],["Betel leaf",/betel|paan leaf|paan leaves/i,"pc",2],["Gulkand",/gulkand/i,"kg",400,,,5],["Food colour",/food colou?r/i,"l",0],["Vegetable stock",/stock/i,"l",0],
 ["Mustard oil",/mustard oil|sarson|সরষের তেল/i,"l",190],["Refined oil",/\boil\b/i,"l",150],["Ghee",/ghee/i,"kg",650,,,4.5],["Butter",/butter(?!milk)/i,"kg",560,,,4.7],
 ["Buttermilk",/buttermilk/i,"l",40],["Ice cream",/ice.?cream/i,"l",300],["Fresh cream",/cream|malai/i,"l",260],["Condensed milk",/condensed milk/i,"kg",300,,,7],["Milk",/milk/i,"l",60],
-["Hung curd / curd",/curd|dahi|yog/i,"kg",80,245],["Paneer",/paneer|cottage cheese/i,"kg",380,120],["Cheese",/cheese|mozzarella/i,"kg",520,110,15],["Khoya",/khoya|mawa/i,"kg",400],
+["Hung curd / curd",/curd|dahi|yog/i,"kg",80,245],["Paneer",/paneer|cottage cheese/i,"kg",380,120],["Cheese",/cheese|mozzarella|processed/i,"kg",520,110,15],["Khoya",/khoya|mawa/i,"kg",400],
 ["Dosa / idli batter",/batter/i,"kg",60,250],["Rice flour",/rice flour/i,"kg",50,130,,3],["Cornflour",/corn ?flour|cornstarch/i,"kg",90,120,,2.7],["Besan",/besan|gram flour/i,"kg",100,90,,3],["Maida",/maida|all.?purpose|refined flour/i,"kg",40,125,,3],["Atta",/atta|wheat flour/i,"kg",38,120,,3],
 ["Semolina",/suji|sooji|semolina|rava/i,"kg",50,170],["Poha",/poha|chirwa|flattened rice/i,"kg",60,80],["Bread crumbs",/bread crumb/i,"kg",150,110,,2],["Bread",/bread/i,"kg",125,,25],
 ["Basmati rice",/basmati|biriyani rice|pulao rice/i,"kg",110,190],["Idli rice",/idli rice|parboiled/i,"kg",48,190],["Quinoa",/quinoa/i,"kg",400,170],["Rice",/\brice\b/i,"kg",55,190],
-["Moong dal",/moong|mung/i,"kg",130,200],["Masoor dal",/masoor/i,"kg",100,200],["Chana dal",/chana dal|bengal gram/i,"kg",95,200],["Toor dal",/toor|arhar|tur dal/i,"kg",150,200],["Urad dal",/urad/i,"kg",140,200],
+["Moong dal",/moong|mung/i,"kg",130,200],["Masoor dal",/masoor|red lentil/i,"kg",100,200],["Chana dal",/chana dal|bengal gram/i,"kg",95,200],["Toor dal",/toor|arhar|tur dal/i,"kg",150,200],["Urad dal",/urad/i,"kg",140,200],
 ["Kabuli chana",/kabuli|chickpea|chole/i,"kg",120,180],["Rajma",/rajma|kidney bean/i,"kg",150,180],["Soya chunks",/soya|soybean/i,"kg",120,60],["Noodles",/noodle/i,"kg",150,,,],["Pasta",/pasta|macaroni|penne/i,"kg",200,100],
 ["Maggi",/maggi/i,"pc",14],["Papad",/papad/i,"kg",400,,10],
 ["Spring onion",/spring onion|scallion|পেঁয়াজকলি/i,"kg",80,60],["Sweet potato",/sweet potato|shakarkand/i,"kg",50,,200],["Potato",/potato|aloo/i,"kg",30,150,150],["Onion",/onion|pyaz/i,"kg",40,160,120],["Tomato",/tomato/i,"kg",40,180,100],
@@ -74,7 +82,7 @@ function parseLine(raw){let s=String(raw).replace(/\([^)]*\)/g," ");const label=
     if(um){const u=um[1].toLowerCase();unit=/^kg|kilo/.test(u)?"kg":/^(g|gm|gms|gram)/.test(u)?"g":/^(l|ltr|lit)/.test(u)?"l":u==="ml"?"ml":/^(tsp|teasp)/.test(u)?"tsp":/^(tbsp|tables)/.test(u)?"tbsp":/^cup/.test(u)?"cup":/^inch/.test(u)?"inch":/^pinch/.test(u)?"pinch":/^bunch/.test(u)?"bunch":"";if(/^clove/.test(u))rest="garlic clove "+rest;rest=rest.slice(um[0].length)}
     else if(/^each\b/i.test(rest))rest=rest.replace(/^each\s*/i,"");
     const name=rest.replace(/^(of|each)\s+/i,"").split(/\s+or\s+/i)[0].replace(/\s{2,}/g," ").trim();
-    if(q==null&&DESC.test(c))continue;
+    if(q==null&&DESC.test(c))continue;if(/absorption/i.test(c))continue;if(q!=null&&/^-?\s*(inch|cm)\b/i.test(rest))continue;
     if(q==null){if(/for (deep |shallow )?fr(y|ying)|to fry|for frying/i.test(c)&&/oil|ghee/i.test(c))out.push({fry:true,name:c,text:c});else if(/to taste/i.test(c)&&/salt/i.test(c))out.push({q:1,unit:"tsp",name:"salt",text:c});else out.push({q:null,name:c,text:c});continue}
     out.push({q,unit,name:name||c,text:c})}
   return out}
