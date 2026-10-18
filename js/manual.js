@@ -113,6 +113,39 @@ J.manualBtn=(mod,tab)=>M[mod]?`<button class="btn w" data-a="manOpen" data-x="${
 J.act("manOpen",el=>{const [mod,tab]=el.dataset.x.split("|");J.drawer({title:"Manual · "+(M[mod]?.t||mod),wide:true,submit:"Close",body:J.manualHtml(mod,tab)+`<p class="hint"><a href="#manual" data-go="manual">Open the full manual</a></p>`,onSubmit:()=>{}})});
 J.accManualLink=kind=>A[kind]?`<button type="button" class="linkbtn" data-a="accMan" data-x="${esc(kind)}">How this kind of ledger works</button>`:"";
 J.act("accMan",el=>{const k=el.dataset.x;const box=document.getElementById("accManBox");if(box){box.innerHTML=box.innerHTML?"":block(A[k]);return}});
+
+// ---------- versions (js/versions.js, generated from the git history by tools/release.py) ----------
+const VER=()=>window.JCGG_VERSIONS||{app:{},mods:{}};
+const when=s=>{if(!s)return "";const [d,tm]=s.split(" ");return J.fmtDate(d)+(tm?", "+tm:"")};
+J.verOf=id=>VER().mods[id]||null;
+J.verLine=id=>{const v=J.verOf(id);return v?`v${esc(v.v)} · updated ${esc(when(v.at))}`:""};
+J.verBtn=id=>{const v=J.verOf(id);return v?`<button class="btn w" data-a="verHist" data-x="${esc(id)}" title="Version history">🕘 v${esc(v.v)}</button>`:""};
+J.act("verHist",el=>{const id=el.dataset.x;const v=id==="app"?{v:VER().app.v,at:VER().app.at,hist:[]}:J.verOf(id);const m=J.MODS.find(x=>x.id===id);
+  const all=id==="app"?Object.entries(VER().mods).map(([k,x])=>({k,...x})).sort((a,b)=>b.at.localeCompare(a.at)):null;
+  J.drawer({title:(id==="app"?"JCGG Suite":id==="platform"?"Core platform":m?.label||id)+" · version history",wide:true,submit:"Close",onSubmit:()=>{},
+    body:`<p><b>Current version v${esc(v?.v||"—")}</b> · updated ${esc(when(v?.at))} (India time)</p>
+    ${all?`<div class="tbl-wrap"><table><thead><tr><th>Module</th><th>Version</th><th>Last updated</th><th></th></tr></thead><tbody>${all.map(x=>`<tr><td>${esc(x.k==="platform"?"Core platform":J.MODS.find(m=>m.id===x.k)?.label||x.k)}</td><td>v${esc(x.v)}</td><td>${esc(when(x.at))}</td><td><button class="linkbtn" data-a="verHist" data-x="${esc(x.k)}">history</button></td></tr>`).join("")}</tbody></table></div>`
+    :`<div class="tbl-wrap"><table><thead><tr><th>Version</th><th>Date &amp; time</th><th>What changed</th></tr></thead><tbody>${(v?.hist||[]).map(h=>`<tr><td style="white-space:nowrap"><b>v${esc(h.v)}</b></td><td style="white-space:nowrap">${esc(when(h.at))}</td><td>${esc(h.msg)}</td></tr>`).join("")}</tbody></table></div>`}
+    <p class="hint">Every module is free to use: the app runs on GitHub Pages and the free Firebase plan — no subscription, no paid add-ons.</p>`})});
+
+// ---------- free to use: what the app runs on and how close it is to the free limits ----------
+J.freePanel=()=>{if(!(S.me.owner||["Super Admin","Admin"].includes(J.myRole?.())))return "";const docs=J.DATA_KEYS.reduce((s,k)=>s+(J.S.c[k]?.size||0),0);let bytes=0;try{for(const k of J.DATA_KEYS)bytes+=JSON.stringify(J.all(k)).length}catch(e){}
+  const mb=bytes/1048576;const estReads=docs*20;
+  const row=(s,free,use,ok)=>`<tr><td>${s}</td><td>${free}</td><td>${use}</td><td>${ok?'<span class="chip ok">Free</span>':'<span class="chip warn">Watch</span>'}</td></tr>`;
+  return `<section class="panel"><h2>Free to use — no subscription</h2><div class="pb"><p class="hint" style="margin-top:0">Every module runs on free services. Keep the Firebase project on the free <b>Spark</b> plan (no billing account): then nothing can ever be charged — if a daily limit were reached, the app would pause until the limit resets (midnight US Pacific time — about 12:30–1:30 pm India time).</p>
+  <div class="tbl-wrap"><table><thead><tr><th>Service</th><th>Free allowance</th><th>This business now</th><th></th></tr></thead><tbody>
+  ${row("Hosting — GitHub Pages","Free for public repositories (soft limit 100 GB traffic a month)","One small site",true)}
+  ${row("Sign-in — Firebase Auth (Google, email / password)","Free up to 50,000 users a month",(J.all("ccusers").length+J.all("kitchenusers").length)+" staff logins + owner team",true)}
+  ${row("Database — Cloud Firestore storage","1 GB",mb.toFixed(1)+" MB in "+docs.toLocaleString("en-IN")+" records",mb<700)}
+  ${row("Database — reads","50,000 a day","about "+docs.toLocaleString("en-IN")+" per app open (20 opens a day ≈ "+estReads.toLocaleString("en-IN")+")",estReads<40000)}
+  ${row("Database — writes","20,000 a day","entries, imports, attendance",true)}
+  ${row("Files & bill PDFs","Kept inside Firestore (no paid Storage)","counted in the 1 GB above",true)}
+  ${row("Backup — Google Drive","15 GB free Google account","Backup files",true)}
+  ${row("WhatsApp / SMS messages","Free — opens WhatsApp or SMS on your phone","one tap to send",true)}
+  ${row("Login emails — Apps Script relay","100 emails a day (Gmail)","optional",true)}
+  ${row("Video titles (noembed), maps, YouTube","Free public services","as needed",true)}
+  </tbody></table></div>
+  <p class="hint">Don't: add a billing account to the Firebase project, switch on paid Firebase Storage / Functions, or use a paid WhatsApp Business API — none are needed.</p></div></section>`};
 // ---------- the Manual module ----------
 function vManual(){const q=(J.ui("man",{q:""}).q||"").toLowerCase();const vis=J.MODS.filter(m=>J.canSee(m.id)&&M[m.id]);
   const hit=x=>!q||JSON.stringify(x).toLowerCase().includes(q);

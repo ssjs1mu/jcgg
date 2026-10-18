@@ -232,7 +232,7 @@ J.render=()=>{
   const mtop=`<div class="mtop"><select id="m-switch" aria-label="Module" data-a="switchmod">${vis.map(x=>`<option value="${x.id}" ${x.id===m.id?"selected":""}>${esc(x.label)}</option>`).join("")}</select></div>`;
   const bar=TABS.length>1?`<nav class="modbar" aria-label="${esc(m.label)} sections">${TABS.map(t=>`<button data-go="${m.id}" data-tab="${t[0]}" ${t[0]===tab[0]?'aria-current="page"':""}>${esc(t[1])}</button>`).join("")}</nav>`:"";
   let body;try{body=tab[2]()}catch(e){console.error(e);body=`<div class="err">This screen hit a problem: ${esc(e.message)}. Your data is safe; try another section or reload.</div>`}
-  v.innerHTML=mtop+(m.id!=="home"?`<div class="head"><div><h1>${esc(m.label)}</h1>${m.sub?`<p>${esc(typeof m.sub==="function"?m.sub():m.sub)}</p>`:""}</div><div class="row">${J.manualBtn?.(m.id,tab[0])||""}${m.headBtns?.()||""}</div></div>`:`<div class="row" style="justify-content:flex-end;margin-bottom:6px">${J.manualBtn?.(m.id,tab[0])||""}</div>`)+bar+body;
+  v.innerHTML=mtop+(m.id!=="home"?`<div class="head"><div><h1>${esc(m.label)}</h1>${m.sub?`<p>${esc(typeof m.sub==="function"?m.sub():m.sub)}</p>`:""}</div><div class="row">${J.verBtn?.(m.id)||""}${J.manualBtn?.(m.id,tab[0])||""}${m.headBtns?.()||""}</div></div>`:`<div class="row" style="justify-content:flex-end;margin-bottom:6px">${J.verBtn?.(m.id)||""}${J.manualBtn?.(m.id,tab[0])||""}</div>`)+bar+body;
   tab[3]?.();J.afterRender.forEach(f=>{try{f(m.id)}catch(e){console.error(e)}});
 };
 J.afterRender=[];
