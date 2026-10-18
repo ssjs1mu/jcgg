@@ -46,12 +46,12 @@ const num=(n,v,ph="0.00",extra="")=>`<input name="${n}" id="f-${n}" type="number
 const dateI=(n,v)=>`<input type="date" name="${n}" id="f-${n}" value="${esc(v??"")}">`;
 const selO=(n,opts,v,blank)=>`<select name="${n}" id="f-${n}">${blank!=null?`<option value="">${esc(blank)}</option>`:""}${opts.map(o=>{const [val,lab]=Array.isArray(o)?o:[o,o];return `<option value="${esc(val)}" ${String(val)===String(v??"")?"selected":""}>${esc(lab)}</option>`}).join("")}</select>`;
 const area=(n,v,rows=2,ph="")=>`<textarea name="${n}" id="f-${n}" rows="${rows}" placeholder="${esc(ph)}">${esc(v??"")}</textarea>`;
-function formData(form){const f={};for(const el of form.elements){if(!el.name)continue;if(el.type==="checkbox")f[el.name]=el.checked;else if(el.type==="file")continue;else f[el.name]=el.value}return f}
+function formData(form){const f={};for(const el of form.elements){if(!el.name)continue;if(el.type==="checkbox")f[el.name]=el.checked;else if(el.type==="radio"){if(el.checked)f[el.name]=el.value}else if(el.type==="file")continue;else f[el.name]=el.value}return f}
 Object.assign(J,{fld,txt,num,dateI,selO,area,formData});
 
 // ---------- collections & state ----------
 // monthly collections are partitioned by field `m` (YYYY-MM) and subscribed per month
-const COLS={accounts:"full",vouchers:"monthly",items:"full",moves:"monthly",menu:"full",kotday:"monthly",recipes:"full",contacts:"full",attendance:"full",trades:"full",ohlc:"full",watch:"full",assets:"full",policies:"full",payroll:"full",clients:"full",bills:"full",kitchenusers:"full",staffcc:"full",paystatus:"full",feedback:"full",ccusers:"full",meta:"full"};
+const COLS={accounts:"full",vouchers:"monthly",items:"full",moves:"monthly",menu:"full",kotday:"monthly",recipes:"full",contacts:"full",attendance:"full",trades:"full",ohlc:"full",watch:"full",assets:"full",policies:"full",payroll:"full",clients:"full",bills:"full",kitchenusers:"full",staffcc:"full",paystatus:"full",feedback:"full",ccusers:"full",ppday:"full",cashday:"full",meta:"full"};
 const LIMIT={clients:5000,feedback:5000};
 const S={c:{},monthDocs:{},route:{mod:"home",tab:""},mode:"connecting",ready:false,ui:{},err:null,me:{role:"Super Admin",id:null,name:""}};
 for(const k in COLS)S.c[k]=new Map();S.c.kots=new Map();
@@ -197,7 +197,7 @@ J.gate=(kind,msg)=>{const g=$("#gate");if(!kind){g.hidden=true;document.querySel
 
 // ---------- roles ----------
 const ROLES=["Super Admin","Admin","Manager","Accountant","Chef","Auditor"];
-const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","accounts","inventory","kitchen","kot","staff","directory","assets","insurance","care"],"Accountant":["home","accounts","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*","Kitchen Staff":["kitchen"],"Customer Care":["care","kitchen","directory"]};
+const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","sales","accounts","inventory","kitchen","kot","staff","directory","assets","insurance","care"],"Accountant":["home","sales","accounts","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*","Kitchen Staff":["kitchen"],"Customer Care":["care","kitchen","directory"]};
 J.ROLES=ROLES;
 function myRole(){if(S.me.owner)return "Super Admin";if(S.me.kitchen)return "Kitchen Staff";if(S.me.cc)return "Customer Care";return J.get("meta","roles")?.map?.[S.me.email]||"Manager"}
 J.myRole=myRole;

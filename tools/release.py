@@ -17,7 +17,7 @@ FILES = {
   "accounts": ["js/mod-accounts.js", "js/bankmatch.js", "js/expcat.js", "js/bankpdf.js"],
   "invest": ["js/mod-invest.js"], "assets": ["js/mod-assets.js"], "insurance": ["js/mod-assets.js"],
   "settings": ["js/mod-settings.js", "js/access.js"], "import": ["js/mod-import.js", "js/bankpdf.js"],
-  "manual": ["js/manual.js"],
+  "manual": ["js/manual.js"], "sales": ["js/mod-sales.js"],
 }
 def git(*a): return subprocess.run(["git", *a], capture_output=True, text=True, check=True).stdout
 log = git("log", "--reverse", "--format=@@%H|%at|%s", "--name-only")
