@@ -39,10 +39,10 @@ const libFor=name=>{const L=J.RECIPE_LIB;if(!L)return null;const k=nk(name);retu
 J.recipeFromLib=name=>{const e=libFor(name);if(!e)return null;const split=t=>String(t||"").split("|").map(x=>x.trim()).filter(Boolean).join("\n");const recipe={};
   for(const [l] of LANGS){const a=e[l];if(!a)continue;recipe[l]={ing:split(a[0]),prep:split(a[1]),cook:split(a[2]),...(a[3]?{serve:split(a[3])}:{})}}
   const n=e.n||[];const nutrition={};["kcal","protein","carbs","fat","fibre","sugar","sodium"].forEach((k,i)=>{if(n[i]!=null)nutrition[k]=n[i]});nutrition.basis="per serving, approximate";
-  return {recipe,nutrition,serves:e.s||"",prepMin:e.p||"",cookMin:e.c||"",recipeSrc:"library",recipeKey:e.key,...(e.note?{recipeNote:e.note}:{})}};
+  return {recipe,nutrition,serves:e.s||"",prepMin:e.p||"",cookMin:e.c||"",recipeSrc:"library",recipeKey:e.key,recipeLibV:e.v||1,...(e.note?{recipeNote:e.note}:{})}};
 let filling=false;
 J.kitAutoFill=async quiet=>{if(filling||J.readOnly?.()||!S.ready)return 0;filling=true;let n=0;try{await J.loadRecipeLib();
-  for(const m of J.all("menu").filter(x=>x.active!==false&&!hasRcp(x))){const r=J.recipeFromLib(m.name);if(!r)continue;await J.store.patch("menu",m.id,r);n++}
+  for(const m of J.all("menu").filter(x=>x.active!==false&&(!hasRcp(x)||x.recipeSrc==="library"))){const r=J.recipeFromLib(m.name);if(!r)continue;if(hasRcp(m)&&(m.recipeLibV||1)>=r.recipeLibV)continue;await J.store.patch("menu",m.id,r);n++}
   if(n&&!quiet)toast("Recipes filled from the library for "+n+" dish"+(n>1?"es":""))}catch(e){console.warn(e)}finally{filling=false}if(n)J.render();return n};
 let autoRan=false;
 function tilesHtml(list){const f=v=>v==null?"—":"₹"+inr0.format(v);
