@@ -51,7 +51,7 @@ Object.assign(J,{fld,txt,num,dateI,selO,area,formData});
 
 // ---------- collections & state ----------
 // monthly collections are partitioned by field `m` (YYYY-MM) and subscribed per month
-const COLS={accounts:"full",vouchers:"monthly",items:"full",moves:"monthly",menu:"full",kotday:"monthly",recipes:"full",contacts:"full",attendance:"full",trades:"full",ohlc:"full",watch:"full",assets:"full",policies:"full",payroll:"full",clients:"full",kitchenusers:"full",meta:"full"};
+const COLS={accounts:"full",vouchers:"monthly",items:"full",moves:"monthly",menu:"full",kotday:"monthly",recipes:"full",contacts:"full",attendance:"full",trades:"full",ohlc:"full",watch:"full",assets:"full",policies:"full",payroll:"full",clients:"full",bills:"full",kitchenusers:"full",meta:"full"};
 const S={c:{},monthDocs:{},route:{mod:"home",tab:""},mode:"connecting",ready:false,ui:{},err:null,me:{role:"Super Admin",id:null,name:""}};
 for(const k in COLS)S.c[k]=new Map();S.c.kots=new Map();
 // kots are stored grouped per day in `kotday` (one record per day keeps the book far under the 25,000-record cap)
