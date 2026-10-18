@@ -73,6 +73,7 @@ J.act("ppUpload",()=>{if(J.isCC?.())return toast("The Petpooja upload is done by
   i.onchange=async()=>{const f=i.files?.[0];if(!f)return;J.busy.start("Reading "+f.name);let orders=null;try{orders=J.parseOrderListing(await readRows(f))}catch(e){toast(e.message)}finally{J.busy.end()}
     if(!orders){toast("This file is not a Petpooja Order Listing (needs Order No. and Items columns) — opening the simple bill upload instead.");return J.run("ppUploadSimple")}
     if(!orders.length)return toast("No orders found in the file.");ui().stg={file:f.name,orders,post:true,points:true,houseAs:"staff"};review()};i.click()});
+J.ppReview=(orders,file)=>{ui().stg={file,orders,post:true,points:true,houseAs:"staff"};review()};
 function review(){const st=ui().stg;const os=st.orders;const okk=os.filter(live),hs=okk.filter(o=>o.house),cnt=okk.filter(o=>!o.house);const skip=os.filter(o=>!live(o));
   const sum=(l,f)=>r2(l.reduce((s,o)=>s+f(o),0));const by=m=>sum(cnt,o=>o.pays.filter(p=>p.m===m).reduce((s,p)=>s+p.amt,0));const days=[...new Set(okk.map(o=>o.date))].sort();const have=days.filter(d=>J.get("ppday",d));
   const parts=cnt.filter(o=>o.part);const dues=cnt.filter(o=>o.pays.some(p=>p.m==="due"));
