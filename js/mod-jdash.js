@@ -12,5 +12,7 @@ J.act("jdashReload",()=>{const f=document.getElementById("jdashFrame");if(f)f.sr
 J.act("jdashFull",()=>{const f=document.getElementById("jdashLayer");(f?.requestFullscreen||f?.webkitRequestFullscreen)?.call(f)});
 function vTerm(){return `<div class="row jdash-bar" style="gap:8px;flex-wrap:wrap"><span class="chip ok">Live</span><span class="hint">Stock Analyst terminal — intraday, short-term, long-term and results-week views.</span>
   <span style="margin-left:auto" class="row" style="gap:6px"><button type="button" class="btn small" data-a="jdashReload">↻ Reload</button><button type="button" class="btn small" data-a="jdashFull">⛶ Full screen</button><a class="btn small" href="${URL_}" target="_blank" rel="noopener">Open in new tab ↗</a></span></div>`}
-J.mod({id:"jdash",label:"Joshi's Dashboard",group:"Finance",icon:'<path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 5-7"/><circle cx="18" cy="6" r="1.5"/>',sub:"Joshi's Corner Stock Analyst — live NSE/BSE analysis from the same sign-in.",tabs:[["terminal","Stock Analyst",vTerm]]});
+J.mod({id:"jdash",label:"Joshi's Dashboard",group:"Home",icon:'<path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 5-7"/><circle cx="18" cy="6" r="1.5"/>',sub:"Joshi's Corner Stock Analyst — live NSE/BSE analysis from the same sign-in.",tabs:[["terminal","Stock Analyst",vTerm]]});
+// first in the module list, above Home
+{const i=J.MODS.findIndex(m=>m.id==="jdash");if(i>0)J.MODS.unshift(...J.MODS.splice(i,1))}
 })();
