@@ -260,3 +260,61 @@ img{max-width:100%}[hidden]{display:none!important}
 .lb-img{width:auto;max-width:100%;height:auto;background:#fff}
 .lb-pdf{width:min(1100px,100%);height:100%;min-height:80vh;border:0;background:#fff}
 .lb-bar .btn{color:#111;background:#fff;text-decoration:none}
+
+/* ===== 3D tiles · each module has its own colour (--mc) ===== */
+:root{--m-home:#2F5D8A;--m-accounts:#1E7A57;--m-inventory:#9A5212;--m-kitchen:#B23A0B;--m-kot:#A61E5E;--m-staff:#5E35B1;--m-directory:#0B6A80;--m-invest:#7A5F05;--m-assets:#475569;--m-insurance:#B3261E;--m-settings:#374151;--m-import:#0B5F95;
+  --mc:var(--m-home);--mc-ink:#fff;--lift:0 1px 0 rgba(255,255,255,.7) inset,0 -1px 0 rgba(0,0,0,.04) inset,0 1px 2px rgba(16,24,32,.08),0 6px 16px -6px rgba(16,24,32,.22);
+  --lift-hi:0 1px 0 rgba(255,255,255,.8) inset,0 2px 4px rgba(16,24,32,.10),0 14px 28px -10px rgba(16,24,32,.32)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--m-home:#86B2E0;--m-accounts:#6CCB9F;--m-inventory:#E3A15E;--m-kitchen:#F28B5B;--m-kot:#EE7FB4;--m-staff:#B49AF2;--m-directory:#5CC6DC;--m-invest:#E0C05A;--m-assets:#A7B4C6;--m-insurance:#F08A80;--m-settings:#B8C2CF;--m-import:#6EB8EC;--mc-ink:#0E1317;
+  --lift:0 1px 0 rgba(255,255,255,.06) inset,0 1px 2px rgba(0,0,0,.5),0 8px 18px -6px rgba(0,0,0,.6);--lift-hi:0 1px 0 rgba(255,255,255,.08) inset,0 4px 8px rgba(0,0,0,.5),0 16px 30px -10px rgba(0,0,0,.7)}}
+:root[data-theme="dark"]{--m-home:#86B2E0;--m-accounts:#6CCB9F;--m-inventory:#E3A15E;--m-kitchen:#F28B5B;--m-kot:#EE7FB4;--m-staff:#B49AF2;--m-directory:#5CC6DC;--m-invest:#E0C05A;--m-assets:#A7B4C6;--m-insurance:#F08A80;--m-settings:#B8C2CF;--m-import:#6EB8EC;--mc-ink:#0E1317;
+  --lift:0 1px 0 rgba(255,255,255,.06) inset,0 1px 2px rgba(0,0,0,.5),0 8px 18px -6px rgba(0,0,0,.6);--lift-hi:0 1px 0 rgba(255,255,255,.08) inset,0 4px 8px rgba(0,0,0,.5),0 16px 30px -10px rgba(0,0,0,.7)}
+/* the open module sets the page colour; anything that links to a module (menu, KPI, home tile) takes that module's colour */
+html[data-mod="home"],[data-go="home"]{--mc:var(--m-home)}html[data-mod="accounts"],[data-go="accounts"]{--mc:var(--m-accounts)}html[data-mod="inventory"],[data-go="inventory"]{--mc:var(--m-inventory)}
+html[data-mod="kitchen"],[data-go="kitchen"]{--mc:var(--m-kitchen)}html[data-mod="kot"],[data-go="kot"]{--mc:var(--m-kot)}html[data-mod="staff"],[data-go="staff"]{--mc:var(--m-staff)}
+html[data-mod="directory"],[data-go="directory"]{--mc:var(--m-directory)}html[data-mod="invest"],[data-go="invest"]{--mc:var(--m-invest)}html[data-mod="assets"],[data-go="assets"]{--mc:var(--m-assets)}
+html[data-mod="insurance"],[data-go="insurance"]{--mc:var(--m-insurance)}html[data-mod="settings"],[data-go="settings"]{--mc:var(--m-settings)}html[data-mod="import"],[data-go="import"]{--mc:var(--m-import)}
+body{background:radial-gradient(1200px 500px at 70% -10%,color-mix(in srgb,var(--mc) 10%,transparent),transparent 70%),var(--paper);background-attachment:fixed}
+/* page header: a coloured tile */
+.head{background:linear-gradient(135deg,var(--mc),color-mix(in srgb,var(--mc) 70%,#000));color:var(--mc-ink);border-radius:14px;padding:16px 20px;box-shadow:var(--lift-hi),0 3px 0 color-mix(in srgb,var(--mc) 60%,#000)}
+.head h1,.head p{color:var(--mc-ink)}.head p{opacity:.85}
+.head .btn{background:rgba(255,255,255,.95);color:#18212B;border-color:transparent}
+.head .btn.primary{background:var(--mc-ink);color:var(--mc)}
+/* section tabs as raised keys */
+.modbar{border-bottom:0;gap:8px;margin-top:0}
+.modbar button{border:1px solid color-mix(in srgb,var(--mc) 25%,var(--rule));background:linear-gradient(180deg,var(--sheet),color-mix(in srgb,var(--mc) 6%,var(--sheet)));border-radius:10px;margin:0;padding:8px 14px;box-shadow:var(--lift);transition:transform .12s,box-shadow .12s}
+.modbar button:hover{transform:translateY(-1px);box-shadow:var(--lift-hi);color:var(--mc)}
+.modbar button[aria-current="page"]{background:linear-gradient(180deg,color-mix(in srgb,var(--mc) 88%,#fff),var(--mc));color:var(--mc-ink);border-color:var(--mc);box-shadow:var(--lift),0 3px 0 color-mix(in srgb,var(--mc) 55%,#000)}
+/* panels, cards and tiles: raised with a coloured top edge */
+.panel,.card,.tile,.payslip{border-radius:14px;border:1px solid color-mix(in srgb,var(--mc) 18%,var(--rule));border-top:4px solid var(--mc);background:linear-gradient(180deg,color-mix(in srgb,var(--mc) 5%,var(--sheet)),var(--sheet) 120px);box-shadow:var(--lift)}
+.panel>h2,.ph{color:var(--mc)}
+.card,.tile{transition:transform .14s,box-shadow .14s}
+.card:hover,.tile:hover{transform:translateY(-3px);box-shadow:var(--lift-hi);border-color:color-mix(in srgb,var(--mc) 45%,var(--rule))}
+.card:active,.tile:active,.kpi:active,.btn:active{transform:translateY(1px)}
+.tile svg{color:var(--mc);background:color-mix(in srgb,var(--mc) 14%,transparent);border-radius:8px;padding:6px;width:32px;height:32px;box-sizing:border-box}
+/* KPI row becomes separate 3D tiles */
+.kpis{border:0;background:none;overflow:visible;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.kpi{margin:0;border:1px solid color-mix(in srgb,var(--mc) 22%,var(--rule));border-left:5px solid var(--mc);border-radius:12px;background:linear-gradient(160deg,color-mix(in srgb,var(--mc) 10%,var(--sheet)),var(--sheet) 70%);box-shadow:var(--lift);transition:transform .14s,box-shadow .14s}
+.kpi:hover{background:linear-gradient(160deg,color-mix(in srgb,var(--mc) 16%,var(--sheet)),var(--sheet) 70%);transform:translateY(-3px);box-shadow:var(--lift-hi)}
+.kpi strong{color:color-mix(in srgb,var(--mc) 75%,var(--ink))}
+/* buttons with depth */
+.btn{border-radius:8px;background:linear-gradient(180deg,var(--sheet),color-mix(in srgb,var(--mc) 5%,var(--wash)));box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 1px 0 color-mix(in srgb,var(--mc) 20%,var(--rule-2)),0 2px 4px rgba(16,24,32,.08);transition:transform .1s,box-shadow .1s}
+.btn:hover{border-color:color-mix(in srgb,var(--mc) 45%,var(--rule-2))}
+.btn.primary{background:linear-gradient(180deg,color-mix(in srgb,var(--mc) 85%,#fff),var(--mc));border-color:color-mix(in srgb,var(--mc) 80%,#000);color:var(--mc-ink);box-shadow:0 1px 0 rgba(255,255,255,.35) inset,0 3px 0 color-mix(in srgb,var(--mc) 55%,#000),0 4px 10px -2px color-mix(in srgb,var(--mc) 45%,transparent)}
+.btn.primary:active{box-shadow:0 1px 0 color-mix(in srgb,var(--mc) 55%,#000)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+/* side menu: every module a coloured key */
+.nav button{border-radius:10px;margin:1px 0;transition:background .12s,transform .12s}
+.nav button svg{color:var(--mc);background:color-mix(in srgb,var(--mc) 14%,transparent);border-radius:7px;padding:4px;width:26px;height:26px;box-sizing:border-box}
+.nav button:hover{background:color-mix(in srgb,var(--mc) 10%,transparent);color:var(--ink);transform:translateX(2px)}
+.nav button[aria-current="page"]{background:linear-gradient(135deg,color-mix(in srgb,var(--mc) 90%,#fff),var(--mc));color:var(--mc-ink);box-shadow:var(--lift),0 2px 0 color-mix(in srgb,var(--mc) 55%,#000)}
+.nav button[aria-current="page"] svg{color:var(--mc-ink);background:rgba(255,255,255,.18)}
+.rail{background:linear-gradient(180deg,var(--sheet),color-mix(in srgb,var(--mc) 4%,var(--sheet)));box-shadow:2px 0 12px -6px rgba(16,24,32,.25)}
+#mnav button[aria-current="page"]{color:var(--mc)}
+#mnav button[aria-current="page"] svg{color:var(--mc)}
+/* tables inside tiles: tinted header row */
+.panel thead th{background:color-mix(in srgb,var(--mc) 7%,var(--sheet))}
+.drawer{border-top:5px solid var(--mc);box-shadow:-12px 0 40px -10px rgba(0,0,0,.35)}
+.drawer>h2{color:var(--mc)}
+@media (prefers-reduced-motion:reduce){.card,.tile,.kpi,.btn,.modbar button,.nav button{transition:none}.card:hover,.tile:hover,.kpi:hover,.modbar button:hover,.nav button:hover{transform:none}}
+@media print{.head{background:none;color:#000;box-shadow:none;padding:0}.head h1,.head p{color:#000}.panel,.card,.tile,.kpi{box-shadow:none;background:#fff;border-top-width:1px}body{background:#fff}}

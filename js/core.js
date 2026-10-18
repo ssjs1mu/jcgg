@@ -169,7 +169,7 @@ J.render=()=>{
   if(S.hold&&document.getElementById(S.hold)){J.holdRefresh?.forEach(f=>f());return}
   if(!S.ready){v.innerHTML=`<div class="empty" style="padding:80px 16px"><strong>Opening the books…</strong><span>Loading ledgers, stock, staff and records.</span></div>`;return}
   let m=MODS.find(x=>x.id===S.route.mod);if(!m||!J.canSee(m.id)){m=MODS[0];S.route={mod:m.id,tab:m.tabs[0][0]}}
-  let tab=m.tabs.find(t=>t[0]===S.route.tab)||m.tabs[0];S.route.tab=tab[0];
+  let tab=m.tabs.find(t=>t[0]===S.route.tab)||m.tabs[0];S.route.tab=tab[0];document.documentElement.dataset.mod=m.id;
   const vis=MODS.filter(x=>J.canSee(x.id));
   const mtop=`<div class="mtop"><select id="m-switch" aria-label="Module" data-a="switchmod">${vis.map(x=>`<option value="${x.id}" ${x.id===m.id?"selected":""}>${esc(x.label)}</option>`).join("")}</select></div>`;
   const bar=m.tabs.length>1?`<nav class="modbar" aria-label="${esc(m.label)} sections">${m.tabs.map(t=>`<button data-go="${m.id}" data-tab="${t[0]}" ${t[0]===tab[0]?'aria-current="page"':""}>${esc(t[1])}</button>`).join("")}</nav>`:"";
