@@ -114,7 +114,7 @@ function subscribeKitchen(){let got=0;const done=()=>{if(++got>=2&&!S.ready){S.r
 J.monthId=(off=0)=>{const d=new Date(Date.now()+330*60000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+off);return d.toISOString().slice(0,7)};
 function subscribeCC(){let got=0;const need=4;const done=()=>{if(++got>=need&&!S.ready)S.ready=true;J.refresh()};const coll=(c,fn)=>unsubs.push(fdb.collection(c).limit(LIMIT[c]||1000).onSnapshot(s=>{S.c[c]=new Map(s.docs.map(d=>[d.id,{id:d.id,...dec(d.data())}]));fn&&fn()},onErr));
   let first={};const once=k=>()=>{if(!first[k]){first[k]=1;done()}else J.refresh()};
-  coll("menu",once("menu"));coll("staffcc",once("staffcc"));coll("clients",once("clients"));coll("feedback",once("feedback"));coll("paystatus");
+  coll("menu",once("menu"));coll("staffcc",once("staffcc"));coll("clients",once("clients"));coll("feedback",once("feedback"));coll("paystatus");coll("contacts");
   unsubs.push(fdb.collection("meta").doc("settings").onSnapshot(d=>{if(d.exists)S.c.meta.set("settings",{id:"settings",...d.data()});J.refresh()},()=>{}));
   for(const m of [J.monthId(0),J.monthId(-1)])unsubs.push(fdb.collection("attendance").doc(m).onSnapshot(d=>{if(d.exists)S.c.attendance.set(m,{id:m,...dec(d.data())});else S.c.attendance.delete(m);J.refresh()},onErr));
   unsubs.push(fdb.collection("ccusers").doc(S.me.email).onSnapshot(d=>{const k=d.exists?d.data():null;if(!k||k.active!==true||(S.me.method==="password"&&k.uid!==S.me.id)){J._gateMsg="The Customer Care login is switched off. Contact the owner.";J.signOut("revoked")}},()=>{}));
@@ -197,7 +197,7 @@ J.gate=(kind,msg)=>{const g=$("#gate");if(!kind){g.hidden=true;document.querySel
 
 // ---------- roles ----------
 const ROLES=["Super Admin","Admin","Manager","Accountant","Chef","Auditor"];
-const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","accounts","inventory","kitchen","kot","staff","directory","assets","insurance","care"],"Accountant":["home","accounts","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*","Kitchen Staff":["kitchen"],"Customer Care":["care","kitchen"]};
+const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","accounts","inventory","kitchen","kot","staff","directory","assets","insurance","care"],"Accountant":["home","accounts","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*","Kitchen Staff":["kitchen"],"Customer Care":["care","kitchen","directory"]};
 J.ROLES=ROLES;
 function myRole(){if(S.me.owner)return "Super Admin";if(S.me.kitchen)return "Kitchen Staff";if(S.me.cc)return "Customer Care";return J.get("meta","roles")?.map?.[S.me.email]||"Manager"}
 J.myRole=myRole;

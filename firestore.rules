@@ -8,8 +8,8 @@ rules_version = '2';
 //  - Kitchen staff: a record in kitchenusers/<gmail> that the app creates when they join the kitchen and closes
 //    when they are relieved. They sign in with Google (same Gmail) or Gmail ID + PAN password, and can only
 //    read the menu/recipes and business settings. Access also stops by itself after the 'until' time (exit day).
-//  - Customer Care (user ID "jcgg"): menu, its masked staff copy, attendance of this and last month (last month
-//    editable only while its salary status is DRAFT), clients/loyalty and bill feedback. Nothing else.
+//  - Customer Care (user ID "jcgg"): menu (read only), its masked staff copy, attendance of this and last month (last
+//    month editable only while its salary status is DRAFT), clients/loyalty, Directory contacts and bill feedback.
 //  - Login log: anyone may add an entry about themselves (or a failed attempt); nobody can change or delete entries.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -83,6 +83,11 @@ service cloud.firestore {
       allow create, update: if isCC();
     }
     match /feedback/{id} {
+      allow read: if isMember() || isCC();
+      allow create, update: if isCC();
+    }
+    // Directory contacts: Customer Care reads, adds and edits (no delete)
+    match /contacts/{id} {
       allow read: if isMember() || isCC();
       allow create, update: if isCC();
     }

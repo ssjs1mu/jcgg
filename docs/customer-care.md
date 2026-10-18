@@ -63,11 +63,13 @@ number (a bill number already present anywhere is skipped, so re-uploading is sa
 | Payroll, advances, reports, pay figures | none | not in any allow rule for the role |
 | Staff profile | name, phone, emergency contact, photo, designation, family, KYC numbers & scans | role reads only `staffcc`, `ccfiles` |
 | Salary, bank, HR notes | none | fields never written to `staffcc` |
+| Directory — clients | full client master incl. *Active since*, transaction history and spending & visits study; add / edit, no delete, no import | `clients/*` |
+| Directory — contacts | read, add, edit (no delete); staff appear as profile view only (masked) | `contacts/*`, `staffcc/*` |
 | Clients, points, reviews | read, create, update (no delete) | `clients/*` |
 | Bill feedback | read, create, update (no delete) | `feedback/*` |
 | Everything else (accounts, stock, bills, assets…) | none | generic rule excludes the role |
 
-Client-side guards: `ACCESS["Customer Care"]=["care","kitchen"]`, `J.isCC()` hides Settings, attachments,
+Client-side guards: `ACCESS["Customer Care"]=["care","kitchen","directory"]`, `J.isCC()` hides Settings, attachments,
 costing, kitchen editing, client delete and client import; `subscribeCC()` subscribes only to the collections above.
 
 ## 4. Attendance lock logic
@@ -87,7 +89,7 @@ are picked up by the owner's payroll the next time it recalculates.
 
 ## 5. Loyalty engine
 
-* **Upload**: Customer Care → Bills & thanks → *Upload Petpooja sales* (CSV or Excel). Columns are found by header:
+* **Upload** (owner / manager only): Directory → Client master → *Upload Petpooja sales* (CSV or Excel). Customer Care cannot upload. Columns are found by header:
   mobile / customer phone, bill / invoice / order number, date (with time if present), grand total / bill amount,
   optional customer name. Rows without a 10-digit mobile are skipped and counted.
 * **Points**: `floor(bill amount / rewardPer)` per bill (default ₹100 per point; Directory → Reward register →
@@ -108,8 +110,9 @@ are picked up by the owner's payroll the next time it recalculates.
 
 | Screen (hash route) | Purpose | Actions (writes) |
 |---|---|---|
-| `#care-bills` | bills of a day, thank-you, review, feedback | `ppUpload` (clients), `ccWa` (clients.msgs), `ccReview` (clients.reviews), `fbNew` (feedback), `ccTpl` (meta/settings, owner) |
-| `#care-clients` | client master with sales summary, reviews, feedback history | `cliSpend`, `cliRedeem`, `cliEdit` (clients) |
+| `#care-bills` | bills of a day, thank-you, review, feedback | `ccWa` (clients.msgs), `ccReview` (clients.reviews), `fbNew` (feedback), `ccTpl` (meta/settings, owner) |
+| `#directory-clients` | client master (Active since column), click → transaction history + spending & visits study | `cliSpend`, `cliRedeem`, `cliEdit`, `subEdit` (clients); `ppUpload` owner/manager only |
+| `#directory-contacts` | contacts; staff open the masked profile | `conEdit` (contacts) |
 | `#care-top` | daily / monthly / yearly leaderboards | `ccWa` |
 | `#care-feedback` | bill-wise feedback register with status filter | `fbNew`, `fbEdit` (feedback) |
 | `#care-staff` | masked staff profiles with KYC scans | read only |
@@ -117,3 +120,13 @@ are picked up by the owner's payroll the next time it recalculates.
 | `#kitchen-menu`, `#kitchen-new` | recipes, read only | none |
 | `#settings-logins` (owner) | Customer Care login, Google CC accounts, login log | `ccCreate`, `ccPwChange`, `ccToggle`, `ccGAdd`, `ccGToggle` (ccusers) |
 | `#staff-payroll` (owner) | salary status per month | `payStatusSet` (payroll.status → paystatus) |
+
+## 8. Edit and delete across the app (`js/entries.js`)
+
+* Whole records: a guarded **Delete** (tap twice) in each record's form. Deleting also removes the accounting entries
+  the record created. Blocked when other data depends on it — items with stock movements or in recipes, ledgers with
+  entries or built-in ledgers, staff with history (use *Record exit*), disposed assets. Customer Care never deletes
+  clients or feedback.
+* Entries inside a record — service records, premiums, claims, reward entries, reviews, staff notes, salary revisions —
+  have **edit / delete** links; a linked accounting entry follows the new amount and date or is removed.
+* Supplier bills: header edit (date, invoice, order, note; voucher and stock receipt follow). Staff KOTs: date, quantity, rate.

@@ -219,7 +219,7 @@ J.act("exportLedger",()=>{const id=ui().ledger.acc,a=J.get("accounts",id),U=ui()
   for(const p of J.D.post?.get(id)||[])if(p.date>=f&&p.date<=t){run+=p.dr-p.cr;rows.push([p.date,p.v.no,against(p.v,id),p.v.narr,p.dr||"",p.cr||"",bal(run),p.v.rec?.[id]||""])}J.saveFile("ledger-"+a.name.replace(/[^\w]+/g,"-")+".csv",J.toCSV(rows))});
 
 function accDrawer(id,preset,opt={}){const a=id?J.get("accounts",id):{name:opt.name||"",kind:preset||"vendor",opening:0,active:true};const used=id&&(J.D.post?.get(id)||[]).length;const ob=+a.opening||0;
-  J.drawer({docs:["accounts",id],title:opt.title||(id?"Edit ledger":"New ledger"),submit:id?"Save ledger":"Create ledger",body:`${fld("Name",txt("name",a.name,"e.g. Sharma Vegetables",'required'))}
+  J.drawer({docs:["accounts",id],title:opt.title||(id?"Edit ledger":"New ledger"),danger:id&&a.kind!=="staff"?J.delBtn("accounts",id,"Delete ledger"):"",submit:id?"Save ledger":"Create ledger",body:`${fld("Name",txt("name",a.name,"e.g. Sharma Vegetables",'required'))}
     ${fld("Kind",selO("kind",Object.entries(KINDS).map(([k,v])=>[k,v.l+" — "+v.g]),a.kind))}
     <div class="form">${fld("Opening balance",num("ob",Math.abs(ob)||""))}${fld("Side",selO("side",[["dr","Dr — we hold / they owe us"],["cr","Cr — we owe / payable"]],ob<0?"cr":"dr"))}</div>
     <p class="hint" style="margin:-6px 0 0">As on the book start, ${monthLabel(J.settings().startMonth)}.</p>

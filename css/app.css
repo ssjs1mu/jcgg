@@ -393,3 +393,5 @@ a.btn{text-decoration:none}a.btn:not(.primary){color:inherit}
 .cost-tbl td{font-size:13px;vertical-align:top}.cost-miss td{background:var(--bad-wash)}
 .bill-rv{border:1px solid var(--rule);border-radius:12px;padding:10px 12px;margin-bottom:12px;background:var(--sheet)}
 .bill-tbl td{vertical-align:top;font-size:13px}.bill-tbl select{max-width:100%}
+.cl-study{border:1px solid var(--rule);border-radius:12px;padding:10px 12px;margin:10px 0;background:var(--sheet)}
+.cl-chart{width:100%;max-width:520px;height:auto;display:block;margin-top:6px;color:var(--ink-2)}
