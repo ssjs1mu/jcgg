@@ -51,11 +51,12 @@ Object.assign(J,{fld,txt,num,dateI,selO,area,formData});
 
 // ---------- collections & state ----------
 // monthly collections are partitioned by field `m` (YYYY-MM) and subscribed per month
-const COLS={accounts:"full",vouchers:"monthly",items:"full",moves:"monthly",menu:"full",kotday:"monthly",recipes:"full",contacts:"full",attendance:"full",trades:"full",ohlc:"full",watch:"full",assets:"full",policies:"full",payroll:"full",clients:"full",bills:"full",kitchenusers:"full",meta:"full"};
+const COLS={accounts:"full",vouchers:"monthly",items:"full",moves:"monthly",menu:"full",kotday:"monthly",recipes:"full",contacts:"full",attendance:"full",trades:"full",ohlc:"full",watch:"full",assets:"full",policies:"full",payroll:"full",clients:"full",bills:"full",kitchenusers:"full",staffcc:"full",paystatus:"full",feedback:"full",ccusers:"full",meta:"full"};
+const LIMIT={clients:5000,feedback:5000};
 const S={c:{},monthDocs:{},route:{mod:"home",tab:""},mode:"connecting",ready:false,ui:{},err:null,me:{role:"Super Admin",id:null,name:""}};
 for(const k in COLS)S.c[k]=new Map();S.c.kots=new Map();
 // kots are stored grouped per day in `kotday` (one record per day keeps the book far under the 25,000-record cap)
-const DATA_KEYS=Object.keys(COLS).filter(k=>k!=="kotday"&&k!=="kitchenusers").concat("kots");
+const DATA_KEYS=Object.keys(COLS).filter(k=>!["kotday","kitchenusers","staffcc","paystatus","ccusers"].includes(k)).concat("kots");
 J.S=S;J.COLS=COLS;J.DATA_KEYS=DATA_KEYS;
 const WINDOW={vouchers:1,moves:3,kotday:24};
 function rebuildKots(){const m=new Map();for(const d of S.c.kotday.values())for(const [id,o] of Object.entries(d.orders||{}))if(o)m.set(id,{...o,id});S.c.kots=m}
@@ -99,7 +100,7 @@ let unsubs=[],mUnsubs=[];
 function subscribe(){
   const got=new Set();
   for(const [col,kind] of Object.entries(COLS)){if(kind!=="full")continue;
-    unsubs.push(db.collection(col).limit(1000).onSnapshot(s=>{const prevStart=J.settings().startMonth;S.c[col]=new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));got.add(col);
+    unsubs.push(db.collection(col).limit(LIMIT[col]||1000).onSnapshot(s=>{const prevStart=J.settings().startMonth;S.c[col]=new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));got.add(col);
       if(col==="meta"&&prevStart!==J.settings().startMonth)subMonthly();
       if(col==="accounts"&&!s.size&&!s.fromCache&&S.me.owner&&!J._seeded&&J.seedCloud){J._seeded=true;J.seedCloud()}if(got.has("accounts")&&got.has("meta"))S.ready=true;J.refresh()},onErr))}
   subMonthly();
@@ -109,6 +110,15 @@ function subscribeKitchen(){let got=0;const done=()=>{if(++got>=2&&!S.ready){S.r
   unsubs.push(fdb.collection("meta").doc("settings").onSnapshot(d=>{if(d.exists)S.c.meta.set("settings",{id:"settings",...d.data()});done()},()=>done()));
   unsubs.push(fdb.collection("kitchenusers").doc(S.me.email).onSnapshot(d=>{const k=d.exists?d.data():null;if(k)S.me.kitUntil=k.until||0;if(!k||k.active!==true||(k.until&&Date.now()>=k.until)||(S.me.method==="password"&&k.uid!==S.me.id)){J._gateMsg="Your kitchen login has been closed. Contact the owner.";J.signOut("revoked")}},()=>{}));
   if(J._kitTimer)clearInterval(J._kitTimer);J._kitTimer=setInterval(()=>{if(S.me.kitUntil&&Date.now()>=S.me.kitUntil){J._gateMsg="Your kitchen login has been closed. Contact the owner.";J.signOut("expired")}},60000)}
+// Customer Care sees only: menu, settings, its staff projection, salary status flags, attendance of this and last month, clients and feedback
+J.monthId=(off=0)=>{const d=new Date(Date.now()+330*60000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+off);return d.toISOString().slice(0,7)};
+function subscribeCC(){let got=0;const need=4;const done=()=>{if(++got>=need&&!S.ready)S.ready=true;J.refresh()};const coll=(c,fn)=>unsubs.push(fdb.collection(c).limit(LIMIT[c]||1000).onSnapshot(s=>{S.c[c]=new Map(s.docs.map(d=>[d.id,{id:d.id,...dec(d.data())}]));fn&&fn()},onErr));
+  let first={};const once=k=>()=>{if(!first[k]){first[k]=1;done()}else J.refresh()};
+  coll("menu",once("menu"));coll("staffcc",once("staffcc"));coll("clients",once("clients"));coll("feedback",once("feedback"));coll("paystatus");
+  unsubs.push(fdb.collection("meta").doc("settings").onSnapshot(d=>{if(d.exists)S.c.meta.set("settings",{id:"settings",...d.data()});J.refresh()},()=>{}));
+  for(const m of [J.monthId(0),J.monthId(-1)])unsubs.push(fdb.collection("attendance").doc(m).onSnapshot(d=>{if(d.exists)S.c.attendance.set(m,{id:m,...dec(d.data())});else S.c.attendance.delete(m);J.refresh()},onErr));
+  unsubs.push(fdb.collection("ccusers").doc(S.me.email).onSnapshot(d=>{const k=d.exists?d.data():null;if(!k||k.active!==true||(S.me.method==="password"&&k.uid!==S.me.id)){J._gateMsg="The Customer Care login is switched off. Contact the owner.";J.signOut("revoked")}},()=>{}));
+  db=fsAdapter(fdb)}
 function subMonthly(){mUnsubs.forEach(u=>u());mUnsubs=[];
   const end=(()=>{const d=new Date();d.setMonth(d.getMonth()+2);return iso(d).slice(0,7)})();const months=monthsBetween(J.bookFrom(),end);
   for(const [col,kind] of Object.entries(COLS)){if(kind!=="monthly")continue;S.monthDocs[col]={};const w=WINDOW[col]||1;
@@ -132,11 +142,14 @@ J.boot=async()=>{
     // kitchen staff: access comes from kitchenusers/<gmail>, created when they join the kitchen and closed when they are relieved
     let kit=null;if(email&&!S.me.owner){try{const d=await fdb.collection("kitchenusers").doc(email).get();if(d.exists)kit=d.data()}catch(e){}}
     const kitOk=!!kit&&kit.active===true&&(!kit.until||Date.now()<kit.until)&&(google||(pw&&kit.uid===u.uid));
+    // Customer Care: user ID "jcgg" (or a Google account the owner listed) with a record in ccusers/<email>
+    let cc=null;if(email&&!S.me.owner&&!kitOk){try{const d=await fdb.collection("ccusers").doc(email).get();if(d.exists)cc=d.data()}catch(e){}}
+    const ccOk=!!cc&&cc.active===true&&(google||(pw&&cc.uid===u.uid));if(ccOk){S.me.cc=true;S.me.name=cc.name||"Customer Care";S.me.ccId=cc.userId||email.split("@")[0]}
     if(kitOk){S.me.kitchen=true;S.me.name=kit.name||S.me.name;S.me.staffId=kit.staffId||"";S.me.kitCode=kit.code||"";S.me.kitUntil=kit.until||0}
-    if(!google&&!kitOk){const why=kit&&kit.active!==true?"revoked":kit&&kit.until&&Date.now()>=kit.until?"expired":"no-access";
-      await J.logLogin("denied",{reason:why});await auth.signOut();J.gate("login",why==="no-access"?"This login has no access. Kitchen staff sign in with the Gmail ID and PAN registered in their staff record.":"Your kitchen login has been closed. Contact the owner.");return}
+    if(!google&&!kitOk&&!ccOk){const why=cc?"cc-disabled":kit&&kit.active!==true?"revoked":kit&&kit.until&&Date.now()>=kit.until?"expired":"no-access";
+      await J.logLogin("denied",{reason:why});await auth.signOut();J.gate("login",why==="no-access"?"This login has no access. Kitchen staff sign in with the Gmail ID and PAN registered in their staff record.":why==="cc-disabled"?"The Customer Care login is switched off. Contact the owner.":"Your kitchen login has been closed. Contact the owner.");return}
     await J.logLogin(sessionStorage.getItem("jcgg-login-pending")?"login":"open");sessionStorage.removeItem("jcgg-login-pending");
-    try{sessionStorage.removeItem("jcgg-gate-msg")}catch(e){}J.gate(null);db=fsAdapter(fdb);J.cap={db};S.mode="cloud";if(S.me.kitchen)subscribeKitchen();else subscribe();updateSync();J.render()});
+    try{sessionStorage.removeItem("jcgg-gate-msg")}catch(e){}J.gate(null);db=fsAdapter(fdb);J.cap={db};S.mode="cloud";if(S.me.kitchen)subscribeKitchen();else if(S.me.cc)subscribeCC();else subscribe();updateSync();J.render()});
   window.addEventListener("online",updateSync);window.addEventListener("offline",updateSync);
 };
 // ---------- login log: every sign-in, app open, sign-out, failed or refused attempt, with device details ----------
@@ -157,13 +170,14 @@ J.deviceInfo=async()=>{const ua=navigator.userAgent||"";const o={ua:ua.slice(0,3
   return o};
 J.logLogin=async(event,extra={})=>{try{if(!fdb)return;const me=S.me||{};const d=await J.deviceInfo();
   const rec={...d,...extra,event,email:String(extra.email||me.email||"").toLowerCase().slice(0,120),uid:event==="failed"?"":(me.id||""),name:event==="failed"?"":(me.name||""),
-    role:event==="failed"?"":me.owner?"Super Admin":me.kitchen?"Kitchen Staff":(J.get?.("meta","roles")?.map?.[me.email]||"Google account"),method:me.method||(event==="failed"?"password":""),at:Date.now(),srv:firebase.firestore.FieldValue.serverTimestamp()};
+    role:event==="failed"?"":me.owner?"Super Admin":me.kitchen?"Kitchen Staff":me.cc?"Customer Care":(J.get?.("meta","roles")?.map?.[me.email]||"Google account"),method:me.method||(event==="failed"?"password":""),at:Date.now(),srv:firebase.firestore.FieldValue.serverTimestamp()};
   await fdb.collection("loginlog").add(rec)}catch(e){console.warn("login log not written",e?.code||e)}};
-J.pwSignIn=async f=>{const email=f.email.value.trim().toLowerCase(),pan=f.pan.value.trim().toUpperCase();const err=f.querySelector(".err");const btn=f.querySelector("button");const show=m=>{err.hidden=false;err.textContent=m};err.hidden=true;
-  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))return show("Enter your Gmail ID.");if(!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan))return show("Enter your 10-character PAN, e.g. ABCDE1234F.");
+J.CC_DOMAIN="care.joshiscorner.app";J.ccEmail=id=>String(id||"").trim().toLowerCase()+"@"+J.CC_DOMAIN;
+J.pwSignIn=async f=>{const raw=f.email.value.trim().toLowerCase();const isCCid=/^[a-z0-9._-]{3,30}$/.test(raw);const email=isCCid?J.ccEmail(raw):raw;const pan=isCCid?f.pan.value:f.pan.value.trim().toUpperCase();const err=f.querySelector(".err");const btn=f.querySelector("button");const show=m=>{err.hidden=false;err.textContent=m};err.hidden=true;
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))return show("Enter your Gmail ID or User ID.");if(!isCCid&&!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan))return show("Enter your 10-character PAN, e.g. ABCDE1234F.");if(isCCid&&pan.length<8)return show("Enter your password.");
   btn.disabled=true;const old=btn.textContent;btn.textContent="Signing in…";sessionStorage.setItem("jcgg-login-pending","1");
   try{await firebase.auth().signInWithEmailAndPassword(email,pan)}catch(e){sessionStorage.removeItem("jcgg-login-pending");const c=(e.code||"").replace("auth/","");await J.logLogin("failed",{email,reason:c||"error"});
-    show(/invalid-credential|wrong-password|user-not-found|invalid-login|invalid-email/.test(c)?"Gmail ID or PAN is not correct, or this login has not been created yet.":c==="too-many-requests"?"Too many tries. Wait a few minutes and try again.":c==="operation-not-allowed"?"Kitchen staff login is not switched on yet. Ask the owner.":c==="network-request-failed"?"No internet connection.":e.message);btn.disabled=false;btn.textContent=old}};
+    show(/invalid-credential|wrong-password|user-not-found|invalid-login|invalid-email/.test(c)?(isCCid?"User ID or password is not correct, or this login has not been set up yet.":"Gmail ID or PAN is not correct, or this login has not been created yet."):c==="too-many-requests"?"Too many tries. Wait a few minutes and try again.":c==="operation-not-allowed"?"Kitchen staff login is not switched on yet. Ask the owner.":c==="network-request-failed"?"No internet connection.":e.message);btn.disabled=false;btn.textContent=old}};
 document.addEventListener("submit",ev=>{if(ev.target.id==="kitLogin"){ev.preventDefault();J.pwSignIn(ev.target)}});
 J.sha256=async s=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)))].map(b=>b.toString(16).padStart(2,"0")).join("");
 J.signIn=async()=>{sessionStorage.setItem("jcgg-login-pending","1");const p=new firebase.auth.GoogleAuthProvider();p.setCustomParameters({prompt:"select_account"});try{await firebase.auth().signInWithPopup(p)}catch(e){if(/popup-blocked|operation-not-supported|cancelled-popup/.test(e.code||""))return firebase.auth().signInWithRedirect(p);if(!/popup-closed/.test(e.code||""))J.gate("login",e.message)}};
@@ -173,9 +187,9 @@ J.gate=(kind,msg)=>{const g=$("#gate");if(!kind){g.hidden=true;document.querySel
   document.querySelector(".app").hidden=true;$("#mnav").hidden=true;g.hidden=false;const biz=esc((S.c.meta.get("settings")||{}).business||"JCGG");
   const body={setup:`<h1>Almost ready</h1><p>This copy of the app has no Firebase project connected yet. Fill in <span class="mono">js/firebase-config.js</span> as described in the README, then reload.</p>`,
     login:`<h1>${biz}</h1><p>Operations, stock, payroll and books. Sign in with the Google account your administrator has approved.</p>${msg?`<div class="err">${esc(msg)}</div>`:""}<button class="gbtn" data-a="signIn"><svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Sign in with Google</button><p class="hint">Owner, managers and office staff sign in with Google.</p>
-      <form class="kitlogin" id="kitLogin" autocomplete="on"><h2>Kitchen staff <span lang="hi">· रसोई स्टाफ़</span> <span lang="bn">· রান্নাঘর</span></h2>
-      <label>Gmail ID <span class="hint" lang="hi">(जीमेल)</span><input type="email" name="email" autocomplete="username" inputmode="email" required></label>
-      <label>Password = your PAN number <span class="hint" lang="hi">(पैन नंबर)</span> <span class="hint" lang="bn">(প্যান নম্বর)</span><input type="password" name="pan" autocomplete="current-password" required maxlength="10" style="text-transform:uppercase"></label>
+      <form class="kitlogin" id="kitLogin" autocomplete="on"><h2>Kitchen staff &amp; Customer Care <span lang="hi">· रसोई स्टाफ़</span> <span lang="bn">· রান্নাঘর</span></h2>
+      <label>Gmail ID or User ID <span class="hint" lang="hi">(जीमेल)</span><input type="text" name="email" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+      <label>Password <span class="hint">— kitchen staff: your PAN number</span> <span class="hint" lang="hi">(पैन नंबर)</span> <span class="hint" lang="bn">(প্যান নম্বর)</span><input type="password" name="pan" autocomplete="current-password" required maxlength="64"></label>
       <div class="err" hidden></div><button class="btn w" type="submit">Sign in · लॉग इन · লগ ইন</button></form>`,
     denied:S.me.kitchen?`<h1>Login closed</h1><p>Your kitchen login is no longer active. Contact the owner.</p><button class="btn" data-a="signOut">Sign out</button>`:`<h1>No access yet</h1><p>You are signed in as <b>${esc(S.me.email||"")}</b>, but this account has not been given access. Ask the owner to add it under Settings → Users &amp; roles.</p><button class="btn" data-a="signOut">Sign out and use another account</button>`}[kind];
   g.innerHTML=`<div class="gcard">${body}</div>`};
@@ -183,12 +197,12 @@ J.gate=(kind,msg)=>{const g=$("#gate");if(!kind){g.hidden=true;document.querySel
 
 // ---------- roles ----------
 const ROLES=["Super Admin","Admin","Manager","Accountant","Chef","Auditor"];
-const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","accounts","inventory","kitchen","kot","staff","directory","assets","insurance"],"Accountant":["home","accounts","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*","Kitchen Staff":["kitchen"]};
+const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","accounts","inventory","kitchen","kot","staff","directory","assets","insurance","care"],"Accountant":["home","accounts","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*","Kitchen Staff":["kitchen"],"Customer Care":["care","kitchen"]};
 J.ROLES=ROLES;
-function myRole(){if(S.me.owner)return "Super Admin";if(S.me.kitchen)return "Kitchen Staff";return J.get("meta","roles")?.map?.[S.me.email]||"Manager"}
+function myRole(){if(S.me.owner)return "Super Admin";if(S.me.kitchen)return "Kitchen Staff";if(S.me.cc)return "Customer Care";return J.get("meta","roles")?.map?.[S.me.email]||"Manager"}
 J.myRole=myRole;
-J.limited=()=>!!S.me.kitchen;
-J.canSee=mod=>{const r=myRole();if(mod==="jdash")return r==="Super Admin"||r==="Admin";const a=ACCESS[r]||[];return a==="*"||a.includes(mod)||(mod==="settings"&&!S.me.kitchen)};
+J.limited=()=>!!S.me.kitchen;J.isCC=()=>!!S.me.cc;
+J.canSee=mod=>{const r=myRole();if(mod==="jdash")return r==="Super Admin"||r==="Admin";const a=ACCESS[r]||[];return a==="*"||a.includes(mod)||(mod==="settings"&&!S.me.kitchen&&!S.me.cc)};
 J.readOnly=()=>myRole()==="Auditor"||!!S.me.kitchen;
 
 // ---------- modules & routing ----------

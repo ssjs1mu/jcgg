@@ -8,6 +8,8 @@ rules_version = '2';
 //  - Kitchen staff: a record in kitchenusers/<gmail> that the app creates when they join the kitchen and closes
 //    when they are relieved. They sign in with Google (same Gmail) or Gmail ID + PAN password, and can only
 //    read the menu/recipes and business settings. Access also stops by itself after the 'until' time (exit day).
+//  - Customer Care (user ID "jcgg"): menu, its masked staff copy, attendance of this and last month (last month
+//    editable only while its salary status is DRAFT), clients/loyalty and bill feedback. Nothing else.
 //  - Login log: anyone may add an entry about themselves (or a failed attempt); nobody can change or delete entries.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -22,7 +24,7 @@ service cloud.firestore {
     function role() {
       return get(/databases/$(database)/documents/meta/roles).data.get('map', {}).get(email(), null);
     }
-    function isMember() { return isOwner() || (signedInWithGoogle() && role() != null); }
+    function isMember() { return isOwner() || (signedInWithGoogle() && role() != null && role() != 'Customer Care'); }
     function canWrite() { return isOwner() || (isMember() && role() != 'Auditor'); }
     function isAdmin() { return isOwner() || (isMember() && role() in ['Super Admin', 'Admin']); }
     function canAudit() { return isAdmin() || (isMember() && role() == 'Auditor'); }
@@ -35,6 +37,23 @@ service cloud.firestore {
         && (signedInWithGoogle() || (provider() == 'password' && get(kitPath()).data.get('uid', '') == request.auth.uid));
     }
 
+    // CUSTOMER_CARE: user ID "jcgg" (email/password account) or a Google account listed by the owner in ccusers/<email>
+    function ccPath() { return /databases/$(database)/documents/ccusers/$(email()); }
+    function isCC() {
+      return hasEmail() && exists(ccPath()) && get(ccPath()).data.active == true
+        && (signedInWithGoogle() || (provider() == 'password' && get(ccPath()).data.get('uid', '') == request.auth.uid));
+    }
+    // month ids in India time: this month and the previous month, e.g. "2026-10" and "2026-09"
+    function ist() { return request.time + duration.value(330, 'm'); }
+    function mid(y, m) { return string(y) + '-' + (m < 10 ? '0' + string(m) : string(m)); }
+    function curM() { return mid(ist().year(), ist().month()); }
+    function prevM() { return ist().month() == 1 ? mid(ist().year() - 1, 12) : mid(ist().year(), ist().month() - 1); }
+    function payLocked(m) {
+      return exists(/databases/$(database)/documents/paystatus/$(m))
+        && get(/databases/$(database)/documents/paystatus/$(m)).data.get('status', 'DRAFT') in ['PROCESSED', 'LOCKED', 'PAID'];
+    }
+    function ccMayEditAttendance(m) { return m == curM() || (m == prevM() && !payLocked(m)); }
+
     // who has access: readable by members, changed only by the owner
     match /meta/roles {
       allow read: if isMember();
@@ -42,10 +61,35 @@ service cloud.firestore {
     }
     // kitchen staff may read the business settings and the menu with its recipes — nothing else
     match /meta/settings {
-      allow read: if isMember() || isKitchen();
+      allow read: if isMember() || isKitchen() || isCC();
     }
     match /menu/{id} {
-      allow read: if isMember() || isKitchen();
+      allow read: if isMember() || isKitchen() || isCC();
+    }
+    // Customer Care: masked staff copy, KYC copies and salary-status flags (written by owner/admin sessions)
+    match /staffcc/{id} { allow read: if isMember() || isCC(); }
+    match /ccfiles/{id} { allow read: if isMember() || isCC(); }
+    match /paystatus/{m} { allow read: if isMember() || isCC(); }
+    // attendance: Customer Care reads this and last month; edits this month, and last month only while its salary is DRAFT;
+    // it may change only the day marks and its own change log
+    match /attendance/{m} {
+      allow read: if isMember() || (isCC() && (m == curM() || m == prevM()));
+      allow create, update: if isCC() && ccMayEditAttendance(m)
+        && (resource == null || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['days', 'cclog', 'id']));
+    }
+    // clients & loyalty and bill feedback: Customer Care reads and writes, never deletes
+    match /clients/{id} {
+      allow read: if isMember() || isCC();
+      allow create, update: if isCC();
+    }
+    match /feedback/{id} {
+      allow read: if isMember() || isCC();
+      allow create, update: if isCC();
+    }
+    // Customer Care logins: each person can read their own record; only the owner/admins change them
+    match /ccusers/{em} {
+      allow read: if isMember() || (hasEmail() && em == email());
+      allow write: if isAdmin();
     }
     // kitchen logins: each person can read their own record; only the owner/admins create or close them
     match /kitchenusers/{em} {
@@ -66,7 +110,7 @@ service cloud.firestore {
       allow read: if isMember() && collection != 'loginlog';
       allow write: if canWrite()
         && !(collection == 'meta' && docId == 'roles')
-        && !(collection in ['loginlog', 'kitchenusers']);
+        && !(collection in ['loginlog', 'kitchenusers', 'ccusers']);
     }
   }
 }

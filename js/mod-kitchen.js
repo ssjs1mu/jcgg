@@ -12,7 +12,7 @@ J.menuItems=items;
 function vMenu(){if(!autoRan){autoRan=true;setTimeout(()=>J.kitAutoFill(),300)}const U=ui();const q=(U.q||"").toLowerCase();const all=items();const cats=[...new Set(all.map(m=>m.cat||"Other"))].sort();
   const list=all.filter(m=>(!U.cat||(m.cat||"Other")===U.cat)&&(!q||(m.name+" "+(m.cat||"")).toLowerCase().includes(q))&&(U.only!=="online"||m.online)&&(U.only!=="staff"||rate(m,"staff")>0)&&(!U.rc||(U.rc==="rcp")===hasRcp(m)));
   const f=v=>v==null?'<span class="muted">—</span>':inr0.format(v);
-  if(J.limited())return kitStaffView(U,all,cats,list);
+  if(J.limited()||J.isCC())return kitStaffView(U,all,cats,list);
   return `<div class="filters">${fld("Search",`<input id="km-q" data-ui="kit.q" value="${esc(U.q)}" placeholder="Dish or category" style="min-width:220px">`)}${fld("Category",`<select id="km-cat" data-ui="kit.cat"><option value="">All (${all.length})</option>${cats.map(c=>`<option ${U.cat===c?"selected":""}>${esc(c)}</option>`).join("")}</select>`)}
     <div class="seg">${[["","All"],["online","Online"],["staff","Staff items"]].map(([k,l])=>`<button data-set="kit.only=${k}" aria-pressed="${(U.only||"")===k}">${l}</button>`).join("")}</div>
     <div class="seg" role="group" aria-label="View">${[["tiles","▦ Tiles"],["rows","☰ Rows"]].map(([k,l])=>`<button data-set="kit.view=${k}" aria-pressed="${(U.view||"tiles")===k}">${l}</button>`).join("")}</div>
@@ -49,7 +49,7 @@ J.recipeFromLib=name=>{const e=libFor(name);if(!e)return null;const split=t=>Str
   const n=e.n||[];const nutrition={};["kcal","protein","carbs","fat","fibre","sugar","sodium"].forEach((k,i)=>{if(n[i]!=null)nutrition[k]=n[i]});nutrition.basis="per serving, approximate";
   return {recipe,nutrition,serves:e.s||"",prepMin:e.p||"",cookMin:e.c||"",recipeSrc:"library",recipeKey:e.key,recipeLibV:e.v||1,...(e.note?{recipeNote:e.note}:{})}};
 let filling=false;
-J.kitAutoFill=async quiet=>{if(filling||J.readOnly?.()||!S.ready)return 0;filling=true;let n=0;try{await J.loadRecipeLib();
+J.kitAutoFill=async quiet=>{if(filling||J.readOnly?.()||J.isCC?.()||J.limited?.()||!S.ready)return 0;filling=true;let n=0;try{await J.loadRecipeLib();
   for(const m of J.all("menu").filter(x=>(x.active!==false||x.trial)&&(!hasRcp(x)||x.recipeSrc==="library"))){const r=J.recipeFromLib(m.name);if(!r)continue;if(hasRcp(m)&&(m.recipeLibV||1)>=r.recipeLibV)continue;await J.store.patch("menu",m.id,r);n++}
   if(n&&!quiet)toast("Recipes filled from the library for "+n+" dish"+(n>1?"es":""))}catch(e){console.warn(e)}finally{filling=false}if(n)J.render();return n};
 let autoRan=false;
@@ -215,10 +215,10 @@ const itemOf=name=>{const k=nk(name);const e=libFor(name);
   const m=J.all("menu").find(x=>x.active!==false&&hasRcp(x)&&nk(x.name)===k)||(e&&J.all("menu").find(x=>x.active!==false&&hasRcp(x)&&(x.recipeKey===e.key||libFor(x.name)===e)));
   if(m)return m;const r=e&&J.recipeFromLib(e.key);return r?{id:"",name:e.key,cat:"",lib:true,...r}:null};
 const libNote=(m,lang)=>m.recipeSrc==="library"?`<p class="note" style="margin:8px 0 0" lang="${lang}">${esc(tx(lang).lib(noteL(m.recipeNote,lang)))}</p>`:"";
-function viewHtml(m,lang,serves){const T=tx(lang);const p=photo(m);const lim=J.limited?.();
+function viewHtml(m,lang,serves){const T=tx(lang);const p=photo(m);const lim=J.limited?.()||J.isCC?.();
   return `<div class="rcp-head" lang="${lang}">${p?`<img src="${p}" alt="" class="rcp-photo">`:""}<div><div class="hint">${esc(m.cat||"")}${!lim&&rate(m,"staff")?` · ${T.staff} ₹`+dg(lang,inr0.format(rate(m,"staff"))):""}${lim?"":` · ${T.gr} ${rate(m,"gr")!=null?"₹"+dg(lang,inr0.format(rate(m,"gr"))):"—"}`}</div>
     ${langSeg(lang)}${servesCtl(m,serves,"d",lang)}
-    <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">${J.readOnly()?"":`<button type="button" class="btn small w" data-a="kitEdit" data-x="${m.id}">${esc(T.edit)}</button>`}<button type="button" class="btn small" data-a="rcpPrint" data-x="${m.id}" data-l="one">${T.printOne}</button><button type="button" class="btn small" data-a="rcpPrint" data-x="${m.id}" data-l="all">${T.printAll}</button></div></div></div>
+    <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">${J.readOnly()||J.isCC()?"":`<button type="button" class="btn small w" data-a="kitEdit" data-x="${m.id}">${esc(T.edit)}</button>`}<button type="button" class="btn small" data-a="rcpPrint" data-x="${m.id}" data-l="one">${T.printOne}</button><button type="button" class="btn small" data-a="rcpPrint" data-x="${m.id}" data-l="all">${T.printAll}</button></div></div></div>
     ${libNote(m,lang)}<div class="rcp">${recipeBody(m,lang,false,serves)}</div>${J.rcpExtra?J.rcpExtra(m,lang,serves):""}`}
 function drawRcp(scope){const lang=ui().lang||"en";const T=tx(lang);
   if(scope==="d"){const box=document.querySelector("#drawerForm .rcp-view");if(!box||!RV.d)return;const st=document.getElementById("drawerForm").scrollTop;box.innerHTML=viewHtml(RV.d.m,lang,RV.d.serves);document.getElementById("drawerForm").scrollTop=st;return}
@@ -241,7 +241,7 @@ J.act("rcpPopBack",()=>{RV.p.pop();drawRcp("p")});
 J.act("rcpPopX",()=>{RV.p=[];drawRcp("p");document.querySelector("#drawerForm .rcp-ref")?.focus?.({preventScroll:true})});
 J.act("rcpPopFull",el=>{RV.p=[];drawRcp("p");J.run("rcpView",el.dataset.x)});
 J.act("rcpView",async el=>{const m=J.get("menu",el.dataset.x);if(!m)return;await J.loadRecipeLib().catch(()=>{});RV.p=[];drawRcp("p");const lang=ui().lang||"en";RV.d={m,serves:baseServes(m)||4};
-  J.drawer({docs:J.limited?.()?null:["menu",m.id],title:m.name,wide:true,body:`<div class="rcp-view">${viewHtml(m,lang,RV.d.serves)}</div>`});const f=document.getElementById("drawerForm");if(f){f.scrollTop=0;f.querySelector('[data-a="rcpLang"][aria-pressed="true"]')?.focus({preventScroll:true})}});
+  J.drawer({docs:J.limited?.()||J.isCC?.()?null:["menu",m.id],title:m.name,wide:true,body:`<div class="rcp-view">${viewHtml(m,lang,RV.d.serves)}</div>`});const f=document.getElementById("drawerForm");if(f){f.scrollTop=0;f.querySelector('[data-a="rcpLang"][aria-pressed="true"]')?.focus({preventScroll:true})}});
 J.act("rcpLang",el=>{const l=el.dataset.x;ui().lang=l;const inPop=!!el.closest("#rcpPop");if(RV.d)drawRcp("d");if(RV.p.length)drawRcp("p");
   (inPop?document.querySelector(`#rcpPop [data-a=rcpLang][data-x="${l}"]`):document.querySelector(`#drawerForm [data-a=rcpLang][data-x="${l}"]`))?.focus({preventScroll:true})});
 J.act("rcpPrint",el=>{const m=J.get("menu",el.dataset.x);const lang=ui().lang||"en";const T=tx(lang);const mm=el.dataset.l==="one"?{...m,recipe:{[lang]:m.recipe?.[lang]||{}}}:m;const sv=RV.d?.m?.id===m.id?RV.d.serves:0;
@@ -275,5 +275,5 @@ J.act("kitPrint",()=>{const by={};for(const m of items())(by[m.cat||"Other"]??=[
 J.KIT={nk,libFor,libKeys,pN,QRE,UNITS,kindOf,lines,baseServes,hasRcp,photo,ytId,rate,findRefs,selfKeys,itemOf,drawRcp,RV,ui,items,tx};
 J.mod({id:"kitchen",label:"Kitchen",group:"Operations",icon:'<path d="M6 3v8a3 3 0 0 0 6 0V3M9 3v18M17 3c-1.7 1.5-2 4-2 6s.8 3 2 3v9"/>',sub:()=>J.limited()?({en:"Recipes in English, Hindi and Bengali.",hi:"अंग्रेज़ी, हिंदी और बांग्ला में विधियाँ।",bn:"ইংরেজি, হিন্দি ও বাংলায় রেসিপি।"})[ui().lang||"en"]:"Menu master: categories, floor-wise, breakfast, staff and online rates. Staff KOTs price from here.",
   headBtns:()=>`<button class="btn w" data-a="kitUpload">Upload menu (Excel)</button><button class="btn primary w" data-a="kitNew">+ New item</button>`,
-  tabs:[["menu","Menu",vMenu],["new","New items",()=>J.vNewItems?.()||""],["cost","Costing",()=>J.vCosting?.()||"",null,()=>!J.limited()]]});
+  tabs:[["menu","Menu",vMenu],["new","New items",()=>J.vNewItems?.()||""],["cost","Costing",()=>J.vCosting?.()||"",null,()=>!J.limited()&&!J.isCC()]]});
 })();
