@@ -239,6 +239,21 @@ J.afterRender=[];
 J.holdRefresh=[];
 
 // ---------- drawers ----------
+
+// ---- progress overlay for imports and other long saves: "Jai Mata Di" with a ring and % done ----
+J.busy=(()=>{let el=null,st=null;const R=34,C=2*Math.PI*R;
+  const paint=()=>{if(!el||!st)return;const pct=st.total?Math.min(100,Math.round(st.done/st.total*100)):null;
+    el.querySelector(".bz-ring").classList.toggle("spin",pct==null);el.querySelector(".bz-arc").style.strokeDashoffset=pct==null?C*0.72:C*(1-pct/100);
+    el.querySelector(".bz-pct").textContent=pct==null?"…":pct+"%";el.querySelector(".bz-title").textContent=st.title||"Working";
+    el.querySelector(".bz-sub").textContent=st.total?(st.done.toLocaleString("en-IN")+" of "+st.total.toLocaleString("en-IN")+(st.unit?" "+st.unit:"")):(st.label||"Please wait…");
+    el.querySelector(".bz-lbl").textContent=st.total&&st.label?st.label:""};
+  const api={start(title,total=0,unit="rows"){st={title,total,done:0,unit,label:""};if(!el){el=document.createElement("div");el.className="bz";el.setAttribute("role","status");el.setAttribute("aria-live","polite");
+      el.innerHTML=`<div class="bz-card"><div class="bz-om">जय माता दी</div><div class="bz-jmd">Jai Mata Di</div><svg class="bz-ring" viewBox="0 0 80 80" width="96" height="96"><circle cx="40" cy="40" r="${R}" class="bz-track"/><circle cx="40" cy="40" r="${R}" class="bz-arc" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></svg><div class="bz-pct">0%</div><div class="bz-title"></div><div class="bz-sub"></div><div class="bz-lbl"></div><div class="bz-hint">Please keep this screen open until it finishes.</div></div>`}
+      if(!el.isConnected)document.body.appendChild(el);paint();return api},
+    tick(n=1,label){if(!st)return;st.done+=n;if(label!=null)st.label=label;paint()},set(done,total,label){if(!st)return;st.done=done;if(total!=null)st.total=total;if(label!=null)st.label=label;paint()},
+    label(l){if(st){st.label=l;paint()}},
+    end(){st=null;if(el?.isConnected){el.classList.add("bz-out");const e=el;setTimeout(()=>{e.remove();e.classList.remove("bz-out")},250)}},
+    async run(title,fn){api.start(title);try{return await fn(api)}finally{api.end()}}};return api})();
 J.drawer=({title,body,submit="Save",onSubmit,danger,wide,docs})=>{if(docs&&J.docsPanel)body+=docs[1]?J.docsPanel(docs[0],docs[1]):`<p class="hint" style="margin:0">📎 Supporting documents (bills, receipts, photos, PDFs) can be attached once this is saved.</p>`;
   $("#overlay").innerHTML=`<div class="drawer-bg" data-a="closeDrawer"><form class="drawer" id="drawerForm" role="dialog" aria-label="${esc(title)}" ${wide?'style="width:min(1100px,100%)"':""}><h2>${esc(title)}</h2>${body}<div id="drawerErr"></div><div class="row" style="margin-top:4px">${onSubmit?`<button class="btn primary w" type="submit">${esc(submit)}</button>`:""}<button class="btn" type="button" data-a="closeDrawer">${onSubmit?"Cancel":"Close"}</button>${danger?`<span style="margin-left:auto">${danger}</span>`:""}</div></form></div>`;
   const f=$("#drawerForm");f.querySelector("input,select,textarea")?.focus();

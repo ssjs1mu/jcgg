@@ -303,7 +303,7 @@ J.act("impType",el=>{if(T[el.dataset.x]?.open){T[el.dataset.x].open();return}con
 J.openImport=type=>{const U=ui();Object.assign(U,{type,step:2,rows:[],file:"",sheets:[],recs:null,done:null,err:"",map:{},opt:{}});J.go("import","import")};
 J.act("impOpen",el=>J.openImport(el.dataset.x));
 J.act("impBack",()=>{ui().step=1;ui().type="";J.render()});
-J.act("impFile",async el=>{const f=el.files?.[0];if(!f)return;try{await readFile(f)}catch(e){ui().err=e.message||"Could not read the file."}J.render()});
+J.act("impFile",async el=>{const f=el.files?.[0];if(!f)return;J.busy.start("Reading "+f.name);try{await readFile(f)}catch(e){ui().err=e.message||"Could not read the file."}finally{J.busy.end()}J.render()});
 J.act("impSheet",el=>{ui().sheet=el.value;loadSheet();J.render()});
 J.act("impHdr",el=>{const U=ui();U.hdr=Math.max(0,Math.min(U.rows.length-1,(+el.value||1)-1));autoMap();U.recs=null;J.render()});
 J.act("impMap",el=>{const U=ui();U.map[el.dataset.x]=el.value===""?null:+el.value;U.recs=null;U.step=2;J.render()});
@@ -316,14 +316,15 @@ J.act("ruleAdd",async()=>{const kw=document.getElementById("rule-kw").value.trim
 J.act("ruleDel",async el=>{const cur=[...(J.get("meta","rules")?.list||[])];cur.splice(+el.dataset.x,1);await J.safe(()=>J.store.put("meta",{id:"rules",list:cur}));S.c.meta.set("rules",{id:"rules",list:cur});J.render()});
 J.act("impTemplate",()=>{const t=T[ui().type];const head=t.grid&&ui().opt?.format==="grid"?["Name",...Array.from({length:31},(_,i)=>i+1)]:t.fields.map(f=>f.l);J.saveFile("template-"+ui().type+".csv",J.toCSV([head]))});
 let impBusy=false;
-J.act("impGo",async el=>{const U=ui(),t=T[U.type];if(impBusy||!U.recs)return toast("Import already running — please wait");const recs=U.recs.filter(r=>!r.err.length&&r.inc!==false);if(!recs.length&&!U.recs.some(r=>r.dupId))return;impBusy=true;el.disabled=true;const prog=document.getElementById("impProg");let done=0;
-  const log={id:"imp-"+uid(),docs:{},notes:[],add(c,id){(this.docs[c]??=[]).includes(id)||this.docs[c].push(id)},note(n){this.notes.push(n)},tick(n=1){done+=n;if(prog)prog.textContent="Saving… "+Math.min(done,recs.length)+" / "+recs.length}};
+J.act("impGo",async el=>{const U=ui(),t=T[U.type];if(impBusy||!U.recs)return toast("Import already running — please wait");const recs=U.recs.filter(r=>!r.err.length&&r.inc!==false);if(!recs.length&&!U.recs.some(r=>r.dupId))return;impBusy=true;el.disabled=true;const prog=document.getElementById("impProg");let done=0;J.busy.start("Importing "+(U.file||"data"),recs.length);
+  const log={id:"imp-"+uid(),docs:{},notes:[],add(c,id){(this.docs[c]??=[]).includes(id)||this.docs[c].push(id)},note(n){this.notes.push(n)},tick(n=1){done+=n;J.busy.set(Math.min(done,recs.length),recs.length);if(prog)prog.textContent="Saving… "+Math.min(done,recs.length)+" / "+recs.length}};
   try{await t.commit(recs,U.opt,log);await J.store.put("meta",{id:log.id,type:U.type,file:U.file,rows:recs.length,at:Date.now(),docs:log.docs,notes:log.notes});
     U.done="Imported "+recs.length+" rows from "+U.file+"."+(log.notes.length?" "+log.notes.join(" · ")+".":"")+" You can undo this from Import history.";U.recs=null;U.step=2;toast("Import finished")}
   catch(e){U.err="Stopped after "+done+" rows: "+(e.message||e.code||"error")+". Rows saved so far are listed in Import history.";await J.store.put("meta",{id:log.id,type:U.type,file:U.file,rows:done,at:Date.now(),docs:log.docs,notes:log.notes,partial:true}).catch(()=>{})}
-  impBusy=false;J.render()});
+  impBusy=false;J.busy.end();J.render()});
 J.act("impUndo",async el=>{if(!el.dataset.armed){el.dataset.armed="1";el.textContent="Tap again to undo";return}const l=J.get("meta",el.dataset.x);if(!l)return;let n=0;const order=["vouchers","kots","moves","assets","items","menu","clients","accounts"];
-  await J.safe(async()=>{for(const c of order)for(const id of l.docs?.[c]||[]){if(c==="accounts"&&(J.D.post.get(id)||[]).some(p=>p.v.imp!==l.id&&!(l.docs.vouchers||[]).includes(p.v.id)))continue;await J.store.del(c,id);n++}const dates=new Set((l.docs.kots||[]).map(k=>k.slice(4,14)));for(const d of dates)if(/^\d{4}-\d{2}-\d{2}$/.test(d))await J.syncDaySales(d);await J.store.put("meta",{...l,undone:true})});
+  J.busy.start("Undoing import "+(l.file||""),order.reduce((s,c)=>s+(l.docs?.[c]||[]).length,0),"records");
+  await J.safe(async()=>{for(const c of order)for(const id of l.docs?.[c]||[]){J.busy.tick();if(c==="accounts"&&(J.D.post.get(id)||[]).some(p=>p.v.imp!==l.id&&!(l.docs.vouchers||[]).includes(p.v.id)))continue;await J.store.del(c,id);n++}const dates=new Set((l.docs.kots||[]).map(k=>k.slice(4,14)));for(const d of dates)if(/^\d{4}-\d{2}-\d{2}$/.test(d))await J.syncDaySales(d);await J.store.put("meta",{...l,undone:true})});J.busy.end();
   toast(n+" records removed"+(l.notes?.length?" (attendance changes stay)":""));J.render()});
 
 J.mod({id:"import",label:"Import data",group:"Governance",icon:'<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/>',sub:"Bring old records in from Excel or CSV.",tabs:[["import","Import",vImport]]});

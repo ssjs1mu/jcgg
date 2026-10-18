@@ -83,6 +83,6 @@ J.vDups=vDups;
 const tap=(el,fn)=>{if(!el.dataset.armed){el.dataset.armed="1";el.textContent="Tap again";setTimeout(()=>{if(el.isConnected)delete el.dataset.armed},4000);return}fn()};
 J.act("dupDel",el=>tap(el,()=>J.safe(()=>J.store.del("vouchers",el.dataset.x),"Extra copy removed").then(()=>J.render())));
 J.act("dupMerge",el=>tap(el,()=>{const [m,b]=el.dataset.x.split("|");J.safe(()=>J.mergeBankPair(m,b),"Merged — one entry with the bank details").then(()=>J.render())}));
-J.act("dupFixAll",el=>tap(el,async()=>{el.disabled=true;const d=J.findDups();let n=0;await J.safe(async()=>{for(const x of d.twice){await J.store.del("vouchers",x.extra.id);n++}for(const p of d.pairs){await J.mergeBankPair(p.man.id,p.bank.id);n++}});toast(n+" double"+(n===1?"":"s")+" fixed");J.render()}));
+J.act("dupFixAll",el=>tap(el,async()=>{el.disabled=true;const d=J.findDups();let n=0;J.busy.start("Fixing doubles",d.twice.length+d.pairs.length,"entries");await J.safe(async()=>{for(const x of d.twice){await J.store.del("vouchers",x.extra.id);n++;J.busy.tick()}for(const p of d.pairs){await J.mergeBankPair(p.man.id,p.bank.id);n++;J.busy.tick()}});J.busy.end();toast(n+" double"+(n===1?"":"s")+" fixed");J.render()}));
 const acc=J.MODS.find(m=>m.id==="accounts");if(acc){const i=acc.tabs.findIndex(t=>t[0]==="suspense");acc.tabs.splice(i+1,0,["dups","Bank check",vDups])}
 })();

@@ -52,8 +52,8 @@ function mapLine(l,isCharge){const exp=isCharge?expOf(l.desc,l.hsn)||"delivch":e
   return {kind:"stock",item:ex?.id||"new",newName:nm,cat:catOf(l.desc,l.hsn),unit:ex?.unit||pk?.unit||"PCS",perPack:pk&&(!ex||ex.unit===pk.unit)?pk.q:1}}
 // ---------------- upload & review ----------------
 const STG={bills:[]};
-J.act("billUpload",()=>{const i=document.createElement("input");i.type="file";i.accept="application/pdf";i.multiple=true;i.onchange=async()=>{const files=[...i.files];if(!files.length)return;toast("Reading "+files.length+" bill"+(files.length>1?"s":"")+"…");STG.bills=[];
-  for(const f of files){try{const b=J.parseBill(await pdfItems(f));b.file=f;b.fileName=f.name;b.dup=J.all("bills").find(x=>x.invNo&&x.invNo===b.invNo);b.lines.forEach(l=>l.map=mapLine(l,false));b.charges.forEach(l=>l.map=mapLine(l,true));STG.bills.push(b)}catch(e){STG.bills.push({file:f,fileName:f.name,err:e.message,lines:[],charges:[],warnings:[]})}}
+J.act("billUpload",()=>{const i=document.createElement("input");i.type="file";i.accept="application/pdf";i.multiple=true;i.onchange=async()=>{const files=[...i.files];if(!files.length)return;STG.bills=[];J.busy.start("Reading supplier bills",files.length,"bills");
+  for(const f of files){J.busy.label(f.name);try{const b=J.parseBill(await pdfItems(f));b.file=f;b.fileName=f.name;b.dup=J.all("bills").find(x=>x.invNo&&x.invNo===b.invNo);b.lines.forEach(l=>l.map=mapLine(l,false));b.charges.forEach(l=>l.map=mapLine(l,true));STG.bills.push(b)}catch(e){STG.bills.push({file:f,fileName:f.name,err:e.message,lines:[],charges:[],warnings:[]})}J.busy.tick()}J.busy.end();
   STG.bills.sort((a,b)=>(a.date||"").localeCompare(b.date||""));reviewDrawer()};i.click()});
 const itemOptions=sel=>`<option value="new" ${sel==="new"?"selected":""}>＋ New stock item</option>${J.all("items").sort((a,b)=>a.name.localeCompare(b.name)).map(it=>`<option value="${esc(it.id)}" ${sel===it.id?"selected":""}>${esc(it.name)} (${esc(it.unit)})</option>`).join("")}`;
 function lineRow(bi,kind,li,l){const m=l.map;const k=`${bi}-${kind}-${li}`;
@@ -75,12 +75,12 @@ J.act("billMap",el=>{const [bi,kind,li]=el.dataset.k.split("-");const l=STG.bill
   const st=document.getElementById("drawerForm")?.scrollTop;reviewDrawer();const fm=document.getElementById("drawerForm");if(fm)fm.scrollTop=st});
 async function vendorId(b){if(b.vendorKey==="hyperpure"){const v=J.all("accounts").find(a=>a.kind==="vendor"&&/hyperpure/i.test(a.name));if(v)return v.id}
   const nm=b.vendorName||"Supplier";const ex=J.all("accounts").find(a=>a.kind==="vendor"&&a.name.toLowerCase()===nm.toLowerCase());return ex?ex.id:J.ensureAcc(nm,"vendor")}
-async function saveAll(){const todo=STG.bills.filter(b=>!b.err&&!b.dup&&(b.lines.length||b.charges.length));if(!todo.length)return "Nothing new to save.";let done=0;
-  for(const b of todo){try{await saveBill(b);done++}catch(e){console.error(e);toast("Could not save "+(b.invNo||b.fileName)+": "+e.message)}}
+async function saveAll(){const todo=STG.bills.filter(b=>!b.err&&!b.dup&&(b.lines.length||b.charges.length));if(!todo.length)return "Nothing new to save.";let done=0;J.busy.start("Saving supplier bills",todo.length,"bills");
+  for(const b of todo){J.busy.label(b.invNo||b.fileName);try{await saveBill(b);done++}catch(e){console.error(e);toast("Could not save "+(b.invNo||b.fileName)+": "+e.message)}J.busy.tick()}J.busy.label("Matching bills with bank payments…");
   toast(done+" bill"+(done>1?"s":"")+" saved and posted");
   // wait until every saved bill is back from the database, so bills of one order are matched together
   const ids=todo.map(b=>"bill-"+(b.invNo||"").replace(/[^\w-]/g,""));for(let i=0;i<40&&!ids.every(id=>J.get("bills",id));i++)await new Promise(r=>setTimeout(r,250));
-  await J.billsReconcile();J.go("inventory","bills")}
+  try{await J.billsReconcile()}finally{J.busy.end()}J.go("inventory","bills")}
 async function saveBill(b){const id="bill-"+(b.invNo||uid()).replace(/[^\w-]/g,"");const vend=await vendorId(b);
   let file=null;try{file=await J.fileSave(b.file,"files")}catch(e){console.warn("bill file",e)}
   const stock=[],exp={};let stockTotal=0;
