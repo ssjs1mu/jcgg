@@ -385,3 +385,9 @@ html[data-mod="jdash"],[data-go="jdash"]{--mc:var(--m-jdash)}
 .nowrap{white-space:nowrap}
 .kitmsg{white-space:pre-wrap;font-size:13px;background:var(--wash);border:1px solid var(--rule);border-radius:8px;padding:10px;max-height:260px;overflow:auto}
 a.btn{text-decoration:none}a.btn:not(.primary){color:inherit}
+/* recipe costing, video links, new items */
+.vid-add{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px}.vid-add input{flex:1;min-width:240px}
+.cost-panel{margin-top:16px;border-top:2px solid color-mix(in srgb,var(--mc) 35%,var(--rule));padding-top:6px}
+.cost-kpis{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0}.cost-kpis>div{border:1px solid var(--rule);border-radius:10px;padding:8px 12px;min-width:130px;background:var(--sheet);box-shadow:var(--lift)}
+.cost-kpis b{display:block;font-size:19px}.cost-kpis b.ok{color:var(--ok)}.cost-kpis b.warn{color:var(--warn)}.cost-kpis b.bad{color:var(--bad)}.cost-kpis span{font-size:12px;color:var(--ink-2)}
+.cost-tbl td{font-size:13px;vertical-align:top}.cost-miss td{background:var(--bad-wash)}
