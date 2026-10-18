@@ -177,6 +177,7 @@ const NOTE_TR={
 "Ready-to-serve packaged product":["पैक्ड तैयार उत्पाद","প্যাকেটজাত তৈরি পণ্য"],
 "Rested 2 hours (or overnight in the fridge).":["आटा 2 घंटे रखें (या रात भर फ़्रिज में)।","ময়দা ২ ঘণ্টা রাখুন (বা সারা রাত ফ্রিজে)।"],
 "Seasonal":["मौसमी","মরসুমি"],
+"Classic South-Indian potato bonda (16 pieces, 4 per plate).":["क्लासिक दक्षिण भारतीय आलू बोंडा (16 नग, एक प्लेट में 4)।","ক্লাসিক দক্ষিণ ভারতীয় আলুর বোন্ডা (১৬টি, প্লেটে ৪টি)।"],
 "Soak the dal 3-4 hours.":["दाल 3-4 घंटे भिगोएँ।","ডাল ৩-৪ ঘণ্টা ভিজিয়ে রাখুন।"],
 "Standard bread-bomb recipe; edit to match the house version if it differs.":["ब्रेड बम की मानक विधि; आपका तरीका अलग हो तो बदलें।","ব্রেড বোমের সাধারণ রেসিপি; আপনার পদ্ধতি আলাদা হলে বদলান।"],
 "Standard cheesy stuffed-potato recipe; edit to match the house version if it differs.":["चीज़ वाले भरवाँ आलू की मानक विधि; आपका तरीका अलग हो तो बदलें।","চিজ দেওয়া পুর-ভরা আলুর সাধারণ রেসিপি; আপনার পদ্ধতি আলাদা হলে বদলান।"],
