@@ -60,20 +60,126 @@ function tilesHtml(list){const f=v=>v==null?"—":"₹"+inr0.format(v);
     <div class="mt-tags">${hasRcp(m)?`<span class="chip ok">📖 ${langs(m)}</span>`:`<span class="chip warn">No recipe</span>`}${n.kcal?`<span class="chip plain">${esc(n.kcal)} kcal</span>`:""}${(m.videos||[]).length?`<span class="chip plain">▶ ${m.videos.length}</span>`:""}</div>
     <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:auto"><button class="btn small w" data-a="rcpView" data-x="${m.id}">${hasRcp(m)?"Recipe":"＋ Recipe"}</button>${J.docsBtn("menu",m,m.name)}<button class="btn small" data-a="kitEdit" data-x="${m.id}">Edit</button></div></div></article>`}).join("")}</div>`
   :`<div class="panel"><div class="empty"><strong>No items match</strong><span>Clear the filters or upload the menu.</span></div></div>`}
-function recipeBody(m,lang,print){const r=m.recipe||{};const n=m.nutrition||{};const one=l=>{const x=r[l]||{};const any=PARTS.some(([k])=>(x[k]||"").trim());return `<div class="rcp-lang" data-lang="${l}" lang="${l}" ${!print&&l!==lang?"hidden":""}>${print?`<h2>${LANGS.find(z=>z[0]===l)[1]}</h2>`:""}${any?PARTS.filter(([k])=>(x[k]||"").trim()).map(([k,t])=>`<h3>${t[l]}</h3>${k==="ing"?`<ul>${String(x[k]).split(/\n+/).map(z=>z.trim()).filter(Boolean).map(z=>`<li>${esc(z.replace(/^[-•*]\s*/,""))}</li>`).join("")}</ul>`:steps(x[k])}`).join(""):`<p class="muted">${l==="en"?"No recipe written in English yet.":l==="hi"?"हिंदी में विधि अभी नहीं लिखी गई है।":"বাংলায় রেসিপি এখনও লেখা হয়নি।"}</p>`}</div>`};
-  const meta=[m.serves&&"Serves "+m.serves,m.prepMin&&"Prep "+m.prepMin+" min",m.cookMin&&"Cook "+m.cookMin+" min"].filter(Boolean).join(" · ");
+// ---------- servings scaler: main ingredients scale fully; salt, spices, oil, leavening and water scale less ----------
+const BND="০১২৩৪৫৬৭৮৯";const toW=s=>String(s).replace(/[০-৯]/g,d=>BND.indexOf(d));const toBn=s=>String(s).replace(/\d/g,d=>BND[d]);
+const UF={"½":.5,"¼":.25,"¾":.75,"⅓":1/3,"⅔":2/3,"⅛":.125};
+const NUM="(?:\\d+\\s+\\d+\\/\\d+|\\d+\\/\\d+|\\d*[½¼¾⅓⅔⅛]|\\d+(?:\\.\\d+)?)";
+const QRE=new RegExp(`(${NUM})(?:\\s*[-–]\\s*(${NUM}))?`,"g");
+const pN=s=>{s=s.trim();let m;if((m=s.match(/^(\d+)\s+(\d+)\/(\d+)$/)))return +m[1]+m[2]/m[3];if((m=s.match(/^(\d+)\/(\d+)$/)))return m[1]/m[2];if((m=s.match(/^(\d*)([½¼¾⅓⅔⅛])$/)))return (+m[1]||0)+UF[m[2]];return parseFloat(s)};
+const UNITS=[["kg",/^(kg|kilo|किलो|কেজি)/i],["g",/^(g|gm|gms|grams?)\b|^(ग्राम|গ্রাম)/i],["l",/^(l|ltr|litres?|liters?)\b|^(लीटर|লিটার)/i],["ml",/^(ml)\b|^(मिली|মিলি)/i],
+  ["tsp",/^(tsp|teaspoons?)\b|^(छोटा चम्मच|छोटे चम्मच|চা চামচ)/i],["tbsp",/^(tbsp|tablespoons?)\b|^(बड़ा चम्मच|बड़े चम्मच|টেবিল চামচ)/i],["cup",/^(cups?)\b|^(कप|কাপ)/i],["inch",/^(inch|inches)\b|^(इंच|ইঞ্চি)/i]];
+const UW={tsp:{en:["tsp","tsp"],hi:["छोटा चम्मच","छोटे चम्मच"],bn:["চা চামচ","চা চামচ"]},tbsp:{en:["tbsp","tbsp"],hi:["बड़ा चम्मच","बड़े चम्मच"],bn:["টেবিল চামচ","টেবিল চামচ"]},cup:{en:["cup","cups"],hi:["कप","कप"],bn:["কাপ","কাপ"]},kg:{en:["kg","kg"],hi:["किलो","किलो"],bn:["কেজি","কেজি"]},l:{en:["L","L"],hi:["लीटर","लीटर"],bn:["লিটার","লিটার"]}};
+const SKIP=/^(?:°|º|degrees?|%|x\b|×|hours?|hrs?|minutes?|mins?|seconds?|secs?|days?|घंट|मिनट|सेकंड|दिन|ঘণ্টা|মিনিট|সেকেন্ড|দিন)/i;
+// how strongly each kind of ingredient follows the number of servings (1 = straight multiplication)
+const KIND=[["leaven",.9,/baking|yeast|यीस्ट|ইস্ট|\beno\b|ईनो|vinegar|सिरका|ভিনিগার|सोडा|সোডা/i],
+  ["spice",.75,/salt|नमक|নুন|লবণ|chill?i(?! sauce)|(?<!शिमला )मिर्च|লঙ্কা|turmeric|हल्दी|হলুদ|masala|मसाला|মশলা|cumin|jeera|जीरा|জিরে|ajwain|अजवाइन|জোয়ান|hing|हींग|হিং|asafoetida|pepper|काली मिर्च|গোলমরিচ|cardamom|इलायची|এলাচ|clove|लौंग|লবঙ্গ|cinnamon|दालचीनी|দারচিনি|bay lea|तेजपत्त|তেজপাতা|methi|मेथी|মেথি|mustard seed|\brai\b|राई|সরষে|curry lea|करी पत्त|কারিপাতা|saffron|केसर|কেশর|essence|एसेंस|এসেন্স|amchur|अमचूर|আমচুর|oregano|ऑरेगैनो|অরিগ্যানো|flakes|फ्लेक्स|ফ্লেক্স|kalonji|nigella|कलौंजी|কালোজিরে|fennel|saunf|सौंफ|মৌরি|namak|peppercorn|coriander (?:powder|seeds?)|dhania powder|धनिया (?:पाउडर|बीज)|ধনে(?!পাতা)|\bsoy|सोया सॉस|সয়া সস|vinegar/i],
+  ["fat",.85,/\boil\b|तेल|তেল|ghee|घी|ঘি|butter|मक्खन|মাখন/i],
+  ["aroma",.85,/ginger|garlic|अदरक|लहसुन|আদা|রসুন/i],
+  ["water",.9,/water|पानी|জল/i]];
+const kindOf=seg=>KIND.find(k=>k[2].test(seg))||["main",1];
+const snap=(v,step)=>Math.max(step,Math.round(v/step)*step);
+function roundQ(v,unit,count){
+  if(unit==="g"||unit==="ml"){const st=v<10?1:v<100?5:v<500?10:25;return [Math.max(1,Math.round(v/st)*st),unit]}
+  if(unit==="kg"||unit==="l")return [snap(v,.25),unit];
+  if(unit==="tsp"){if(v>=3)return roundQ(v/3,"tbsp");return [v<.25?snap(v,.125):snap(v,.25),"tsp"]}
+  if(unit==="tbsp"){if(v>=8)return roundQ(v/16,"cup");return [v<2?snap(v,.25):snap(v,.5),"tbsp"]}
+  if(unit==="cup")return [v<.25?snap(v,.125):v<3?snap(v,.25):snap(v,.5),"cup"];
+  if(unit==="inch")return [snap(v,.5),unit];
+  return [count&&v>=3?Math.max(1,Math.round(v)):snap(v,.5),unit]}
+const fmtQ=v=>{const w=Math.floor(v+1e-9);const fr=v-w;const F=[[0,""],[.125,"⅛"],[.25,"¼"],[1/3,"⅓"],[.5,"½"],[2/3,"⅔"],[.75,"¾"],[1,"1"]];const [fv,fs]=F.reduce((a,b)=>Math.abs(b[0]-fr)<Math.abs(a[0]-fr)?b:a);
+  if(fs==="1")return String(w+1);return (w?String(w):"")+fs||"0"};
+// scale one line of recipe text; returns HTML
+function scaleHtml(raw,f,lang,mode){const src=lang==="bn"?toW(raw):String(raw);const out=[];let last=0;const dig=s=>lang==="bn"?toBn(s):s;
+  if(!f||Math.abs(f-1)<1e-6)return esc(raw);
+  const stepSkip=mode==="step"?/\b(per|each|filling|stuffing|batter|mixture|dough)\b|प्रति|हर |भरावन|घोल|मिश्रण|प्रति|প্রতি|পুর|গোলা|মিশ্রণ|লেচি/i:null;
+  for(const m of src.matchAll(QRE)){const i=m.index;const before=src.slice(0,i),after=src.slice(i+m[0].length);
+    if(/[A-Za-z0-9ऀ-ॿঀ-৿]$/.test(before)&&!/\s$/.test(before))continue;
+    if((before.match(/\(/g)||[]).length>(before.match(/\)/g)||[]).length)continue;
+    const a=after.replace(/^\s+/,"");if(/^[-–]/.test(after)||SKIP.test(a))continue;
+    const U=UNITS.find(([,re])=>re.test(a));const unit=U?.[0]||"";
+    const seg=(a.split(/[,+;]|\band\b|\s\/\s/)[0]||"");
+    if(mode==="step"&&(!unit||unit==="inch"||stepSkip.test(seg)))continue;
+    const [kind,ex]=kindOf(seg);const k=Math.pow(f,ex);
+    let v1=pN(m[1])*k,v2=m[2]?pN(m[2])*k:null;let u=unit;
+    [v1,u]=roundQ(v1,unit,!unit);if(v2!=null){const C={tsp:1,tbsp:3,cup:48};const cv=C[unit]&&C[u]?C[unit]/C[u]:1;v2=roundQ(v2*cv,u,!unit)[0];}
+    if((unit==="g"&&v1>=1000)){v1=snap(v1/1000,.25);if(v2!=null)v2=snap(v2/1000,.25);u="kg"}
+    if((unit==="ml"&&v1>=1000)){v1=snap(v1/1000,.25);if(v2!=null)v2=snap(v2/1000,.25);u="l"}
+    let q=fmtQ(v1)+(v2!=null&&Math.abs(v2-v1)>1e-6?"-"+fmtQ(v2):"");
+    let uLen=0,uTxt="";if(U&&(u!==unit||UW[u])){uLen=a.match(U[1])[0].length;const L=UW[u]?.[lang]||UW[u]?.en;if(L)uTxt=(v2??v1)>1?L[1]:L[0]}
+    const gap=after.length-a.length;
+    out.push(esc(dig(src.slice(last,i))));
+    out.push(`<b class="q${kind!=="main"?" adj":""}"${kind!=="main"?` title="${kind==="spice"?"Salt/spice":kind==="fat"?"Oil/fat":kind==="water"?"Water":kind==="leaven"?"Raising agent":"Ginger/garlic"} scaled less than ×${+f.toFixed(2)} — taste and adjust"`:""}>${esc(dig(q))}${uTxt?" "+esc(uTxt):""}</b>`);
+    last=i+m[0].length+(uTxt?gap+uLen:0)}
+  out.push(esc(dig(src.slice(last))));return out.join("")}
+// ---------- linked recipes: "as for VEG MOMO" opens that recipe in a pop-up ----------
+let refIdx=null,refAt=0;
+function refIndex(){if(refIdx&&Date.now()-refAt<5000)return refIdx;const M=new Map();
+  for(const m of J.all("menu").filter(x=>x.active!==false&&hasRcp(x)))M.set(nk(m.name),m.name);
+  for(const k of Object.keys(J.RECIPE_LIB?.idx||{}))if(!M.has(k))M.set(k,J.RECIPE_LIB.idx[k].key);
+  refAt=Date.now();return refIdx=M}
+const selfKeys=m=>{const s=new Set([nk(m.name)]);const e=libFor(m.name);if(e){s.add(nk(e.key));(e.a||[]).forEach(a=>s.add(nk(a)))}if(m.recipeKey)s.add(nk(m.recipeKey));return s};
+function findRefs(text,own){const M=refIndex();const hits=[];const take=(start,str)=>{const w=str.split(" ");
+    for(let n=Math.min(w.length,6);n>=1;n--)for(let s=0;s+n<=w.length;s++){const ph=w.slice(s,s+n).join(" ");const k=nk(ph);if(k.length<4||!M.has(k)||own.has(k))continue;
+      const off=start+w.slice(0,s).join(" ").length+(s?1:0);if(hits.some(h=>off<h.end&&off+ph.length>h.start))continue;hits.push({start:off,end:off+ph.length,name:M.get(k)})}};
+  for(const m of String(text).matchAll(/[A-Z][A-Z0-9'&]*(?:[ ][A-Z0-9'&]+)*/g))if(/[A-Z]{3}/.test(m[0]))take(m.index,m[0]);
+  for(const m of String(text).matchAll(/\b(?:as for|see|same as|as in)\s+([A-Za-z][A-Za-z' ]{2,48})/gi))take(m.index+m[0].length-m[1].length,m[1].trim());
+  return hits.sort((a,b)=>a.start-b.start)}
+const refBtn=(name,label,f)=>`<button type="button" class="rcp-ref" data-a="rcpRef" data-x="${esc(name)}" data-f="${f||1}" title="Open the ${esc(name)} recipe here">📖 ${esc(label)}</button>`;
+function lineHtml(raw,f,lang,mode,own,refs){if(lang!=="en")return scaleHtml(raw,f,lang,mode)+(refs||[]).map(r=>" "+refBtn(r.name,r.name,f)).join("");
+  const hits=findRefs(raw,own);if(!hits.length)return scaleHtml(raw,f,lang,mode);let o="",p=0;for(const h of hits){o+=scaleHtml(raw.slice(p,h.start),f,lang,mode)+refBtn(h.name,raw.slice(h.start,h.end),f);p=h.end}return o+scaleHtml(raw.slice(p),f,lang,mode)}
+const lines=t=>String(t||"").split(/\n+/).map(x=>x.trim()).filter(Boolean);
+const baseServes=m=>parseFloat(String(m.serves||"").replace(/[^\d.]/g,""))||0;
+function recipeBody(m,lang,print,serves){const r=m.recipe||{};const n=m.nutrition||{};const base=baseServes(m)||4;const want=serves||base;const f=want/base;const own=selfKeys(m);
+  const enRefs={};for(const [k] of PARTS)enRefs[k]=lines(r.en?.[k]).map(x=>findRefs(x,own));
+  const one=l=>{const x=r[l]||{};const any=PARTS.some(([k])=>(x[k]||"").trim());
+    const part=(k,t)=>{const L=lines(x[k]);const aligned=l!=="en"&&enRefs[k].length===L.length;const loose=l!=="en"&&!aligned?[...new Map(enRefs[k].flat().map(h=>[h.name,h])).values()]:[];
+      const li=(z,i)=>lineHtml(k==="ing"?z.replace(/^[-•*]\s*/,""):z.replace(/^\d+[.)]\s*/,""),f,l,k==="ing"?"ing":"step",own,aligned?enRefs[k][i]:null);
+      return `<h3>${t[l]}${loose.length?" "+loose.map(h=>refBtn(h.name,h.name,f)).join(" "):""}</h3>${k==="ing"?`<ul>${L.map((z,i)=>`<li>${li(z,i)}</li>`).join("")}</ul>`:L.length>1?`<ol>${L.map((z,i)=>`<li>${li(z,i)}</li>`).join("")}</ol>`:`<p>${li(L[0]||"",0)}</p>`}`};
+    return `<div class="rcp-lang" data-lang="${l}" lang="${l}" ${!print&&l!==lang?"hidden":""}>${print?`<h2>${LANGS.find(z=>z[0]===l)[1]}</h2>`:""}${any?PARTS.filter(([k])=>(x[k]||"").trim()).map(([k,t])=>part(k,t)).join(""):`<p class="muted">${l==="en"?"No recipe written in English yet.":l==="hi"?"हिंदी में विधि अभी नहीं लिखी गई है।":"বাংলায় রেসিপি এখনও লেখা হয়নি।"}</p>`}</div>`};
+  const meta=[want&&("Serves "+(+want.toFixed(1))+(Math.abs(f-1)>1e-6?` (recipe written for ${base}${baseServes(m)?"":", assumed"})`:"")),m.prepMin&&"Prep "+m.prepMin+" min",m.cookMin&&"Cook "+m.cookMin+" min"].filter(Boolean).join(" · ");
   const nut=NUT.filter(([k])=>n[k]!==""&&n[k]!=null);
-  return `${meta?`<p class="rcp-meta">${esc(meta)}</p>`:""}${print?LANGS.filter(([l])=>PARTS.some(([k])=>(r[l]?.[k]||"").trim())).map(([l])=>one(l)).join(""):LANGS.map(([l])=>one(l)).join("")}
+  return `${meta?`<p class="rcp-meta">${esc(meta)}</p>`:""}${Math.abs(f-1)>1e-6?`<p class="note rcp-scale">Quantities are worked out for ${+want.toFixed(1)} servings. Main ingredients change ×${+f.toFixed(2)}; <b class="q adj">underlined</b> amounts (salt, spices, chilli, oil/ghee, ginger-garlic, water, raising agents) change less, because they do not need to go up in step — taste and adjust at the end. Counts in the method (e.g. "divide into 8") are for the original ${base}; ${f>1?"cook in batches if the pan gets crowded, and allow a little more cooking time":"use a smaller pan so it does not dry out"}.</p>`:""}
+  ${print?LANGS.filter(([l])=>PARTS.some(([k])=>(r[l]?.[k]||"").trim())).map(([l])=>one(l)).join(""):LANGS.map(([l])=>one(l)).join("")}
   <h3>Nutrition ${n.basis?`<span class="hint">(${esc(n.basis)})</span>`:"<span class=\"hint\">(per serving, approximate)</span>"}</h3>${nut.length?`<div class="nut">${nut.map(([k,l,u])=>`<div><b>${esc(n[k])}${u==="kcal"?"":" "+u}</b><span>${l}${u==="kcal"?" (kcal)":""}</span></div>`).join("")}</div>`:`<p class="muted">Not filled in yet.</p>`}
   ${print?"":`<h3>Video reference</h3><div class="yt-list">${(m.videos||[]).map(u=>{const id=ytId(u);return id?`<div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${id}" title="${esc(m.name)} video" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><a href="${esc(u)}" target="_blank" rel="noopener">Open on YouTube ↗</a></div>`:`<div><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)} ↗</a></div>`}).join("")}<div><a class="btn small" href="${ytSearch(m)}" target="_blank" rel="noopener">🔎 Search YouTube for “${esc(m.name)} recipe”</a></div></div>`}`}
-J.act("rcpView",el=>{const m=J.get("menu",el.dataset.x);if(!m)return;const U=ui();const lang=U.lang||"en";const p=photo(m);
+const QUICK=[1,2,4,6,8,10,15,20,25,30,40,50];
+function servesCtl(m,cur,scope){const base=baseServes(m)||4;return `<div class="serves" data-scope="${scope}"><span class="hint">Servings</span>
+  <button type="button" class="btn small" data-a="rcpServ" data-s="${scope}" data-v="-" aria-label="Fewer servings">−</button>
+  <input type="number" min="1" max="500" step="1" inputmode="numeric" value="${+(+cur).toFixed(1)}" data-ach="rcpServIn" data-s="${scope}" aria-label="Number of servings">
+  <button type="button" class="btn small" data-a="rcpServ" data-s="${scope}" data-v="+" aria-label="More servings">＋</button>
+  <span class="serves-q">${[...new Set([base,...QUICK])].sort((a,b)=>a-b).map(v=>`<button type="button" class="sv" aria-pressed="${Math.abs(v-cur)<1e-6}" data-a="rcpServ" data-s="${scope}" data-v="${v}">${v}${v===base?" (base)":""}</button>`).join("")}</span></div>`}
+const RV={d:null,p:[]};// d: {m, serves} for the drawer; p: stack of {m, serves} for the pop-up
+const itemOf=name=>{const k=nk(name);const L=J.RECIPE_LIB;const e=libFor(name);
+  const m=J.all("menu").find(x=>x.active!==false&&hasRcp(x)&&nk(x.name)===k)||(e&&J.all("menu").find(x=>x.active!==false&&hasRcp(x)&&(x.recipeKey===e.key||libFor(x.name)===e)));
+  if(m)return m;const r=e&&J.recipeFromLib(e.key);return r?{id:"",name:e.key,cat:"Recipe library",...r}:null};
+function drawRcp(scope){const lang=ui().lang||"en";if(scope==="d"){const f=document.getElementById("drawerForm");const box=f?.querySelector(".rcp");if(!box||!RV.d)return;box.innerHTML=recipeBody(RV.d.m,lang,false,RV.d.serves);const c=f.querySelector('.serves[data-scope="d"]');if(c)c.outerHTML=servesCtl(RV.d.m,RV.d.serves,"d");return}
+  const top=RV.p.at(-1);let el=document.getElementById("rcpPop");if(!top){el?.remove();document.removeEventListener("keydown",popKey,true);return}
+  if(!el){el=document.createElement("div");el.id="rcpPop";el.className="rcp-pop";el.setAttribute("role","dialog");el.setAttribute("aria-modal","true");document.body.appendChild(el);document.addEventListener("keydown",popKey,true);el.addEventListener("click",ev=>{if(ev.target===el)J.run("rcpPopX")})}
+  const m=top.m;el.setAttribute("aria-label","Recipe: "+m.name);
+  el.innerHTML=`<div class="rcp-pop-card"><div class="rcp-pop-bar">${RV.p.length>1?`<button type="button" class="btn small" data-a="rcpPopBack">← ${esc(RV.p.at(-2).m.name)}</button>`:""}<div style="min-width:0"><b>${esc(m.name)}</b><div class="hint">${esc(m.cat||"")}${RV.d?" · linked from "+esc((RV.p.length>1?RV.p.at(-2).m:RV.d.m).name):""}</div></div><span style="margin-left:auto" class="row">${m.id?`<button type="button" class="btn small" data-a="rcpPopFull" data-x="${m.id}">Open full page</button>`:""}<button type="button" class="btn small w" data-a="rcpPopX" id="rcpPopX">Close ✕</button></span></div>
+    <div class="rcp-pop-body"><div class="seg" role="tablist" aria-label="Language">${LANGS.map(([l,t])=>`<button type="button" role="tab" data-a="rcpLang" data-x="${l}" aria-pressed="${l===lang}">${t}</button>`).join("")}</div>
+    ${servesCtl(m,top.serves,"p")}${m.recipeSrc==="library"&&m.recipeNote?`<p class="note" style="margin:8px 0 0">${esc(m.recipeNote)}</p>`:""}<div class="rcp">${recipeBody(m,lang,false,top.serves)}</div></div></div>`;
+  el.querySelector(".rcp-pop-body").scrollTop=0;el.querySelector("#rcpPopX").focus({preventScroll:true})}
+function popKey(ev){if(ev.key==="Escape"&&document.getElementById("rcpPop")){ev.preventDefault();ev.stopImmediatePropagation();J.run("rcpPopX")}}
+const setServes=(scope,v,focus)=>{const t=scope==="p"?RV.p.at(-1):RV.d;if(!t)return;v=Math.max(1,Math.min(500,Math.round(v*10)/10||1));t.serves=v;drawRcp(scope);if(focus)document.querySelector(`.serves[data-scope="${scope}"] input`)?.focus({preventScroll:true})};
+J.act("rcpServ",el=>{const s=el.dataset.s;const t=s==="p"?RV.p.at(-1):RV.d;if(!t)return;const v=el.dataset.v;const base=baseServes(t.m)||4;const cur=t.serves;
+  setServes(s,v==="+"?(cur<base?cur+1:cur+Math.max(1,Math.round(base/2))):v==="-"?(cur<=base?cur-1:cur-Math.max(1,Math.round(base/2))):+v)});
+J.act("rcpServIn",el=>setServes(el.dataset.s,+el.value,true));
+J.act("rcpRef",async el=>{await J.loadRecipeLib().catch(()=>{});const m=itemOf(el.dataset.x);if(!m)return toast("No recipe found for "+el.dataset.x);
+  const inPop=!!el.closest("#rcpPop");const parent=inPop?RV.p.at(-1):RV.d;const pf=parent?parent.serves/(baseServes(parent.m)||4):+el.dataset.f||1;const base=baseServes(m)||4;
+  if(!inPop)RV.p=[];RV.p.push({m,serves:Math.round(base*pf*10)/10});drawRcp("p")});
+J.act("rcpPopBack",()=>{RV.p.pop();drawRcp("p")});
+J.act("rcpPopX",()=>{RV.p=[];drawRcp("p");document.querySelector("#drawerForm .rcp-ref")?.focus?.({preventScroll:true})});
+J.act("rcpPopFull",el=>{RV.p=[];drawRcp("p");J.run("rcpView",el.dataset.x)});
+J.act("rcpView",async el=>{const m=J.get("menu",el.dataset.x);if(!m)return;await J.loadRecipeLib().catch(()=>{});RV.p=[];drawRcp("p");const U=ui();const lang=U.lang||"en";const p=photo(m);RV.d={m,serves:baseServes(m)||4};
   J.drawer({docs:["menu",m.id],title:m.name,wide:true,body:`<div class="rcp-head">${p?`<img src="${p}" alt="" class="rcp-photo">`:""}<div><div class="hint">${esc(m.cat||"")}${rate(m,"staff")?" · Staff ₹"+inr0.format(rate(m,"staff")):""} · Gr. Floor ${rate(m,"gr")!=null?"₹"+inr0.format(rate(m,"gr")):"—"}</div>
     <div class="seg" role="tablist" aria-label="Language" style="margin-top:8px">${LANGS.map(([l,t])=>`<button type="button" role="tab" data-a="rcpLang" data-x="${l}" aria-pressed="${l===lang}">${t}</button>`).join("")}</div>
+    ${servesCtl(m,RV.d.serves,"d")}
     <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn small w" data-a="kitEdit" data-x="${m.id}">Edit recipe &amp; item</button><button type="button" class="btn small" data-a="rcpPrint" data-x="${m.id}" data-l="one">Print this language</button><button type="button" class="btn small" data-a="rcpPrint" data-x="${m.id}" data-l="all">Print all languages</button></div></div></div>
-    ${m.recipeSrc==="library"?`<p class="note" style="margin:8px 0 0">Standard recipe from the built-in library${m.recipeNote?" — "+esc(m.recipeNote):""}. Edit it to match your kitchen's own method; your version is kept.</p>`:""}<div class="rcp">${recipeBody(m,lang)}</div>`});const f=document.getElementById("drawerForm");if(f){f.scrollTop=0;f.querySelector('[data-a="rcpLang"][aria-pressed="true"]')?.focus({preventScroll:true})}});
-J.act("rcpLang",el=>{ui().lang=el.dataset.x;document.querySelectorAll("#drawerForm [data-a=rcpLang]").forEach(b=>b.setAttribute("aria-pressed",String(b===el)));document.querySelectorAll("#drawerForm .rcp-lang").forEach(d=>d.hidden=d.dataset.lang!==el.dataset.x)});
-J.act("rcpPrint",el=>{const m=J.get("menu",el.dataset.x);const lang=ui().lang||"en";const mm=el.dataset.l==="one"?{...m,recipe:{[lang]:m.recipe?.[lang]||{}}}:m;
-  J.printDoc("Recipe · "+m.name,`<div class="hd"><div><h1>${esc(m.name)}</h1><div class="sub">${esc(J.settings().business||"JCGG")} · ${esc(m.cat||"")} · recipe card</div></div><div class="sub">${fmtDate(today())}</div></div>${recipeBody(mm,lang,true)}${(m.videos||[]).length?`<h3>Video reference</h3><ul>${m.videos.map(u=>`<li>${esc(u)}</li>`).join("")}</ul>`:""}`)});
+    ${m.recipeSrc==="library"?`<p class="note" style="margin:8px 0 0">Standard recipe from the built-in library${m.recipeNote?" — "+esc(m.recipeNote):""}. Edit it to match your kitchen's own method; your version is kept.</p>`:""}<div class="rcp">${recipeBody(m,lang,false,RV.d.serves)}</div>`});const f=document.getElementById("drawerForm");if(f){f.scrollTop=0;f.querySelector('[data-a="rcpLang"][aria-pressed="true"]')?.focus({preventScroll:true})}});
+J.act("rcpLang",el=>{ui().lang=el.dataset.x;document.querySelectorAll("[data-a=rcpLang]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.x===el.dataset.x)));document.querySelectorAll("#drawerForm .rcp-lang,#rcpPop .rcp-lang").forEach(d=>d.hidden=d.dataset.lang!==el.dataset.x)});
+J.act("rcpPrint",el=>{const m=J.get("menu",el.dataset.x);const lang=ui().lang||"en";const mm=el.dataset.l==="one"?{...m,recipe:{[lang]:m.recipe?.[lang]||{}}}:m;const sv=RV.d?.m?.id===m.id?RV.d.serves:0;
+  J.printDoc("Recipe · "+m.name,`<div class="hd"><div><h1>${esc(m.name)}</h1><div class="sub">${esc(J.settings().business||"JCGG")} · ${esc(m.cat||"")} · recipe card</div></div><div class="sub">${fmtDate(today())}</div></div>${recipeBody(mm,lang,true,sv)}${(m.videos||[]).length?`<h3>Video reference</h3><ul>${m.videos.map(u=>`<li>${esc(u)}</li>`).join("")}</ul>`:""}`)});
 J.act("rcpFromLib",async el=>{if(!el.dataset.armed){el.dataset.armed="1";el.textContent="Tap again — this replaces the recipe text";return}const m=J.get("menu",el.dataset.x);await J.loadRecipeLib();const r=J.recipeFromLib(m.name);if(!r)return toast("The library has no recipe for "+m.name);await J.safe(()=>J.store.patch("menu",m.id,r),"Library recipe loaded");J.closeDrawer();itemDrawer(m.id)});
 J.act("rcpEdit",el=>{J.closeDrawer();itemDrawer(el.dataset.x)});
 J.act("rcpEdLang",el=>{document.querySelectorAll("#drawerForm [data-a=rcpEdLang]").forEach(b=>b.setAttribute("aria-pressed",String(b===el)));document.querySelectorAll("#drawerForm .rcp-ed").forEach(d=>d.hidden=d.dataset.lang!==el.dataset.x)});

@@ -348,3 +348,20 @@ body{background:radial-gradient(1200px 500px at 70% -10%,color-mix(in srgb,var(-
 .yt iframe{width:100%;max-width:640px;aspect-ratio:16/9;border:0;border-radius:10px;box-shadow:var(--lift)}
 .rcp-edit{border:1px solid color-mix(in srgb,var(--mc) 25%,var(--rule));border-radius:12px;padding:10px 12px;background:color-mix(in srgb,var(--mc) 4%,var(--sheet))}
 .rcp-edit summary{cursor:pointer}
+/* recipe servings scaler + linked recipe pop-up */
+.serves{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.serves input{width:72px;text-align:center;font-weight:700;padding:5px 6px}
+.serves-q{display:flex;flex-wrap:wrap;gap:4px}
+.sv{border:1px solid var(--rule);background:var(--sheet);color:var(--ink-2);border-radius:999px;padding:3px 10px;font-size:12.5px;font-weight:600;cursor:pointer}
+.sv[aria-pressed="true"]{background:var(--mc);border-color:var(--mc);color:#fff}
+.rcp b.q{font-weight:700;color:var(--ink)}
+.rcp b.q.adj{text-decoration:underline dotted;text-decoration-color:var(--mc);text-underline-offset:3px;cursor:help}
+.rcp-scale{margin:8px 0 0;font-size:13px}
+.rcp-ref{display:inline;border:0;background:color-mix(in srgb,var(--mc) 12%,transparent);color:var(--mc);font:inherit;font-weight:700;padding:0 6px;border-radius:6px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.rcp-ref:hover,.rcp-ref:focus-visible{background:var(--mc);color:#fff}
+h3 .rcp-ref{font-size:12px}
+.rcp-pop{position:fixed;inset:0;z-index:50;background:rgba(10,14,18,.55);display:flex;align-items:center;justify-content:center;padding:max(12px,env(safe-area-inset-top,0px)) 12px max(12px,env(safe-area-inset-bottom,0px))}
+.rcp-pop-card{background:var(--sheet);width:min(880px,100%);max-height:100%;display:flex;flex-direction:column;border-radius:14px;border-top:5px solid var(--mc);box-shadow:0 24px 60px -12px rgba(0,0,0,.5);overflow:hidden}
+.rcp-pop-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--rule)}
+.rcp-pop-body{overflow:auto;padding:12px 16px 22px}
+@media print{.rcp-pop{display:none}}
