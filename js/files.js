@@ -20,7 +20,26 @@ J.fileDrop=async f=>{try{const parts=await J.fetchWhere(f.col||"files","fid",f.f
 J.thumbsHtml=(list,opt={})=>`<div class="thumbs">${(list||[]).map((f,i)=>`<figure class="thumb"><button type="button" class="thumb-img" data-a="fileView" data-src="${esc(opt.src||"")}" data-x="${esc(opt.owner||"")}" data-i="${i}" aria-label="Open ${esc(f.cat||f.name)}">${f.thumb?`<img src="${f.thumb}" alt="">`:`<span class="thumb-ph">${/pdf/.test(f.type)?"PDF":"FILE"}</span>`}</button><figcaption><b>${esc(f.cat||"Document")}</b><span class="hint">${esc(f.name)}${f.pages?" · "+f.pages+" page"+(f.pages>1?"s":""):""}</span>${opt.del?`<button type="button" class="linkbtn danger" data-a="${opt.del}" data-x="${esc(opt.owner||"")}" data-i="${i}">Remove</button>`:""}</figcaption></figure>`).join("")||`<p class="muted" style="margin:0">${esc(opt.empty||"Nothing attached yet.")}</p>`}</div>`;
 // where each kind of owner keeps its list of files
 const SRC={staff:id=>({rec:J.get("accounts",id),col:"accounts",key:"docs"}),policy:id=>({rec:J.get("policies",id),col:"policies",key:"files",fcol:"polfiles"})};
+SRC.rec=o=>{const k=o.indexOf("|");const c=o.slice(0,k),i=o.slice(k+1);return {rec:J.get(c,i),col:c,key:"docs"}};
 J.fileSrc=SRC;
+// ---------- supporting documents on any record (entries, ledgers, stock, assets, policies, clients, contacts, trades, menu) ----------
+J.docsPanel=(col,id,title)=>{const r=J.get(col,id);const docs=r?.docs||[];const key=col+"|"+id;const dom=("dp-"+col+"-"+id).replace(/[^\w-]/g,"_");
+  return `<section class="docs-panel" id="${dom}"><h3 class="ph" style="padding:6px 0 0">${esc(title||"Supporting documents")} ${docs.length?`<span class="chip plain">${docs.length}</span>`:""}</h3>
+  <div class="row" style="flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:6px"><label class="f">Describe<input id="${dom}-cat" placeholder="Bill, receipt, quotation, warranty…" list="doc-kinds" style="min-width:200px"></label><datalist id="doc-kinds">${["Bill / invoice","Payment receipt","Quotation","Delivery challan","Warranty card","Agreement","Bank proof","Photo","Claim form","Survey report","Statement","Other"].map(x=>`<option value="${x}">`).join("")}</datalist>
+  <label class="btn w" style="cursor:pointer">📎 Attach file<input type="file" multiple accept="image/*,application/pdf" data-ach="docAdd" data-x="${esc(key)}" id="${dom}-f" style="display:none"></label><label class="btn" style="cursor:pointer">📷 Take photo<input type="file" accept="image/*" capture="environment" data-ach="docAdd" data-x="${esc(key)}" id="${dom}-c" style="display:none"></label><span id="${dom}-p" class="hint"></span></div>
+  ${J.thumbsHtml(docs,{src:"rec",owner:key,del:"docDel",empty:"No supporting documents yet."})}</section>`};
+const repaint=(col,id)=>{const dom=("dp-"+col+"-"+id).replace(/[^\w-]/g,"_");const el=document.getElementById(dom);if(el)el.outerHTML=J.docsPanel(col,id,el.querySelector("h3")?.firstChild?.textContent?.trim());J.render()};
+const splitKey=k=>{const i=k.indexOf("|");return [k.slice(0,i),k.slice(i+1)]};
+J.act("docAdd",async el=>{const fs=[...(el.files||[])];if(!fs.length)return;const [col,id]=splitKey(el.dataset.x);const dom=("dp-"+col+"-"+id).replace(/[^\w-]/g,"_");const cat=(document.getElementById(dom+"-cat")?.value||"").trim();const prog=document.getElementById(dom+"-p");const add=[];
+  const ok=await J.safe(async()=>{for(const f of fs){const x=await J.fileSave(f,"files",(i,n)=>{if(prog)prog.textContent="Saving "+f.name+" ("+i+"/"+n+")…"});add.push({...x,cat:cat||(/^image/.test(x.type)?"Photo":"Document")})}
+    const cur=J.get(col,id);const docs=[...(cur?.docs||[]),...add];await J.store.patch(col,id,{docs,docsAt:Date.now()});if(S.c[col]?.get(id))S.c[col].set(id,{...S.c[col].get(id),docs,docsAt:Date.now()})},add.length>1?add.length+" files attached":"Attached");
+  if(ok)repaint(col,id)});
+J.act("docDel",async el=>{if(!el.dataset.armed){el.dataset.armed="1";el.textContent="Tap again to remove";return}const [col,id]=splitKey(el.dataset.x);const cur=J.get(col,id);const i=+el.dataset.i;const f=cur?.docs?.[i];if(!f)return;await J.fileDrop(f);const docs=cur.docs.filter((_,k)=>k!==i);
+  if(await J.safe(()=>J.store.patch(col,id,{docs,docsAt:Date.now()}),"Removed")){if(S.c[col]?.get(id))S.c[col].set(id,{...S.c[col].get(id),docs,docsAt:Date.now()});repaint(col,id)}});
+J.docsDrawer=(col,id,title)=>J.drawer({title:"📎 "+(title||"Supporting documents"),wide:true,body:J.docsPanel(col,id,"Supporting documents")});
+J.act("docsOpen",el=>{const [col,id]=splitKey(el.dataset.x);J.docsDrawer(col,id,el.dataset.t||"")});
+// small button for list rows: shows the count, opens the documents
+J.docsBtn=(col,r,title)=>`<button type="button" class="btn small ${(r.docs||[]).length?"w":""}" data-a="docsOpen" data-x="${esc(col+"|"+r.id)}" data-t="${esc(title||r.name||r.no||"")}" title="Supporting documents" aria-label="Supporting documents${(r.docs||[]).length?" ("+r.docs.length+")":""}">📎${(r.docs||[]).length?" "+r.docs.length:""}</button>`;
 let lbUrl=null;
 function closeLb(){document.getElementById("lightbox")?.remove();if(lbUrl){URL.revokeObjectURL(lbUrl);lbUrl=null}document.removeEventListener("keydown",lbKey)}
 function lbKey(e){if(e.key==="Escape")closeLb()}
@@ -62,8 +81,9 @@ J.driveBackup=async manual=>{if(!tok()){paint();if(manual)return J.driveConnect(
 function schedule(){clearTimeout(timer);timer=setTimeout(()=>J.driveBackup(false),120e3)}
 // any saved change marks the book dirty; the backup follows two minutes after the last change
 const put0=J.store.put,patch0=J.store.patch,del0=J.store.del;
+const keepDocs=(c,d)=>{const cur=c!=="kots"&&S.c[c]?.get?.(d.id);if(cur&&cur.docs&&(cur.docsAt||0)>(d.docsAt||0)){d={...d,docs:cur.docs,docsAt:cur.docsAt}}else if(cur&&cur.docs&&d.docs===undefined){d={...d,docs:cur.docs,docsAt:cur.docsAt||0}}return d};
 const mark=col=>{if(col!=="files"&&col!=="polfiles"&&!(col==="meta"))if(tok()){dirty=true;schedule()}};
-J.store.put=async(c,d)=>{const r=await put0(c,d);mark(c);return r};J.store.patch=async(c,i,p)=>{const r=await patch0(c,i,p);if(!(c==="meta"&&i==="driveSync"))mark(c);return r};J.store.del=async(c,i)=>{const r=await del0(c,i);mark(c);return r};
+J.store.put=async(c,d)=>{d=keepDocs(c,d);const r=await put0(c,d);mark(c);return r};J.store.patch=async(c,i,p)=>{const r=await patch0(c,i,p);if(!(c==="meta"&&i==="driveSync"))mark(c);return r};J.store.del=async(c,i)=>{const r=await del0(c,i);mark(c);return r};
 J.act("driveSync",()=>J.driveBackup(true));
 setInterval(paint,30e3);document.addEventListener("DOMContentLoaded",paint);setTimeout(paint,1500);
 })();

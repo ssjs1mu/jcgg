@@ -180,7 +180,7 @@ J.render=()=>{
 J.holdRefresh=[];
 
 // ---------- drawers ----------
-J.drawer=({title,body,submit="Save",onSubmit,danger,wide})=>{
+J.drawer=({title,body,submit="Save",onSubmit,danger,wide,docs})=>{if(docs&&J.docsPanel)body+=docs[1]?J.docsPanel(docs[0],docs[1]):`<p class="hint" style="margin:0">📎 Supporting documents (bills, receipts, photos, PDFs) can be attached once this is saved.</p>`;
   $("#overlay").innerHTML=`<div class="drawer-bg" data-a="closeDrawer"><form class="drawer" id="drawerForm" role="dialog" aria-label="${esc(title)}" ${wide?'style="width:min(1100px,100%)"':""}><h2>${esc(title)}</h2>${body}<div id="drawerErr"></div><div class="row" style="margin-top:4px">${onSubmit?`<button class="btn primary w" type="submit">${esc(submit)}</button>`:""}<button class="btn" type="button" data-a="closeDrawer">${onSubmit?"Cancel":"Close"}</button>${danger?`<span style="margin-left:auto">${danger}</span>`:""}</div></form></div>`;
   const f=$("#drawerForm");f.querySelector("input,select,textarea")?.focus();
   f.addEventListener("submit",async ev=>{ev.preventDefault();if(!onSubmit)return;const fd=formData(f);const btn=f.querySelector("button[type=submit]");btn.disabled=true;

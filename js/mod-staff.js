@@ -83,10 +83,10 @@ function staffDocsHtml(s){const docs=s.docs||[];const miss=NEED.filter(([,re])=>
 J.staffDocsHtml=staffDocsHtml;
 J.act("stfDocAdd",async el=>{const fs=[...(el.files||[])];const sid=el.dataset.x;if(!fs.length)return;const cat=document.getElementById("sd-cat-"+sid)?.value||"Other";const prog=document.getElementById("sd-prog-"+sid);const add=[];
   const ok=await J.safe(async()=>{for(const f of fs){const x=await J.fileSave(f,"files",(i,n)=>{if(prog)prog.textContent="Saving "+f.name+" ("+i+"/"+n+")…"});add.push({...x,cat:fs.length>1&&add.length?cat+" ("+(add.length+1)+")":cat})}
-    const cur=J.get("accounts",sid);await J.store.put("accounts",{...cur,docs:[...(cur.docs||[]),...add]});S.c.accounts.set(sid,{...cur,docs:[...(cur.docs||[]),...add]})},cat+" saved");
+    const cur=J.get("accounts",sid);await J.store.put("accounts",{...cur,docs:[...(cur.docs||[]),...add],docsAt:Date.now()});S.c.accounts.set(sid,{...cur,docs:[...(cur.docs||[]),...add]})},cat+" saved");
   if(ok){const open=document.querySelector("#drawerForm [name=aadhaar]")?"editStaff":"staffProfile";J.closeDrawer();J.run(open,sid)}});
 J.act("stfDocDel",async el=>{if(!el.dataset.armed){el.dataset.armed="1";el.textContent="Tap again to remove";return}const s=J.get("accounts",el.dataset.x);const i=+el.dataset.i;const f=s.docs[i];await J.fileDrop(f);const docs=s.docs.filter((_,k)=>k!==i);
-  if(await J.safe(()=>J.store.put("accounts",{...s,docs}),"Removed "+(f.cat||f.name))){S.c.accounts.set(s.id,{...s,docs});J.closeDrawer();J.run("staffProfile",s.id)}});
+  if(await J.safe(()=>J.store.put("accounts",{...s,docs,docsAt:Date.now()}),"Removed "+(f.cat||f.name))){S.c.accounts.set(s.id,{...s,docs});J.closeDrawer();J.run("staffProfile",s.id)}});
 J.act("giveAdv",async el=>{const sid=el.dataset.x;J.closeDrawer();await J.staffSubAcc(sid,"adv");J.newEntry("advance",{staff:sid,date:entryDay()})});
 J.act("giveLoan",async el=>{const sid=el.dataset.x;J.closeDrawer();await J.staffSubAcc(sid,"loan");J.newEntry("staffloan",{staff:sid,date:entryDay()})});
 const entryDay=()=>{const m=WM();const t=today();return m===t.slice(0,7)?t:m<t.slice(0,7)?J.monthEnd(m):m+"-01"};
