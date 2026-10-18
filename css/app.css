@@ -319,3 +319,32 @@ body{background:radial-gradient(1200px 500px at 70% -10%,color-mix(in srgb,var(-
 @media (prefers-reduced-motion:reduce){.card,.tile,.kpi,.btn,.modbar button,.nav button{transition:none}.card:hover,.tile:hover,.kpi:hover,.modbar button:hover,.nav button:hover{transform:none}}
 @media print{.head{background:none;color:#000;box-shadow:none;padding:0}.head h1,.head p{color:#000}.panel,.card,.tile,.kpi{box-shadow:none;background:#fff;border-top-width:1px}body{background:#fff}}
 .docs-panel{border-top:1px dashed color-mix(in srgb,var(--mc) 35%,var(--rule));padding-top:8px;margin-top:4px}
+/* kitchen menu tiles & recipe cards */
+.menu-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:14px}
+.mtile{display:flex;flex-direction:column;border-radius:14px;overflow:hidden;background:var(--sheet);border:1px solid color-mix(in srgb,var(--mc) 18%,var(--rule));box-shadow:var(--lift);transition:transform .14s,box-shadow .14s}
+.mtile:hover{transform:translateY(-3px);box-shadow:var(--lift-hi)}
+.mt-img{position:relative;display:block;border:0;padding:0;margin:0;aspect-ratio:16/10;cursor:pointer;background:linear-gradient(135deg,color-mix(in srgb,var(--mc) 70%,#fff),var(--mc));overflow:hidden}
+.mt-img img{width:100%;height:100%;object-fit:cover}
+.mt-img>span{display:flex;align-items:center;justify-content:center;height:100%;font-family:var(--f-display);font-size:34px;font-weight:600;color:var(--mc-ink);text-shadow:0 2px 0 rgba(0,0,0,.15)}
+.mt-on{position:absolute;top:8px;right:8px;font-style:normal;font-size:11px;font-weight:700;background:var(--ok);color:#fff;border-radius:10px;padding:2px 8px}
+.mt-body{display:flex;flex-direction:column;gap:6px;padding:12px 14px 14px;flex:1}
+.mt-cat{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mc);font-weight:700}
+.mt-body h3{margin:0;font-size:15.5px;line-height:1.25}
+.mt-rates{display:flex;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2)}
+.mt-staff{color:var(--mc);font-weight:600}
+.mt-tags{display:flex;gap:6px;flex-wrap:wrap}
+.rcp-head{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.rcp-photo{width:160px;height:110px;object-fit:cover;border-radius:10px;box-shadow:var(--lift)}
+.rcp h3{font-size:14px;color:var(--mc);margin:14px 0 4px}
+.rcp ul,.rcp ol{margin:0;padding-left:20px;line-height:1.6}
+.rcp-meta{margin:4px 0 0;color:var(--ink-2);font-weight:500}
+[lang="hi"]{font-family:"Noto Sans Devanagari",var(--f-body)}[lang="bn"]{font-family:"Noto Sans Bengali",var(--f-body)}
+.rcp [lang="hi"],.rcp [lang="bn"],.rcp-ed textarea{font-size:15px;line-height:1.7}
+.nut{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.nut>div{border:1px solid color-mix(in srgb,var(--mc) 25%,var(--rule));border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;background:color-mix(in srgb,var(--mc) 5%,var(--sheet))}
+.nut b{font-size:17px}.nut span{font-size:11.5px;color:var(--ink-3)}
+.yt-list{display:flex;flex-direction:column;gap:12px}
+.yt{display:flex;flex-direction:column;gap:4px}
+.yt iframe{width:100%;max-width:640px;aspect-ratio:16/9;border:0;border-radius:10px;box-shadow:var(--lift)}
+.rcp-edit{border:1px solid color-mix(in srgb,var(--mc) 25%,var(--rule));border-radius:12px;padding:10px 12px;background:color-mix(in srgb,var(--mc) 4%,var(--sheet))}
+.rcp-edit summary{cursor:pointer}
