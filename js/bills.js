@@ -97,18 +97,23 @@ async function saveBill(b){const id="bill-"+(b.invNo||uid()).replace(/[^\w-]/g,"
   await J.store.put("bills",{id,vendor:vend,vendorName:b.vendorName,vendorGstin:b.vendorGstin,docType:b.docType,invNo:b.invNo,orderNo:b.orderNo,date:b.date||today(),total:tot,billTotal:b.total,lines:[...b.lines,...b.charges].map(l=>({desc:l.desc,hsn:l.hsn,qty:l.qty,uom:l.uom,price:l.price,taxable:l.taxable,gstPct:l.gstPct,total:l.total,map:l.map.kind==="exp"?{kind:"exp",exp:l.map.exp}:{kind:"stock"}})),
     stock:stock.map(s=>({item:s.item,qty:s.qty,rate:s.rate})),vid:v.id,moveId,file:file||null,fileName:b.fileName,createdAt:Date.now(),by:S.me.email,pay:null,verified:null})}
 // ---------------- tally with payments ----------------
-const vendWords=vid=>{const n=(J.get("accounts",vid)?.name||"").toLowerCase();return n.split(/[^a-z]+/).filter(w=>w.length>3&&!/^(private|limited|ltd|pvt|india|foods?|store)$/.test(w))};
+const vendWords=vid=>{const n=(J.get("accounts",vid)?.name||"").toLowerCase();const w=n.split(/[^a-z]+/).filter(w=>w.length>3&&!/^(private|limited|ltd|pvt|india|foods?|store|zomato)$/.test(w));
+  // bank narrations truncate names ("Zomato Hyperpu"); Hyperpure was formerly Zomato Internet Pvt Ltd
+  if(/hyperpure/.test(n))w.push("hyperpu","zomato internet","zomato interne");return w};
+const MONEY_K=["bank","cash","card","wallet"];const isMoney=a=>MONEY_K.includes(J.get("accounts",a)?.kind);
 let recBusy=false;
 J.billsReconcile=async()=>{if(recBusy||J.readOnly())return;recBusy=true;let changed=0;try{
   const bills=J.all("bills");const groups={};for(const b of bills)(groups[b.vendor+"|"+(b.orderNo||b.invNo)]??=[]).push(b);
   const used=new Set(bills.map(b=>b.pay?.vid).filter(Boolean));const susId=J.sysAcc("suspense")?.id;
   for(const [key,g] of Object.entries(groups)){const vend=g[0].vendor;const tot=r2(g.reduce((s,b)=>s+b.total,0));const d0=g.map(b=>b.date).sort()[0],d1=g.map(b=>b.date).sort().at(-1);
     let pay=g.find(b=>b.pay)?.pay;
-    if(!pay){const W=vendWords(vend);const cands=J.all("vouchers").filter(v=>v.type!=="purchase"&&!used.has(v.id)&&v.date>=addDays(d0,-7)&&v.date<=addDays(d1,7)&&(v.lines||[]).some(l=>(l.a===vend&&l.dr>0)||(l.a===susId&&l.dr>0&&W.some(w=>(v.narr||"").toLowerCase().includes(w)))))
-        .map(v=>{const amt=r2((v.lines||[]).filter(l=>(l.a===vend||l.a===susId)&&l.dr>0).reduce((s,l)=>s+l.dr,0));return {v,amt,gap:Math.abs(amt-tot)}}).sort((a,b)=>a.gap-b.gap||Math.abs(+new Date(a.v.date)-+new Date(d0))-Math.abs(+new Date(b.v.date)-+new Date(d0)));
-      const c=cands[0];if(c&&(c.gap<=1||cands.length===1)){
-        // a payment the bank import parked in Suspense is moved to the supplier
-        if(c.v.lines.some(l=>l.a===susId&&l.dr>0)&&!c.v.lines.some(l=>l.a===vend)){await J.postVoucher({...c.v,id:c.v.id,lines:c.v.lines.map(l=>l.a===susId&&l.dr>0?{...l,a:vend}:l),party:vend,narr:c.v.narr})}
+    if(!pay){const W=vendWords(vend);const hit=v=>W.some(w=>(v.narr||"").toLowerCase().includes(w));
+      const cands=J.all("vouchers").filter(v=>v.type!=="purchase"&&!used.has(v.id)&&v.date>=addDays(d0,-7)&&v.date<=addDays(d1,7)&&(v.lines||[]).some(l=>l.dr>0&&!isMoney(l.a)&&(l.a===vend||hit(v)))&&(v.lines||[]).some(l=>l.cr>0&&isMoney(l.a)))
+        .map(v=>{const amt=r2((v.lines||[]).filter(l=>l.dr>0&&!isMoney(l.a)).reduce((s,l)=>s+l.dr,0));return {v,amt,gap:Math.abs(amt-tot)}}).sort((a,b)=>a.gap-b.gap||Math.abs(+new Date(a.v.date)-+new Date(d0))-Math.abs(+new Date(b.v.date)-+new Date(d0)));
+      const c=cands[0];if(c&&(c.gap<=Math.max(1,tot*0.02)||(cands.length===1&&c.gap<=tot*0.25))){
+        // a supplier payment that the bank import booked to Suspense or another ledger is moved to the supplier
+        if(c.v.lines.some(l=>l.dr>0&&!isMoney(l.a)&&l.a!==vend)){const from=[...new Set(c.v.lines.filter(l=>l.dr>0&&!isMoney(l.a)&&l.a!==vend).map(l=>J.accName(l.a)))].join(", ");
+          await J.postVoucher({...c.v,id:c.v.id,lines:c.v.lines.map(l=>l.dr>0&&!isMoney(l.a)?{...l,a:vend}:l),party:vend,narr:c.v.narr+(/\[moved from/.test(c.v.narr)?"":` [moved from ${from} — matched to bill]`)})}
         pay={vid:c.v.id,no:c.v.no,date:c.v.date,amt:c.amt};used.add(c.v.id)}}
     const diff=pay?r2(pay.amt-tot):0;const jid="v-bpd-"+key.replace(/[^\w-]/g,"").slice(-40);const old=J.get("vouchers",jid);
     if(pay&&Math.abs(diff)>=0.5){const sus=susId||await J.ensureAcc("Suspense (to classify)","suspense","suspense");
