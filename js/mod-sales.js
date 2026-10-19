@@ -45,7 +45,11 @@ J.parseOrderListing=rows=>{const hi=rows.findIndex(r=>r.some(c=>HDR.no.test(Stri
     o.pays=pays;o.part=o.mode==="part";delete o.split}
   return out};
 const live=o=>!/cancel|saved|void|deleted/i.test(o.status||"");
-const counted=o=>live(o)&&!o.house;
+// a house-account order (all staff KOTs of the day on one bill) is never a sale while the house account is in use for that month
+const isHouseName=o=>new Set(house().map(norm)).has(norm(o.name))||(arr(o.items).length>0&&o.items.every(isStaffItem));
+const houseOf=(o,d)=>o.house||(!!d&&J.foodViaHouse?.(String(d).slice(0,7))&&isHouseName(o));
+J.ppIsHouse=houseOf;
+const counted=(o,d)=>live(o)&&!houseOf(o,d);
 // ---------- ledgers ----------
 const accBy=(re,kind)=>J.all("accounts").find(a=>(!kind||a.kind===kind)&&re.test(a.name));
 async function L(){const g=async(re,kind,name,sys,cat)=>{let a=accBy(re,kind);if(a)return a.id;const id=await J.ensureAcc(name,kind,sys);if(cat)await J.store.patch("accounts",id,{cat});return id};
@@ -56,8 +60,8 @@ async function L(){const g=async(re,kind,name,sys,cat)=>{let a=accBy(re,kind);if
     ogst:J.sysAcc("ogst")?.id||null,susp:J.sysAcc("suspense")?.id||await J.ensureAcc("Suspense (to classify)","suspense","suspense")}}
 async function dueAcc(o){const s=J.staffList?.(true).find(x=>norm(x.name.split(" - ")[0])===norm(o.name)||norm(x.name).startsWith(norm(o.name)+" "));if(s)return s.id;
   const label=(o.name||"Walk-in")+(o.phone?" ("+o.phone+")":"")+" — dues";return J.all("accounts").find(a=>a.kind==="customer"&&a.name===label)?.id||await J.ensureAcc(label,"customer")}
-async function postDay(date,orders,acc){const os=orders.filter(counted);const id="ppsale-"+date;const old=J.get("vouchers",id);
-  const hk=J.foodViaHouse?.(date.slice(0,7))?J.kotHouse():null;const hos=hk?orders.filter(o=>live(o)&&o.house):[];
+async function postDay(date,orders,acc){const os=orders.filter(o=>counted(o,date));const id="ppsale-"+date;const old=J.get("vouchers",id);
+  const hk=J.foodViaHouse?.(date.slice(0,7))?J.kotHouse():null;const hos=hk?orders.filter(o=>live(o)&&houseOf(o,date)):[];
   if(!os.length&&!hos.length){if(old)await J.store.del("vouchers",id);return null}
   const dr={},cr={};const add=(m,a,v)=>{if(a&&Math.abs(v)>0.004)m[a]=r2((m[a]||0)+v)};
   for(const o of os){add(cr,acc[o.ch]||acc.dine,o.amt+o.deliv+o.cont);if(o.tax){add(cr,acc.ogst||acc[o.ch],o.tax)}add(dr,acc.disc,o.disc);if(o.round>0)add(cr,acc.round,o.round);else add(dr,acc.round,-o.round);
@@ -119,14 +123,27 @@ async function toClients(os){const per=+J.settings().rewardPer||100;const byPh={
 const days=()=>J.all("ppday").sort((a,b)=>a.id.localeCompare(b.id));
 const orderPay=o=>o.pays.map(p=>`<span class="chip ${p.m==="due"?"warn":"plain"}">${MODE_L[p.m]||p.m} ${inr0.format(p.amt)}</span>`).join(" ");
 function head(){const d=days();const last=d.at(-1);return `<div class="filters"><button class="btn primary w" data-a="ppUpload">Upload Petpooja order listing</button><span class="hint">${d.length?`${d.length} days imported · ${fmtDate(d[0].id)} – ${fmtDate(last.id)} · last upload ${esc(last.file||"")}`:"Petpooja → Reports → Order listing → export Excel, then upload it here."}</span></div>`}
+// how the month's Petpooja total breaks down, and where each part sits in the books
+function matchPanel(m){const ds=days().filter(d=>d.id.startsWith(m));if(!ds.length)return "";const all=ds.flatMap(d=>d.orders.map(o=>({o,d:d.id})));const S2=(l,f)=>r2(l.reduce((s,x)=>s+f(x.o),0));
+  const billed=all.filter(x=>live(x.o)),saved=all.filter(x=>/saved/i.test(x.o.status||"")),canc=all.filter(x=>/cancel|void|deleted/i.test(x.o.status||""));const hs=billed.filter(x=>houseOf(x.o,x.d)),sl=billed.filter(x=>!houseOf(x.o,x.d));
+  const from=m+"-01",to=J.monthEnd(m);const inc=J.accsOf(["income"]).filter(a=>/sales/i.test(a.name)||["inc-dinein","inc-delivery","inc-takeaway","inc-party"].includes(a.id));let pp=0,kot=0,oth=0;
+  for(const a of inc)for(const p of (J.D.post?.get(a.id)||[])){if(p.date<from||p.date>to)continue;const v=r2(p.cr-p.dr);if(p.v.id.startsWith("ppsale-"))pp+=v;else if(/^(skc|skh)-/.test(p.v.id))kot+=v;else oth+=v}
+  const row=(l,v,h)=>`<tr><td>${l}${h?`<div class="hint">${h}</div>`:""}</td><td class="num">${typeof v==="number"?inr.format(v):v}</td></tr>`;
+  return `<section class="panel"><h2>Match with Petpooja · ${esc(monthLabel(m))}</h2><div class="grid2 pb"><div><table><tbody>
+   ${row("<b>Billed orders</b> (status Printed) · "+billed.length,"")}${row("Item value (My Amount)",S2(billed,o=>o.amt))}${row("− Discount",S2(billed,o=>o.disc))}${row("+ Delivery, container, tax, round-off",S2(billed,o=>o.deliv+o.cont+o.tax+o.round))}
+   ${row("<b>= Petpooja total (Grand Total)</b>",S2(billed,o=>o.net),"compare this with Petpooja's order report total for the month")}
+   ${row("Saved — not billed · "+saved.length,S2(saved,o=>o.net),"left out; if Petpooja counts them, settle them in Petpooja and upload again")}${row("Cancelled · "+canc.length,S2(canc,o=>o.net),"left out")}</tbody></table></div>
+   <div><table><tbody>${row("<b>Of the Petpooja total</b>","")}${row("Customer sales → posted to Sales",S2(sl,o=>o.net))}${row("House / staff orders · "+hs.length,S2(hs,o=>o.net),J.foodViaHouse?.(m)?"received against the house ledger; the staff KOTs carry the sale":"not posted as sales (staff food)")}
+   ${row("<b>Sales in the books (Dine-in, Delivery, Takeaway, Party)</b>",r2(pp+kot+oth))}${row("· from Petpooja daily entries",r2(pp))}${row("· staff KOT food billed",r2(kot),"the staff food sale, once")}${row("· other entries",r2(oth))}
+   ${row("Books − Petpooja total",r2(pp+kot+oth-S2(billed,o=>o.net)),"explained by house orders vs staff KOT, discounts and other entries above")}</tbody></table></div></div></section>`}
 function vDaily(){const U=ui();const ms=[...new Set(days().map(d=>d.id.slice(0,7)))].sort().reverse();if(!U.month||!ms.includes(U.month))U.month=ms[0]||today().slice(0,7);
   const rows=days().filter(d=>d.id.startsWith(U.month));const t={n:0,net:0,cash:0,upi:0,online:0,due:0,disc:0,house:0};
-  const R=rows.map(d=>{const os=d.orders.filter(counted);const by=m=>r2(os.flatMap(o=>o.pays).filter(p=>p.m===m).reduce((s,p)=>s+p.amt,0));const x={d,n:os.length,net:r2(os.reduce((s,o)=>s+o.net,0)),cash:by("cash"),upi:by("upi"),online:by("online"),due:by("due"),disc:r2(os.reduce((s,o)=>s+o.disc,0)),house:d.orders.filter(o=>live(o)&&o.house).length,dine:os.filter(o=>o.ch==="dine").length,del:os.filter(o=>o.ch==="delivery").length};for(const k in t)t[k]=r2(t[k]+x[k]);return x}).reverse();
+  const R=rows.map(d=>{const os=d.orders.filter(o=>counted(o,d.id));const by=m=>r2(os.flatMap(o=>o.pays).filter(p=>p.m===m).reduce((s,p)=>s+p.amt,0));const x={d,n:os.length,net:r2(os.reduce((s,o)=>s+o.net,0)),cash:by("cash"),upi:by("upi"),online:by("online"),due:by("due"),disc:r2(os.reduce((s,o)=>s+o.disc,0)),house:d.orders.filter(o=>live(o)&&houseOf(o,d.id)).length,dine:os.filter(o=>o.ch==="dine").length,del:os.filter(o=>o.ch==="delivery").length};for(const k in t)t[k]=r2(t[k]+x[k]);return x}).reverse();
   return `${head()}<div class="filters">${fld("Month",`<select data-ui="sales.month">${ms.map(m=>`<option value="${m}" ${m===U.month?"selected":""}>${monthLabel(m)}</option>`).join("")}</select>`)}</div>
   <div class="kpis">${J.kpi("Sales",money0(t.net),t.n+" orders","sales/daily")}${J.kpi("Cash",money0(t.cash),"to Cash in Hand","sales/cash")}${J.kpi("UPI",money0(t.upi),"to Google Pay settlements","sales/upi")}${J.kpi("Swiggy / Zomato",money0(t.online),"to settlements","sales/agg")}${J.kpi("Due / not paid",money0(t.due),"on customer / staff ledgers","accounts/ledger")}</div>
   <section class="panel"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="num">Orders</th><th class="num">Sales</th><th class="num">Cash</th><th class="num">UPI</th><th class="num">Online</th><th class="num">Due</th><th class="num">Discount</th><th>House</th><th>Entry</th></tr></thead><tbody>
   ${R.map(x=>`<tr><td><button class="linkbtn" data-a="ppDay" data-x="${x.d.id}">${fmtDate(x.d.id)}</button></td><td class="num">${x.n}<div class="hint">${x.dine} dine · ${x.del} deliv</div></td><td class="num"><b>${inr.format(x.net)}</b></td><td class="num">${inr.format(x.cash)}</td><td class="num">${inr.format(x.upi)}</td><td class="num">${inr.format(x.online)}</td><td class="num">${x.due?inr.format(x.due):""}</td><td class="num">${x.disc?inr.format(x.disc):""}</td><td class="hint">${x.house||""}</td><td>${x.d.vid&&J.get("vouchers",x.d.vid)?`<button class="linkbtn vno" data-a="editv" data-x="${x.d.vid}">${esc(J.get("vouchers",x.d.vid).no)}</button>`:'<button class="btn small" data-a="ppPostOne" data-x="'+x.d.id+'">Post</button>'}</td></tr>`).join("")||`<tr><td colspan="10" class="muted">No Petpooja orders for this month yet.</td></tr>`}
-  </tbody><tfoot><tr><td>Total</td><td class="num">${t.n}</td><td class="num">${inr.format(t.net)}</td><td class="num">${inr.format(t.cash)}</td><td class="num">${inr.format(t.upi)}</td><td class="num">${inr.format(t.online)}</td><td class="num">${inr.format(t.due)}</td><td class="num">${inr.format(t.disc)}</td><td>${t.house||""}</td><td></td></tr></tfoot></table></div></section>`}
+  </tbody><tfoot><tr><td>Total</td><td class="num">${t.n}</td><td class="num">${inr.format(t.net)}</td><td class="num">${inr.format(t.cash)}</td><td class="num">${inr.format(t.upi)}</td><td class="num">${inr.format(t.online)}</td><td class="num">${inr.format(t.due)}</td><td class="num">${inr.format(t.disc)}</td><td>${t.house||""}</td><td></td></tr></tfoot></table></div></section>${matchPanel(U.month)}`}
 J.act("ppPostOne",async el=>{const d=J.get("ppday",el.dataset.x);if(!d)return;await J.safe(async()=>{const v=await postDay(d.id,d.orders,await L());await J.store.patch("ppday",d.id,{vid:v?.id||""})},"Posted")});
 J.act("ppDay",el=>{const d=J.get("ppday",el.dataset.x);if(!d)return;J.drawer({title:"Orders · "+fmtDate(d.id),wide:true,submit:"Close",onSubmit:()=>{},body:`<div class="tbl-wrap"><table><thead><tr><th>Time</th><th>No.</th><th>Where</th><th>Customer</th><th>Items</th><th class="num">Bill</th><th>Paid by</th></tr></thead><tbody>${d.orders.map(o=>`<tr style="${live(o)?"":"opacity:.5"}"><td>${esc(o.time)}</td><td class="mono">${esc(o.no)}</td><td>${esc(o.ch==="dine"?(o.table+" · "+o.area):o.agg||o.ch)}</td><td>${esc(o.name||"")}${o.phone?`<div class="hint mono">${esc(o.phone)}</div>`:""}${o.house?' <span class="chip plain">house</span>':""}</td><td class="hint">${esc(o.items.join(", "))}</td><td class="num">${inr.format(o.net)}${o.disc?`<div class="hint">disc ${inr.format(o.disc)}</div>`:""}</td><td>${live(o)?orderPay(o):esc(o.status)}</td></tr>`).join("")}</tbody></table></div>`})});
 // ---------- UPI ↔ Google Pay ----------
@@ -138,7 +155,7 @@ function matchUp(sales,setl){// a credit on day S pays for unsettled UPI sales d
     if(!cover){cover=[];let sum=0;for(const x of c){if(sum+x.left>s.amt+1)break;sum=r2(sum+x.left);cover.push(x)}}
     for(const x of cover)x.done=true;const sum=r2(cover.reduce((a,x)=>a+x.left,0));out.push({s,cover,sum,diff:r2(s.amt-sum)})}
   return {rows:out,open:q.filter(x=>!x.done)}}
-function vUpi(){const U=ui();const upi=accBy(/google pay|gpay|upi settlement/i,"aggregator");const sales=days().map(d=>({date:d.id,amt:r2(d.orders.filter(counted).flatMap(o=>o.pays).filter(p=>p.m==="upi").reduce((s,p)=>s+p.amt,0))}));
+function vUpi(){const U=ui();const upi=accBy(/google pay|gpay|upi settlement/i,"aggregator");const sales=days().map(d=>({date:d.id,amt:r2(d.orders.filter(live).flatMap(o=>o.pays).filter(p=>p.m==="upi").reduce((s,p)=>s+p.amt,0))}));
   if(!sales.length)return head()+`<div class="panel pb muted">Upload the Petpooja order listing first.</div>`;const from=sales[0].date;const setl=upi?settlements(upi.id).filter(s=>s.date>from):[];const {rows,open}=matchUp(sales,setl);
   const ok=rows.filter(r=>Math.abs(r.diff)<=1).length;const totS=r2(sales.reduce((s,x)=>s+x.amt,0)),totR=r2(setl.reduce((s,x)=>s+x.amt,0));
   return `${head()}<p class="hint" style="margin-top:0">Google Pay pays each day's UPI collections into the bank, usually the next working day. Each bank credit is matched with the unsettled UPI sales days before it. A difference means UPI was collected elsewhere (another QR, a personal UPI), a payment was marked wrongly in Petpooja, or a settlement is still to come.</p>
