@@ -144,22 +144,7 @@ function vPics(){const U=J.ui("invpic",{all:false,q:""});const buy={};for(const 
   const miss=list.filter(it=>!it.img).length;
   return `<div class="filters">${fld("Search",`<input data-ui="invpic.q" value="${esc(U.q)}" placeholder="Item name">`)}<label class="row" style="gap:6px"><input type="checkbox" data-set="invpic.all=${U.all?"":"1"}" ${U.all?"checked":""}> Show all items, not only purchased ones</label><span class="hint">${miss} without a picture</span></div>
   <div class="note"><b>How:</b> tap <b>Find on Hyperpure</b> — the search opens beside this screen. Then either <b>drag the product picture</b> onto the item's box here, or right-click it → <b>Copy image</b> and click the box and press <b>Ctrl+V</b>. A copied picture link or a photo from your phone works too. It saves at once.</div>
-  <div class="pic-grid">${list.map(it=>{const b=buy[it.id];return `<div class="pic-card" data-pic="${it.id}" tabindex="0" aria-label="Picture for ${esc(it.name)} — drop or paste a picture here">
-    <div class="pic-box">${it.img?`<img src="${esc(it.img)}" alt="">`:`<span>Drop or paste<br>picture here</span>`}</div>
-    <div class="pic-meta"><b>${esc(it.name)}</b><span class="hint">${b?`${b.n} purchase${b.n>1?"s":""} · last ${fmtDate(b.last)}${b.hp?" · Hyperpure":""}`:"not purchased yet"}</span>
-     <div class="row" style="gap:6px;flex-wrap:wrap"><a class="btn small" href="${hpUrl(it.name)}" target="hpsearch" rel="noopener" data-a="hpOpen">Find on Hyperpure ↗</a><label class="btn small">Photo<input type="file" accept="image/*" hidden data-ach="picFile" data-x="${it.id}"></label>${it.img?`<button class="btn small" data-a="picClear" data-x="${it.id}">Remove</button>`:""}</div></div></div>`}).join("")||`<p class="muted pb">No items.</p>`}</div>`}
-async function setPic(id,src){if(!src)return;const it=J.get("items",id);if(!it)return;await J.store.patch("items",id,{img:src});toast("Picture saved for "+it.name)}
-const shrink=file=>new Promise(res=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas"),s=160;c.width=c.height=s;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,s,s);const m=Math.min(img.width,img.height);x.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,s,s);res(c.toDataURL("image/jpeg",0.82))};img.onerror=()=>res("");img.src=r.result};r.readAsDataURL(file)});
-const srcFrom=dt=>{const h=dt.getData("text/html");if(h){const m=h.match(/<img[^>]+src=["']([^"']+)["']/i);if(m&&/^https?:/.test(m[1]))return m[1].replace(/&amp;/g,"&")}const u=(dt.getData("text/uri-list")||dt.getData("text/plain")||"").split(/\s+/).find(x=>/^https?:\/\//.test(x));return u&&/\.(png|jpe?g|webp|gif|avif)(\?|$)|images?\//i.test(u)?u:""};
-async function takeDT(id,dt){const f=[...(dt.files||[])].find(f=>/^image\//.test(f.type));if(f)return setPic(id,await shrink(f));const s=srcFrom(dt);if(s)return setPic(id,s);toast("That was not a picture. Drag the product photo itself, or copy the image.")}
-document.addEventListener("dragover",e=>{const c=e.target.closest?.("[data-pic]");if(c){e.preventDefault();c.classList.add("over")}});
-document.addEventListener("dragleave",e=>{e.target.closest?.("[data-pic]")?.classList.remove("over")});
-document.addEventListener("drop",e=>{const c=e.target.closest?.("[data-pic]");if(!c)return;e.preventDefault();c.classList.remove("over");takeDT(c.dataset.pic,e.dataTransfer)});
-document.addEventListener("paste",e=>{const c=document.activeElement?.closest?.("[data-pic]");if(!c)return;e.preventDefault();takeDT(c.dataset.pic,e.clipboardData)});
-document.addEventListener("click",e=>{const c=e.target.closest?.(".pic-box");if(c)c.closest("[data-pic]").focus()});
-J.act("picFile",async el=>{const f=el.files?.[0];if(f)await setPic(el.dataset.x,await shrink(f))});
-J.act("picClear",async el=>{await J.store.patch("items",el.dataset.x,{img:""});toast("Picture removed")});
-J.act("hpOpen",(el,e)=>{e?.preventDefault?.();const w=Math.min(720,Math.round(screen.availWidth/2));window.open(el.href,"hpsearch",`width=${w},height=${screen.availHeight-80},left=${screen.availWidth-w},top=0`)});
+  <div class="pic-grid">${list.map(it=>{const b=buy[it.id];return J.picCard({id:it.id,col:"items",size:160,name:it.name,img:it.img,meta:b?`${b.n} purchase${b.n>1?"s":""} · last ${fmtDate(b.last)}${b.hp?" · Hyperpure":""}`:"not purchased yet",search:hpUrl(it.name),searchLabel:"Find on Hyperpure"})}).join("")||`<p class="muted pb">No items.</p>`}</div>`}
 J.act("newItem",()=>itemDrawer(null));J.act("editItem",el=>itemDrawer(el.dataset.x));
 J.act("importItems",()=>J.openImport("stock"));
 

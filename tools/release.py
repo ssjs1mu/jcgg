@@ -8,8 +8,8 @@ IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
 FILES = {
   "platform": ["index.html", "css/app.css", "js/core.js", "js/files.js", "js/firebase-config.js", "js/entries.js", "firestore.rules", "sw.js", "manifest.webmanifest"],
   "home": ["js/mod-home.js", "js/panchang.js", "js/home-plus.js"], "jdash": ["js/mod-jdash.js"],
-  "inventory": ["js/mod-inventory.js", "js/bills.js"],
-  "kitchen": ["js/mod-kitchen.js", "js/kitchen-plus.js", "js/recipe-lib.js"],
+  "inventory": ["js/mod-inventory.js", "js/bills.js", "js/picpick.js"],
+  "kitchen": ["js/mod-kitchen.js", "js/kitchen-plus.js", "js/recipe-lib.js", "js/picpick.js"],
   "kot": ["js/mod-staffkot.js", "js/mod-kot.js"],
   "staff": ["js/mod-staff.js", "js/escrow.js", "js/mod-people.js", "js/mod-rules.js", "js/access.js"],
   "care": ["js/care.js", "docs/customer-care.md"],
