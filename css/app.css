@@ -477,3 +477,4 @@ input,select,textarea{max-width:100%;box-sizing:border-box}
 @media (max-width:900px){.home-split{grid-template-columns:1fr}.home-rail{position:static}.rail-tabs{flex-direction:row}.rail-tab{flex:1}.wx-now{align-items:flex-start}.wx-hrs,.wx-days{justify-content:flex-start}}
 .wx-fg>div:first-child{flex:1 1 300px;min-width:0}.wx-fg>.row{flex:0 0 auto}
 .wx-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.head.wx>.wx-fg{flex:1 1 auto;min-width:0;width:100%}
