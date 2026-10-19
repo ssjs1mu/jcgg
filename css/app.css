@@ -446,3 +446,35 @@ input,select,textarea{max-width:100%;box-sizing:border-box}
   .grid2{grid-template-columns:1fr}
   #drawerForm{max-width:100vw}
 }
+/* ===== Home: weather header (sunrise → sunset arc, live sky) ===== */
+.head.wx{position:relative;overflow:hidden;padding:0;min-height:190px;color:#fff;--wx-bg:#2E6FB0;background:linear-gradient(180deg,#3E8DD8,#7DB9EA 70%,#B9DBF5)}
+.head.wx-dawn{--wx-bg:#E58A5C;background:linear-gradient(180deg,#5B6FB4,#E58A5C 70%,#F6C28B)}
+.head.wx-dusk{--wx-bg:#B0577A;background:linear-gradient(180deg,#3B3F7A,#B0577A 65%,#F09A6A)}
+.head.wx-night{--wx-bg:#1C2541;background:linear-gradient(180deg,#0B132B,#1C2541 60%,#3A506B)}
+.head.wx-day.wx-cloud,.head.wx-day.wx-fog{background:linear-gradient(180deg,#6F8AA3,#A3B8CB 70%,#C9D6E2)}
+.head.wx-day.wx-rain,.head.wx-day.wx-storm{background:linear-gradient(180deg,#46596B,#6E8294 70%,#8FA1B0)}
+.head.wx-night.wx-rain,.head.wx-night.wx-storm{background:linear-gradient(180deg,#0E1621,#253445)}
+.wx-sky{position:absolute;inset:auto 0 0 0;width:100%;height:100%;pointer-events:none}
+.wx-fg{position:relative;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:16px 20px;align-items:flex-start}
+.wx-fg h1,.wx-fg p{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.35)}.wx-fg h1{font-family:var(--f-display);font-weight:600;font-size:28px;margin:0}.wx-fg p{margin:2px 0 0;opacity:.95}
+.wx-now{display:flex;flex-direction:column;gap:6px;align-items:flex-end;text-shadow:0 1px 3px rgba(0,0,0,.35);max-width:100%}
+.wx-big{display:flex;align-items:center;gap:10px}.wx-big b{font-size:40px;line-height:1;font-weight:600}.wx-ic{font-size:34px}.wx-big small{opacity:.9}
+.wx-hrs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.wx-hrs span{display:flex;flex-direction:column;align-items:center;background:rgba(255,255,255,.18);backdrop-filter:blur(4px);border-radius:10px;padding:4px 8px;font-size:13px;min-width:48px}.wx-hrs small{font-size:11px;opacity:.9}
+.wx-days{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;font-size:13px}.wx-days span{background:rgba(0,0,0,.15);border-radius:999px;padding:2px 10px}
+.wx-sun{font-size:13px;background:rgba(0,0,0,.18);border-radius:999px;padding:3px 12px}
+.wx-rain{position:absolute;inset:0;pointer-events:none;overflow:hidden}.wx-rain i{position:absolute;top:-20px;width:1px;height:14px;background:rgba(255,255,255,.4);animation:wxr .9s linear infinite}
+@keyframes wxr{to{transform:translateY(240px)}}
+.wx-cloud{position:absolute;top:22px;width:160px;height:44px;border-radius:44px;background:rgba(255,255,255,.22);filter:blur(3px);pointer-events:none;animation:wxc 60s linear infinite}
+.wx-cloud::before{content:"";position:absolute;left:30px;top:-22px;width:70px;height:60px;border-radius:50%;background:inherit}
+.wx-cloud.c2{top:70px;transform:scale(.7);animation-duration:85s;animation-delay:-30s;opacity:.7}
+@keyframes wxc{from{left:-200px}to{left:105%}}
+@media (prefers-reduced-motion:reduce){.wx-rain i,.wx-cloud{animation:none}}
+/* ===== Home: Panchang / Astrology tabs on the right ===== */
+.home-split{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.home-main{display:flex;flex-direction:column;gap:16px;min-width:0}
+.home-rail{position:sticky;top:12px;display:flex;flex-direction:column;gap:10px}
+.rail-tabs{display:flex;flex-direction:column;gap:8px}
+.rail-tab{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:10px 14px;border-radius:12px;border:1px solid var(--rule);background:var(--paper,#fff);cursor:pointer;color:var(--ink);min-height:48px;border-left:4px solid var(--m-home)}
+.rail-tab span{font-size:12.5px;color:var(--ink-3)}.rail-tab.on{background:var(--m-home);color:#fff;border-color:var(--m-home)}.rail-tab.on span{color:#fff;opacity:.9}
+.rail-body .pj th{padding-right:6px}.rail-body .stars td.hint{font-size:12px}
+@media (max-width:900px){.home-split{grid-template-columns:1fr}.home-rail{position:static}.rail-tabs{flex-direction:row}.rail-tab{flex:1}.wx-now{align-items:flex-start}.wx-hrs,.wx-days{justify-content:flex-start}}

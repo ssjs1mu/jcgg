@@ -8,7 +8,7 @@ const tmD=d=>{if(!d)return "—";const day=d.toLocaleDateString("en-CA",{timeZon
 const rng=a=>tm(a[0])+" – "+tm(a[1]);
 const get=k=>{try{return localStorage.getItem(k)}catch(e){return null}},put=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
 // ---------- Panchang + stars ----------
-J.homeDay=()=>{if(!window.Panchang)return "";const set=J.settings();let p;try{p=window.Panchang(new Date(),{lat:+set.lat||undefined,lon:+set.lon||undefined})}catch(e){console.warn(e);return ""}
+function dayPanels(){if(!window.Panchang)return "";const set=J.settings();let p;try{p=window.Panchang(new Date(),{lat:+set.lat||undefined,lon:+set.lon||undefined})}catch(e){console.warn(e);return ""}
   const my=get("jcgg-rashi");const R=window.Panchang.RASHI;const g=r=>window.Panchang.gochar(p.moon.sign,r);
   const row=(k,v,sub)=>`<tr><th scope="row">${k}</th><td>${v}${sub?`<div class="hint">${sub}</div>`:""}</td></tr>`;
   const tone={good:["ok","Favourable"],mixed:["plain","Mixed"],caution:["warn","Careful"]};const mine=my!=null&&my!==""?g(+my):null;
@@ -33,6 +33,47 @@ J.homeDay=()=>{if(!window.Panchang)return "";const set=J.settings();let p;try{p=
    <details ${mine?"":"open"} style="margin-top:8px"><summary>All 12 rashis</summary><table class="stars"><tbody>${R.map((r,i)=>{const x=g(i);return `<tr><th scope="row">${esc(r)}</th><td><span class="chip ${tone[x.tone][0]}">${tone[x.tone][1]}</span></td><td class="hint">${esc(x.text)}</td></tr>`}).join("")}</tbody></table></details>
    <p class="hint" style="margin:6px 0 0">Traditional Chandra gochar reading (the Moon's house from each rashi). For reflection, not advice.</p></div></section></div>`};
 J.act("homeRashi",el=>{put("jcgg-rashi",el.value);J.render()});
+// right-side tabs: Panchang | Astrology — content shows only when its tab is selected (tap again to close)
+J.homeRail=()=>{if(!window.Panchang)return "";let p;const set=J.settings();try{p=window.Panchang(new Date(),{lat:+set.lat||undefined,lon:+set.lon||undefined})}catch(e){return ""}
+  const sel=get("jcgg-hd-tab")||"";const html=dayPanels();const box=document.createElement("div");box.innerHTML=html;const secs=box.querySelectorAll("section.panel");
+  const body=i=>secs[i]?secs[i].querySelector(".pb").outerHTML:"";const my=get("jcgg-rashi");const mine=my!=null&&my!==""?window.Panchang.gochar(p.moon.sign,+my):null;
+  const tabs=[["pj","Panchang",`${esc(p.tithi.paksha)} ${esc(p.tithi.name)} · ${esc(p.nak.name)}`],["st","Astrology",mine?`${esc(window.Panchang.RASHI[+my])}: ${({good:"favourable",mixed:"mixed",caution:"careful"})[mine.tone]} day`:"Moon in "+esc(p.moon.name)]];
+  return `<aside class="home-rail" aria-label="Panchang and astrology"><div class="rail-tabs" role="tablist">${tabs.map(([id,l,s])=>`<button role="tab" aria-selected="${sel===id}" class="rail-tab ${sel===id?"on":""}" data-a="homeRailTab" data-x="${id}"><b>${l}</b><span>${s}</span></button>`).join("")}</div>
+   ${sel?`<section class="panel rail-body" role="tabpanel"><h2>${sel==="pj"?"Panchang · "+esc(p.vara[0])+", "+fmtDate(p.date):"Your day by the stars"}</h2>${body(sel==="pj"?0:1)}</section>`:`<p class="hint" style="margin:0">Tap a tab to open it.</p>`}</aside>`};
+J.act("homeRailTab",el=>{const c=get("jcgg-hd-tab")||"";put("jcgg-hd-tab",c===el.dataset.x?"":el.dataset.x);J.render()});
+J.homeDay=()=>"";
+// ---------- weather header (Open-Meteo, free, no key; cached 30 min) ----------
+const WMO=c=>c===0?["☀️","Clear","clear"]:c<=2?["🌤️","Partly cloudy","part"]:c===3?["☁️","Overcast","cloud"]:c<=48?["🌫️","Haze / fog","fog"]:c<=57?["🌦️","Drizzle","rain"]:c<=67?["🌧️","Rain","rain"]:c<=77?["🌨️","Snow","cloud"]:c<=82?["🌧️","Showers","rain"]:["⛈️","Thunderstorm","storm"];
+let wx=null,wxLoading=false;try{const c=JSON.parse(get("jcgg-wx")||"null");if(c&&Date.now()-c.at<30*6e4)wx=c}catch(e){}
+async function loadWx(){if(wxLoading)return;wxLoading=true;const s=J.settings();const lat=+s.lat||22.5726,lon=+s.lon||88.3639;
+  try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m&hourly=temperature_2m,weather_code,precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=Asia%2FKolkata&forecast_days=4`);const j=await r.json();if(j.current){wx={at:Date.now(),j};put("jcgg-wx",JSON.stringify(wx))}}catch(e){}
+  wxLoading=false;if(S.route.mod==="home")J.render()}
+J.homeHead=(greet,sub,btns)=>{if(!wx||Date.now()-wx.at>30*6e4)setTimeout(loadWx,30);const j=wx?.j;const now=new Date();let rise,set_;
+  if(j?.daily){rise=new Date(j.daily.sunrise[0]+":00+05:30");set_=new Date(j.daily.sunset[0]+":00+05:30")}else{try{const p=window.Panchang(now,{});rise=p.sunrise;set_=p.sunset}catch(e){rise=new Date(now.setHours(6,0,0,0));set_=new Date(new Date().setHours(17,30,0,0))}}
+  const n=Date.now(),day=n>=rise&&n<=set_;const f=Math.max(0,Math.min(1,(n-rise)/(set_-rise)));
+  const cur=j?.current;const w=cur?WMO(cur.weather_code):null;const kind=w?w[2]:"clear";
+  const phase=!day?"night":f<0.12?"dawn":f>0.88?"dusk":"day";
+  // sun position on the arc
+  const X=v=>40+v*920,Y=v=>150-Math.sin(Math.PI*v)*120;const sx=X(f),sy=Y(f);
+  const hrs=j?.hourly?(()=>{const out=[];const h0=j.hourly.time.findIndex(x=>new Date(x+":00+05:30")>new Date());for(let i=h0;i>=0&&i<j.hourly.time.length&&out.length<6;i+=2)out.push({t:j.hourly.time[i].slice(11,13),c:j.hourly.temperature_2m[i],w:WMO(j.hourly.weather_code[i]),p:j.hourly.precipitation_probability[i]});return out})():[];
+  const days=j?.daily?j.daily.time.slice(1,4).map((d,i)=>({d:new Date(d+"T12:00:00+05:30").toLocaleDateString("en-IN",{weekday:"short"}),hi:j.daily.temperature_2m_max[i+1],lo:j.daily.temperature_2m_min[i+1],w:WMO(j.daily.weather_code[i+1]),p:j.daily.precipitation_probability_max[i+1]})):[];
+  const rain=kind==="rain"||kind==="storm";
+  return `<div class="head wx wx-${phase} wx-${kind}">
+   <svg class="wx-sky" viewBox="0 0 1000 170" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M40 150 Q500 -90 960 150" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2" stroke-dasharray="4 6"/>
+    <path d="M40 150 Q500 -90 960 150" fill="none" stroke="rgba(255,235,150,.9)" stroke-width="3" pathLength="1" stroke-dasharray="${day?f:1} 1"${day?"":' style="opacity:.25"'}/>
+    <line x1="20" y1="150" x2="980" y2="150" stroke="rgba(255,255,255,.35)"/>
+    ${day?`<circle cx="${sx}" cy="${sy}" r="26" fill="rgba(255,220,120,.25)"/><circle cx="${sx}" cy="${sy}" r="15" fill="#FFD866"/>`:(()=>{const nr=n<rise?rise.getTime():rise.getTime()+864e5,ns=n<rise?set_.getTime()-864e5:set_.getTime();const g=Math.max(0,Math.min(1,(n-ns)/(nr-ns)));const mx=X(g),my=Y(g);return `<circle cx="${mx}" cy="${my}" r="13" fill="#F4F1DE" opacity=".9"/><circle cx="${mx+7}" cy="${my-5}" r="12" fill="var(--wx-bg,#1C2541)"/>`})()}
+   </svg>
+   ${rain?`<div class="wx-rain" aria-hidden="true">${Array.from({length:28},(_,i)=>`<i style="left:${(i*37)%100}%;animation-delay:${(i%7)*0.17}s"></i>`).join("")}</div>`:""}
+   ${kind==="cloud"||kind==="part"||rain?`<div class="wx-cloud c1" aria-hidden="true"></div><div class="wx-cloud c2" aria-hidden="true"></div>`:""}
+   <div class="wx-fg">
+    <div class="wx-hello"><h1>${greet}</h1><p>${sub}</p><div class="row" style="margin-top:8px">${btns}</div></div>
+    <div class="wx-now" aria-label="Weather">${cur?`<div class="wx-big"><span class="wx-ic">${!day&&w[2]==="clear"?"🌙":!day&&w[2]==="part"?"☁️":w[0]}</span><b>${Math.round(cur.temperature_2m)}°</b><span>${w[1]}<br><small>Feels ${Math.round(cur.apparent_temperature)}° · Humidity ${cur.relative_humidity_2m}%</small></span></div>
+      <div class="wx-hrs">${hrs.map(h=>`<span><small>${+h.t%12||12}${+h.t<12?"am":"pm"}</small>${(+h.t<6||+h.t>=18)&&h.w[2]==="clear"?"🌙":h.w[0]}<b>${Math.round(h.c)}°</b>${h.p>=30?`<small>💧${h.p}%</small>`:""}</span>`).join("")}</div>
+      <div class="wx-days">${days.map(d=>`<span>${d.d} ${d.w[0]} ${Math.round(d.hi)}°/${Math.round(d.lo)}°${d.p>=30?" 💧"+d.p+"%":""}</span>`).join("")}</div>`:`<div class="wx-big"><span>${wxLoading?"Loading weather…":"Weather unavailable"}</span></div>`}
+     <div class="wx-sun">🌅 ${tm(rise)} · ☀ ${day?Math.round((set_-n)/36e5*10)/10+" h of daylight left":"after sunset"} · 🌇 ${tm(set_)}</div></div>
+   </div></div>`};
 // ---------- news & results ----------
 const FEEDS=[["ET Markets","https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms"],["ET Stocks","https://economictimes.indiatimes.com/markets/stocks/news/rssfeeds/2146842.cms"],["Mint Markets","https://www.livemint.com/rss/markets"],["Business Standard","https://www.business-standard.com/rss/markets-106.rss"]];
 const RES=/\bresults?\b|\bQ[1-4]\b|earnings|net profit|profit (jumps|rises|falls|drops|declines|up|down)|revenue|board meet|dividend|quarterly/i;
