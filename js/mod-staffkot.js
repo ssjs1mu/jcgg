@@ -19,11 +19,25 @@ J.foodViaHouse=m=>{const h=J.kotHouse();return !!h&&(!h.from||m>=h.from)};
 const dayTot=d=>r2(J.all("kots").filter(k=>k.kind==="staff"&&k.date===d).reduce((t,k)=>t+(+k.total||0),0));
 // staff KOTs of a day per person (each person's own ledger is charged; the house payment clears them)
 J.skDayByStaff=d=>{const by={};for(const k of J.all("kots"))if(k.kind==="staff"&&k.date===d&&k.staff)by[k.staff]=r2((by[k.staff]||0)+(+k.total||0));return by};
+// Suraj often pays several days' combined bills at once, or ahead. Payments clear the oldest unpaid staff KOTs first;
+// money paid beyond what is due waits on the house ledger as an advance and clears later KOTs as they come.
+let allocMemo=null;
+J.houseAlloc=()=>{const h=J.kotHouse();if(!h)return null;const from=(h.from||"0000-00")+"-01";
+  const sig=J.all("kots").length+"|"+J.all("ppday").map(d=>d.id+":"+(d.at||0)).join(",")+"|"+from+"|"+J.all("kots").reduce((s,k)=>s+(+k.total||0),0);if(allocMemo&&allocMemo.sig===sig)return allocMemo;
+  const ds=new Set();for(const k of J.all("kots"))if(k.kind==="staff"&&k.date>=from)ds.add(k.date);for(const d of J.all("ppday"))if(d.id>=from)ds.add(d.id);
+  const kot={},pay={};const q=[];let adv=0;
+  for(const d of [...ds].sort()){const by=J.skDayByStaff(d);const K={staff:{},house:0};
+    for(const [sid,a0] of Object.entries(by)){let a=a0;if(adv>0.004){const x=r2(Math.min(adv,a));adv=r2(adv-x);a=r2(a-x);K.house=r2(K.house+x)}if(a>0.004){K.staff[sid]=r2((K.staff[sid]||0)+a);q.push({sid,a})}}
+    kot[d]=K;let P=J.ppHousePaid?J.ppHousePaid(d):0;const Pd={staff:{},house:0};
+    while(P>0.004&&q.length){const c=q[0];const x=r2(Math.min(P,c.a));Pd.staff[c.sid]=r2((Pd.staff[c.sid]||0)+x);c.a=r2(c.a-x);P=r2(P-x);if(c.a<=0.004)q.shift()}
+    if(P>0.004){Pd.house=P;adv=r2(adv+P)}pay[d]=Pd}
+  const unpaid={};for(const c of q)unpaid[c.sid]=r2((unpaid[c.sid]||0)+c.a);
+  allocMemo={sig,kot,pay,adv,unpaid};return allocMemo};
 async function houseSync(m){const h=J.kotHouse();const sales=J.sysAcc("sales")?.id||await J.ensureAcc("Dine-in Sales","income","sales");if(J.get("vouchers","skc-"+m))await J.store.del("vouchers","skc-"+m);
   const ds=new Set(J.all("kots").filter(k=>k.kind==="staff"&&k.date.startsWith(m)).map(k=>k.date));for(const v of J.all("vouchers"))if(v.id.startsWith("skh-"+m))ds.add(v.id.slice(4));
   for(const d of [...ds].sort()){const id="skh-"+d,old=J.get("vouchers",id),t=dayTot(d);let changed=false;
     if(!t){if(old){await J.store.del("vouchers",id);changed=true}}
-    else{const by=J.skDayByStaff(d);const L=Object.entries(by).filter(([,a])=>a>0).map(([sid,a])=>({a:J.get("accounts",sid)?sid:h.acc,dr:a,cr:0,n:"Staff KOT food "+fmtDate(d)}));L.push({a:sales,dr:0,cr:t,n:"Staff food (combined bill on "+J.accName(h.acc)+")"});
+    else{const al=J.houseAlloc()?.kot[d]||{staff:J.skDayByStaff(d),house:0};const L=Object.entries(al.staff).filter(([,a])=>a>0).map(([sid,a])=>({a:J.get("accounts",sid)?sid:h.acc,dr:a,cr:0,n:"Staff KOT food "+fmtDate(d)}));if(al.house>0)L.push({a:h.acc,dr:al.house,cr:0,n:"Staff KOT food "+fmtDate(d)+" — paid from Suraj's advance"});L.push({a:sales,dr:0,cr:t,n:"Staff food (combined bill on "+J.accName(h.acc)+")"});
       const key=ls=>ls.map(l=>l.a+"|"+r2(l.dr)+"|"+r2(l.cr)).sort().join();
       if(!old||key(old.lines)!==key(L)){const n=J.all("kots").filter(k=>k.kind==="staff"&&k.date===d).length;
         await J.postVoucher({...(old?{id}:{newId:id}),type:"sale",date:d,lines:L,party:h.acc,ref:"SK "+d,src:{col:"kots",id:m,label:"Staff KOT"},narr:"Staff KOT food "+fmtDate(d)+" · "+n+" tickets, combined bill on "+J.accName(h.acc)+" — each person's share charged to their ledger"});changed=true}}
@@ -81,7 +95,8 @@ function vTally(){const m=WM();const h=J.settings().kotHouse||{};const hk=J.kotH
    <div class="form">${fld("House ledger",`<select id="kh-acc"><option value="">Choose…</option>${staffSu?`<option value="new:${staffSu.id}">${esc(staffSu.name)} — Client (create / use)</option>`:""}${custs.map(a=>`<option value="${a.id}" ${a.id===h.acc?"selected":""}>${esc(a.name)}</option>`).join("")}</select>`)}${fld("From month",`<input type="month" id="kh-from" value="${esc(h.from||today().slice(0,7))}">`)}</div>
    <label class="row" style="gap:6px;margin-top:6px"><input type="checkbox" id="kh-on" ${h.on?"checked":""}> Use the house account for staff food (stop salary deduction from this month)</label><button class="btn primary w" data-a="khSave" style="margin-top:8px">Save</button>
    ${hk?`<p class="hint">Active from ${monthLabel(hk.from)} · ledger ${esc(J.accName(hk.acc))} · balance ${J.bal(J.balanceOf(hk.acc))} (Dr = KOTs not yet paid)</p>`:""}</div></section>
-  <div class="filters">${fld("Month",`<input type="month" data-ui="staff.wm" value="${m}">`)}<span class="hint">${ok} of ${rows.length} days tally · KOTs ${money(r2(T.k))} · Petpooja house orders ${money(r2(T.p))}</span></div>
+  <div class="filters">${fld("Month",`<input type="month" data-ui="staff.wm" value="${m}">`)}<span class="hint">${ok} of ${rows.length} days tally on the day · KOTs ${money(r2(T.k))} · Petpooja house orders ${money(r2(T.p))}</span></div>
+  ${(()=>{const al=J.houseAlloc?.();if(!al)return "";const un=Object.entries(al.unpaid).filter(([,v])=>v>0.004);return `<div class="note">Payments clear the oldest unpaid KOTs first, so bills paid a few days together still close. Now: <b>${un.length?"unpaid KOTs "+money(r2(un.reduce((s,[,v])=>s+v,0)))+" ("+un.map(([s,v])=>esc((J.get("accounts",s)?.name||"").split(" ")[0])+" "+inr0.format(v)).join(", ")+")":"no unpaid KOTs"}</b> · advance with ${esc(J.accName(hk?.acc||""))}: <b>${money(al.adv)}</b>.</div>`})()}
   <section class="panel"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="num">Staff KOTs</th><th class="num">KOT total</th><th class="num">Petpooja house order</th><th>Paid by</th><th class="num">Difference</th><th></th></tr></thead><tbody>
   ${rows.slice().reverse().map(r=>`<tr ${Math.abs(r.diff)>=1?'style="background:var(--bad-wash)"':""}><td>${fmtDate(r.d)}</td><td class="num">${r.n}</td><td class="num">${inr.format(r.k)}<div class="hint" style="white-space:normal;text-align:right">${Object.entries(J.skDayByStaff(r.d)).map(([sid,v])=>esc((J.get("accounts",sid)?.name||"").split(" ")[0])+" "+inr0.format(v)).join(", ")}</div></td><td class="num">${r.p.n?inr.format(r.p.amt):'<span class="muted">—</span>'}${r.p.n>1?`<div class="hint">${r.p.n} orders</div>`:""}</td><td>${esc(r.p.how)}</td><td class="num">${Math.abs(r.diff)<1?"":inr.format(r.diff)}</td><td>${Math.abs(r.diff)<1?'<span class="chip ok">Tallied · closed</span>':!r.p.n?'<span class="chip warn">No Petpooja order</span>':!r.k?'<span class="chip warn">No staff KOT</span>':r.diff>0?'<span class="chip warn">Petpooja more</span>':'<span class="chip bad">Petpooja less</span>'}</td></tr>`).join("")||'<tr><td colspan="7" class="muted">No staff KOTs or Petpooja house orders this month.</td></tr>'}</tbody></table></div></section>`}
 J.act("khSave",async()=>{let acc=document.getElementById("kh-acc")?.value||"";const from=document.getElementById("kh-from")?.value||today().slice(0,7);const on=!!document.getElementById("kh-on")?.checked;if(on&&!acc)return toast("Choose the house ledger");

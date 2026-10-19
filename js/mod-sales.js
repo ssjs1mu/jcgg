@@ -49,6 +49,7 @@ const live=o=>!/cancel|saved|void|deleted/i.test(o.status||"");
 const isHouseName=o=>new Set(house().map(norm)).has(norm(o.name))||(arr(o.items).length>0&&o.items.every(isStaffItem));
 const houseOf=(o,d)=>o.house||(!!d&&J.foodViaHouse?.(String(d).slice(0,7))&&isHouseName(o));
 J.ppIsHouse=houseOf;
+J.ppHousePaid=d=>{const x=J.get("ppday",d);return x?r2(x.orders.filter(o=>live(o)&&houseOf(o,d)).flatMap(o=>o.pays).filter(p=>p.m!=="due").reduce((s,p)=>s+p.amt,0)):0};
 const counted=(o,d)=>live(o)&&!houseOf(o,d);
 // ---------- ledgers ----------
 const accBy=(re,kind)=>J.all("accounts").find(a=>(!kind||a.kind===kind)&&re.test(a.name));
@@ -70,8 +71,8 @@ async function postDay(date,orders,acc){const os=orders.filter(o=>counted(o,date
   // the combined bill pays each person's staff KOTs of the day: their ledgers are credited with their own share (cleared);
   // anything paid beyond the day's KOTs, or paid when there were no KOTs, stays on the house ledger
   {let paid=0;for(const o of hos)for(const p of o.pays){if(p.m==="due")continue;const a=p.m==="cash"?acc.cash:p.m==="upi"?acc.upi:p.m==="card"?acc.card:acc.susp;add(dr,a,p.amt);paid=r2(paid+p.amt)}
-   if(paid){const by=J.foodViaHouse?.(date.slice(0,7))&&J.skDayByStaff?J.skDayByStaff(date):{};const K=r2(Object.values(by).reduce((s,x)=>s+x,0));let left=paid;
-     if(K>0){const f=Math.min(1,paid/K);const ent=Object.entries(by).filter(([sid,a])=>a>0&&J.get("accounts",sid));ent.forEach(([sid,a],i)=>{const share=i===ent.length-1&&f===1?Math.min(a,left):r2(a*f);if(share>0){add(cr,sid,share);left=r2(left-share)}})}
+   if(paid){const al=J.foodViaHouse?.(date.slice(0,7))&&J.houseAlloc?J.houseAlloc()?.pay[date]:null;let left=paid;
+     if(al){for(const [sid,x] of Object.entries(al.staff))if(x>0&&J.get("accounts",sid)){add(cr,sid,x);left=r2(left-x)}}
      if(left>0.004)add(cr,hk.acc,left)}}
   const lines=[...Object.entries(dr).map(([a,v])=>v>0?{a,dr:v,cr:0}:{a,dr:0,cr:-v}),...Object.entries(cr).map(([a,v])=>v>0?{a,dr:0,cr:v}:{a,dr:-v,cr:0})];
   const d=r2(lines.reduce((s,l)=>s+l.dr-l.cr,0));if(Math.abs(d)>0.004)lines.push(d>0?{a:acc.round,dr:0,cr:d}:{a:acc.round,dr:-d,cr:0});
