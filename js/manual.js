@@ -9,7 +9,7 @@ const J=window.J,{S,esc}=J;
 // ---------- content ----------
 // p = purpose · s = steps · l = linked to · i = impact on the books · d = do · n = don't
 const M={
-home:{t:"Home",p:"The day at a glance — the header is a live weather bar for your location (temperature, sky, the sun's path from sunrise to sunset, next hours and 3-day forecast; free Open-Meteo data, refreshed every 30 minutes). Panchang and Astrology are tabs on the right: tap one to open it, tap again to close. Also: sales, cash and bank, what needs attention (attendance not marked, stock running out, bills unpaid, renewals).",
+home:{t:"Home",p:"The day at a glance — the slim header carries the weather in its background (sky colour, the sun's path from sunrise to sunset, temperature, next hours and next 2 days; free Open-Meteo data, refreshed every 30 minutes). Panchang and Astrology are tabs on the right: tap one to open it, tap again to close. Astrology shows only your chosen rashi — yesterday (past), today (present) and tomorrow (future). Also: sales, cash and bank, what needs attention (attendance not marked, stock running out, bills unpaid, renewals).",
   s:["Open Home first each morning.","Tap any card to go to the screen behind it and act there."],
   l:["Accounts","Staff & Payroll","Inventory","Insurance"],i:"Read-only — nothing here changes the books.",
   d:["Clear the red items before the day's service."],n:["Don't treat Home figures as final until the bank statement for the period is uploaded."]},
