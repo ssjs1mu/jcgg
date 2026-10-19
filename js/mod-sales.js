@@ -57,16 +57,20 @@ async function L(){const g=async(re,kind,name,sys,cat)=>{let a=accBy(re,kind);if
 async function dueAcc(o){const s=J.staffList?.(true).find(x=>norm(x.name.split(" - ")[0])===norm(o.name)||norm(x.name).startsWith(norm(o.name)+" "));if(s)return s.id;
   const label=(o.name||"Walk-in")+(o.phone?" ("+o.phone+")":"")+" — dues";return J.all("accounts").find(a=>a.kind==="customer"&&a.name===label)?.id||await J.ensureAcc(label,"customer")}
 async function postDay(date,orders,acc){const os=orders.filter(counted);const id="ppsale-"+date;const old=J.get("vouchers",id);
-  if(!os.length){if(old)await J.store.del("vouchers",id);return null}
+  const hk=J.foodViaHouse?.(date.slice(0,7))?J.kotHouse():null;const hos=hk?orders.filter(o=>live(o)&&o.house):[];
+  if(!os.length&&!hos.length){if(old)await J.store.del("vouchers",id);return null}
   const dr={},cr={};const add=(m,a,v)=>{if(a&&Math.abs(v)>0.004)m[a]=r2((m[a]||0)+v)};
   for(const o of os){add(cr,acc[o.ch]||acc.dine,o.amt+o.deliv+o.cont);if(o.tax){add(cr,acc.ogst||acc[o.ch],o.tax)}add(dr,acc.disc,o.disc);if(o.round>0)add(cr,acc.round,o.round);else add(dr,acc.round,-o.round);
     for(const p of o.pays){let a=p.m==="cash"?acc.cash:p.m==="upi"?acc.upi:p.m==="card"?acc.card:p.m==="online"?(acc[o.agg]||acc.online):p.m==="comp"?acc.comp:p.m==="due"?await dueAcc(o):acc.susp;add(dr,a,p.amt)}}
+  // house account orders (all staff KOTs of the day, paid together): received against the house ledger, not sales
+  for(const o of hos){for(const p of o.pays){if(p.m==="due")continue;const a=p.m==="cash"?acc.cash:p.m==="upi"?acc.upi:p.m==="card"?acc.card:acc.susp;add(dr,a,p.amt);add(cr,hk.acc,p.amt)}}
   const lines=[...Object.entries(dr).map(([a,v])=>v>0?{a,dr:v,cr:0}:{a,dr:0,cr:-v}),...Object.entries(cr).map(([a,v])=>v>0?{a,dr:0,cr:v}:{a,dr:-v,cr:0})];
   const d=r2(lines.reduce((s,l)=>s+l.dr-l.cr,0));if(Math.abs(d)>0.004)lines.push(d>0?{a:acc.round,dr:0,cr:d}:{a:acc.round,dr:-d,cr:0});
   const by=m=>r2(os.flatMap(o=>o.pays).filter(p=>p.m===m).reduce((s,p)=>s+p.amt,0));
-  const narr=`Petpooja sales ${fmtDate(date)} · ${os.length} orders · cash ${inr0.format(by("cash"))}, UPI ${inr0.format(by("upi"))}, online ${inr0.format(by("online"))}${by("due")?", due "+inr0.format(by("due")):""}`;
+  const hp=r2(hos.reduce((s,o)=>s+o.pays.filter(p=>p.m!=="due").reduce((a,p)=>a+p.amt,0),0));
+  const narr=`Petpooja sales ${fmtDate(date)} · ${os.length} orders${hp?" + staff food "+inr0.format(hp)+" received from "+J.accName(hk.acc):""} · cash ${inr0.format(by("cash"))}, UPI ${inr0.format(by("upi"))}, online ${inr0.format(by("online"))}${by("due")?", due "+inr0.format(by("due")):""}`;
   return J.postVoucher({id:old?id:undefined,newId:id,type:"sale",date,lines,narr,ref:"PP "+date,src:{col:"ppday",id:date,label:"Petpooja sales"},rec:old?.rec||{}})}
-J.ppPostDay=postDay;
+J.ppPostDay=postDay;J.ppRepost=async d=>{const x=J.get("ppday",d);if(!x)return;const v=await postDay(d,x.orders,await L());if((v?.id||"")!==(x.vid||""))await J.store.patch("ppday",d,{vid:v?.id||""})};
 // ---------- upload ----------
 async function readRows(file){if(/\.(xlsx|xls|xlsm|ods)$/i.test(file.name)){const X=await J.loadXLSX();const wb=X.read(await file.arrayBuffer(),{type:"array"});const out=[];for(const n of wb.SheetNames)out.push(...X.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:false,defval:""}));return out}return J.parseCSV((await file.text()).replace(/^﻿/,""))}
 J.act("ppUpload",()=>{if(J.isCC?.())return toast("The Petpooja upload is done by the owner or a manager.");const i=document.createElement("input");i.type="file";i.accept=".csv,.xlsx,.xls";
@@ -88,7 +92,7 @@ function review(){const st=ui().stg;const os=st.orders;const okk=os.filter(live)
    <tr><td>Days already imported</td><td>${have.length?have.length+" — their orders are replaced by this file (no doubles)":"none"}</td></tr></tbody></table></div>
   <section class="panel pb" style="margin:8px 0"><b>House / staff orders: ${hs.length} · ${money0(sum(hs,o=>o.net))}</b><div class="hint">Orders for ${esc(house().join(", "))} or with only staff items (names ending “-e” or “Staff”).</div>
    ${fld("House account names (comma separated)",txt("house",house().join(", ")))}
-   <label class="row" style="gap:6px"><input type="radio" name="houseAs" value="staff" ${st.houseAs==="staff"?"checked":""}> Staff / owner food — not sales (already billed through Staff KOT)</label>
+   <label class="row" style="gap:6px"><input type="radio" name="houseAs" value="staff" ${st.houseAs==="staff"?"checked":""}> Staff / owner food — not sales: matched each day with the staff KOTs and received against the house ledger (Staff KOT → Daily tally)</label>
    <label class="row" style="gap:6px"><input type="radio" name="houseAs" value="sales" ${st.houseAs==="sales"?"checked":""}> Count them as sales, paid as Petpooja shows</label></section>
   <label class="row" style="gap:6px"><input type="checkbox" name="post" ${st.post?"checked":""}> Post each day's sales to Accounts (cash → Cash in Hand, UPI → Google Pay settlements, online → Swiggy / Zomato, dues → the customer's ledger)</label>
   <label class="row" style="gap:6px"><input type="checkbox" name="points" ${st.points?"checked":""}> Add every bill with its items to the client master (history, habits and reward points)</label>

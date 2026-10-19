@@ -11,7 +11,7 @@ FILES = {
   "inventory": ["js/mod-inventory.js", "js/bills.js"],
   "kitchen": ["js/mod-kitchen.js", "js/kitchen-plus.js", "js/recipe-lib.js"],
   "kot": ["js/mod-staffkot.js", "js/mod-kot.js"],
-  "staff": ["js/mod-staff.js", "js/mod-people.js", "js/mod-rules.js", "js/access.js"],
+  "staff": ["js/mod-staff.js", "js/escrow.js", "js/mod-people.js", "js/mod-rules.js", "js/access.js"],
   "care": ["js/care.js", "docs/customer-care.md"],
   "directory": ["js/mod-directory.js", "js/mod-clients.js"],
   "accounts": ["js/mod-accounts.js", "js/bankmatch.js", "js/expcat.js", "js/bankpdf.js"],

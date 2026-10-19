@@ -166,9 +166,9 @@ function calc(s,m,ov={}){const D=daysInMonth(m),HH=J.H,hist=HH.stints(s).length>
   const sv=J.get("vouchers","salm-"+m);const balEx=id=>{let b=J.balanceOf(id,J.monthEnd(m));if(sv)for(const l of sv.lines)if(l.a===id)b-=l.dr-l.cr;return Math.max(0,r2(b))};
   const advBal=balEx("adv-"+s.id),loanBal=balEx("loan-"+s.id);const stat=r2(pf+esic+pt+tds);let room=Math.max(0,grossEarned-stat);
   const adv=r2(ov.adv!=null&&ov.adv!==""?Math.min(+ov.adv,advBal):Math.min(advBal,s.sal?.instal!==""&&s.sal?.instal!=null?+s.sal.instal:advBal,room));room=Math.max(0,room-adv);
-  const loan=r2(ov.loan!=null&&ov.loan!==""?Math.min(+ov.loan,loanBal):Math.min(loanBal,+s.sal?.loanEmi||0,room));const food=r2(ov.food!=null&&ov.food!==""?+ov.food:(J.settings().staffFoodRecover!==false&&J.staffFood&&!J.foodToClient?.(s.id)?J.staffFood(s.id,m):0));
+  const loan=r2(ov.loan!=null&&ov.loan!==""?Math.min(+ov.loan,loanBal):Math.min(loanBal,+s.sal?.loanEmi||0,room));const food=r2(ov.food!=null&&ov.food!==""?+ov.food:(J.settings().staffFoodRecover!==false&&J.staffFood&&!J.foodToClient?.(s.id)&&!J.foodViaHouse?.(m)?J.staffFood(s.id,m):0));
   return {D,svc,basis,exempt,perDay:r2(perDay),paid,P,H,A,L,W,WW,un,late,lateMin,lateDed,lateOT,lateSal,shortH,shortDed,setOff,finalOT,fromSal,ot,earned,otPay,bonus,penalty,adj,adjNote:ov.adjNote||"",grossPay,grossEarned,pf,esic,pt,tds,stat,advBal,adv,loanBal,loan,food,ded:r2(penalty+fromSal+adjM+stat+adv+loan+food),net:r2(grossEarned-stat-adv-loan-food)}}
-J.payCalc=calc;
+J.payCalc=calc;J.setlCalcRef=(...a)=>setlCalc(...a);
 const inSvc=(s,m)=>J.H.stints(s).length?J.H.inServiceRange(s,m+"-01",J.monthEnd(m)):s.active!==false;
 const svOf=m=>J.get("vouchers","salm-"+m);const onV=(v,sid)=>!!v&&v.lines.some(l=>l.a===sid);
 const paidV=(m,sid)=>{const run=J.get("payroll",m)||{};const v=run.paid?.[sid]&&J.get("vouchers",run.paid[sid]);if(v)return v;const pre=J.get("vouchers","salpre-"+m);return onV(pre,sid)?pre:null};

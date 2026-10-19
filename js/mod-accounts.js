@@ -4,12 +4,12 @@ const J=window.J,{S,esc,inr,inr0,r2,money,money0,bal,fmtDate,monthLabel,today,ad
 const KINDS={
   cash:{l:"Cash",g:"Cash & Bank"},bank:{l:"Bank account",g:"Cash & Bank"},card:{l:"Credit card",g:"Cash & Bank"},wallet:{l:"Wallet / prepaid (Paytm, Amazon Pay…)",g:"Cash & Bank"},
   aggregator:{l:"Aggregator / wallet",g:"Receivables"},customer:{l:"Customer",g:"Receivables"},
-  vendor:{l:"Vendor / supplier",g:"Payables"},staff:{l:"Staff (salary)",g:"Staff"},staffadv:{l:"Staff advance",g:"Staff advances & loans"},staffloan:{l:"Staff loan",g:"Staff advances & loans"},
+  vendor:{l:"Vendor / supplier",g:"Payables"},staff:{l:"Staff (salary)",g:"Staff"},staffadv:{l:"Staff advance",g:"Staff advances & loans"},staffloan:{l:"Staff loan",g:"Staff advances & loans"},escrow:{l:"Salary held (escrow)",g:"Staff advances & loans"},
   expense:{l:"Expense head",g:"Expenses"},income:{l:"Income head",g:"Income"},
   tax:{l:"Tax / statutory",g:"Duties & Taxes"},loan:{l:"Loan",g:"Loans"},deprec:{l:"Deposit received (we hold)",g:"Deposits"},deppaid:{l:"Deposit paid (security given)",g:"Deposits"},
   capital:{l:"Capital / owner",g:"Capital"},asset:{l:"Fixed asset / deposit",g:"Assets"},invest:{l:"Investment",g:"Investments"},stock:{l:"Stock / inventory",g:"Assets"},suspense:{l:"Suspense / unclassified",g:"Suspense"}};
 const GROUP_ORDER=["Cash & Bank","Receivables","Payables","Staff","Staff advances & loans","Expenses","Income","Duties & Taxes","Loans","Deposits","Capital","Assets","Investments","Suspense"];
-const RECON_KINDS=["bank","card","wallet","aggregator","vendor","customer","staff","staffadv","staffloan","loan","deprec","deppaid"];
+const RECON_KINDS=["escrow","bank","card","wallet","aggregator","vendor","customer","staff","staffadv","staffloan","loan","deprec","deppaid"];
 const MONEY=["cash","bank","card","wallet"];
 const TYPES={expense:{l:"Expense",d:"Rent, power, gas, repairs",p:"EX"},purchase:{l:"Purchase bill",d:"Supplier bill, paid or credit",p:"PU"},payment:{l:"Payment",d:"Pay a vendor, staff or other",p:"PY"},
   sale:{l:"Sale",d:"Dine-in, takeaway, delivery",p:"SL"},receipt:{l:"Receipt",d:"Money in from a party",p:"RC"},contra:{l:"Contra",d:"Cash ↔ bank, card bill",p:"CT"},
