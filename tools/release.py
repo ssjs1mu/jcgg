@@ -14,7 +14,7 @@ FILES = {
   "staff": ["js/mod-staff.js", "js/escrow.js", "js/mod-people.js", "js/mod-rules.js", "js/access.js"],
   "care": ["js/care.js", "docs/customer-care.md"],
   "directory": ["js/mod-directory.js", "js/mod-clients.js"],
-  "accounts": ["js/mod-accounts.js", "js/bankmatch.js", "js/expcat.js", "js/connections.js", "js/movepick.js", "js/bankpdf.js"],
+  "accounts": ["js/mod-accounts.js", "js/bankmatch.js", "js/expcat.js", "js/connections.js", "js/movepick.js", "js/bankpdf.js", "js/loans.js"],
   "invest": ["js/mod-invest.js"], "assets": ["js/mod-assets.js"], "insurance": ["js/mod-assets.js"],
   "settings": ["js/mod-settings.js", "js/access.js"], "import": ["js/mod-import.js", "js/bankpdf.js"],
   "manual": ["js/manual.js"], "sales": ["js/mod-sales.js"],
