@@ -36,11 +36,11 @@ J.act("homeRashi",el=>{put("jcgg-rashi",el.value);J.render()});
 // ---------- news & results ----------
 const FEEDS=[["ET Markets","https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms"],["ET Stocks","https://economictimes.indiatimes.com/markets/stocks/news/rssfeeds/2146842.cms"],["Mint Markets","https://www.livemint.com/rss/markets"],["Business Standard","https://www.business-standard.com/rss/markets-106.rss"]];
 const RES=/\bresults?\b|\bQ[1-4]\b|earnings|net profit|profit (jumps|rises|falls|drops|declines|up|down)|revenue|board meet|dividend|quarterly/i;
-let news=null,loading=false,err="";
-try{const c=JSON.parse(get("jcgg-news")||"null");if(c&&Date.now()-c.at<30*6e4)news=c.items}catch(e){}
+let news=null,loading=false,err="";const dec=s=>{let x=s;for(let i=0;i<2;i++){const ta=document.createElement("textarea");ta.innerHTML=x;x=ta.value}return x};
+try{const c=JSON.parse(get("jcgg-news")||"null");if(c&&Date.now()-c.at<30*6e4)news=c.items.map(x=>({...x,t:dec(x.t)}))}catch(e){}
 async function loadNews(force){if(loading||(news&&!force))return;loading=true;err="";const out=[];
   await Promise.all(FEEDS.map(async([src,u])=>{try{const r=await fetch("https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(u));const j=await r.json();if(j.status!=="ok")return;
-    for(const it of (j.items||[]).slice(0,15))out.push({t:String(it.title||"").replace(/<[^>]+>/g,"").trim(),l:it.link,d:it.pubDate?Date.parse(it.pubDate.replace(" ","T")+"Z")||0:0,s:src})}catch(e){}}));
+    for(const it of (j.items||[]).slice(0,15))out.push({t:dec(String(it.title||"").replace(/<[^>]+>/g,"")).trim(),l:it.link,d:it.pubDate?Date.parse(it.pubDate.replace(" ","T")+"Z")||0:0,s:src})}catch(e){}}));
   const seen=new Set();news=out.filter(x=>x.t&&!seen.has(x.t.toLowerCase())&&seen.add(x.t.toLowerCase())).sort((a,b)=>b.d-a.d);if(!news.length)err="News feeds could not be reached just now.";
   put("jcgg-news",JSON.stringify({at:Date.now(),items:news}));loading=false;if(S.route.mod==="home")J.render()}
 const ago=d=>{if(!d)return "";const m=Math.round((Date.now()-d)/6e4);return m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":Math.round(m/1440)+" d ago"};
