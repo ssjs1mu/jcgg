@@ -283,7 +283,9 @@ J.readFileInput=(id)=>new Promise(res=>{const f=document.getElementById(id)?.fil
 // ---------- UI state binding ----------
 const getPath=(o,p)=>p.split(".").reduce((a,k)=>a?.[k],o);
 const setPath=(o,p,v)=>{const ks=p.split(".");let a=o;for(const k of ks.slice(0,-1))a=a[k]??=({});a[ks.at(-1)]=v};
-J.ui=(path,def)=>{let v=getPath(S.ui,path);if(v===undefined&&def!==undefined){setPath(S.ui,path,def);v=def}return v};
+J.ui=(path,def)=>{let v=getPath(S.ui,path);if(v===undefined&&def!==undefined){setPath(S.ui,path,def);v=def}
+  // a sub-path set first (e.g. "acc.ovp") must not hide the defaults of its parent ("acc"): fill in any missing keys
+  else if(v&&def&&typeof v==="object"&&typeof def==="object"&&!Array.isArray(def))for(const k in def)if(v[k]===undefined)v[k]=def[k];return v};
 J.setUI=(path,v)=>setPath(S.ui,path,v);
 
 // ---------- events ----------
