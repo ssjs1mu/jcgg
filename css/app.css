@@ -428,3 +428,21 @@ a{color:var(--bahi);text-underline-offset:2px}
 .star-me{margin-top:10px;padding:10px 12px;border:1px solid var(--rule);border-radius:12px;background:color-mix(in srgb,var(--bahi) 6%,var(--sheet))}
 .nl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}.nl li{line-height:1.4;font-size:14px}.nl a{font-weight:500}
 .home-day .panel{height:100%}
+
+/* suspense as a list that fits any width */
+.sus-h{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;padding:10px 12px}
+.sus-list{list-style:none;margin:0;padding:0}.sus-list li{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:10px 12px;border-top:1px solid var(--rule)}
+.sus-top{display:flex;gap:10px;align-items:baseline;grid-column:1/-1;flex-wrap:wrap}.sus-narr{min-width:0;overflow-wrap:anywhere;font-size:14px}
+.sus-list li>div:last-child{align-self:center}
+.sus-sum{padding:8px 10px;border:1px solid var(--rule);border-radius:10px;margin-bottom:10px;background:color-mix(in srgb,var(--bahi) 5%,var(--sheet))}
+/* everything fits the screen: forms stack, wide inputs shrink, long text wraps */
+.form{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}
+input,select,textarea{max-width:100%;box-sizing:border-box}
+@media (max-width:900px){
+  .tbl-wrap input,.tbl-wrap select{min-width:0!important}
+  td,th{white-space:normal}td.num,th.num{white-space:nowrap}
+  .head{flex-wrap:wrap}.head .row{flex-wrap:wrap}
+  .filters{flex-wrap:wrap}.filters>*{max-width:100%}
+  .grid2{grid-template-columns:1fr}
+  #drawerForm{max-width:100vw}
+}
