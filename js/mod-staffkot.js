@@ -82,7 +82,7 @@ J.act("khSave",async()=>{let acc=document.getElementById("kh-acc")?.value||"";co
   if(acc.startsWith("new:"))acc=await clientAcc(acc.slice(4));const cur=J.get("meta","settings")||{id:"settings"};
   await J.safe(async()=>{const ns={...cur,id:"settings",kotHouse:{acc,from,on}};await J.store.put("meta",ns);J.S.c.meta.set("settings",ns);for(const m of J.monthsBetween(from,today().slice(0,7)))if(on)await houseSync(m);else{for(const v of J.all("vouchers"))if(v.id.startsWith("skh-"+m))await J.store.del("vouchers",v.id);await J.skClientSync(m)}
     for(const d of J.all("ppday"))if(d.id.slice(0,7)>=from&&J.ppPostDay&&d.orders.some(o=>o.house))await J.ppRepost?.(d.id)},on?"Staff food now goes through "+J.accName(acc)+" from "+monthLabel(from):"House account switched off");J.H?.syncSoon?.("staff food billing changed")});
-J.mod({id:"kot",label:"Staff KOT",group:"Operations",icon:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/>',sub:"Staff food tickets billed from the Kitchen menu at staff rates; monthly bill recovered through salary.",
+J.mod({id:"kot",label:"Staff KOT",group:"Operations",icon:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/>',sub:"Staff food tickets at staff rates — settled daily through the house account (Petpooja) or recovered from salary.",
   headBtns:()=>`<button class="btn w" data-a="skUpload">Upload KOT register</button>`,
   tabs:[["new","New KOT",vNew],["book","KOT book",vBook],["bill","Monthly bill",vBill],["tally","Daily tally (Petpooja)",vTally]]});
 })();
