@@ -539,3 +539,6 @@ table.hol{width:100%}table.hol td{padding:6px 8px;border-bottom:1px solid var(--
 .astro-ctl{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}.astro2 .astro-c.now{border-color:var(--m-home);border-width:2px}
 .astro-h{margin:12px 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-2)}.astro-l{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13.5px}
 .astro2 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle}.astro2 .dot.ok{background:#16A34A}.astro2 .dot.warn{background:#F59E0B}
+/* ===== Vedic panel ===== */
+.rail-tab.vedic{border-left-color:#B45309;background:linear-gradient(135deg,#FFF8E7,#FDE7C3)}.rail-tab.vedic b{color:#7B1E1E}.rail-tab.vedic.on{background:linear-gradient(135deg,#7B1E1E,#B45309);border-color:#7B1E1E}.rail-tab.vedic.on b,.rail-tab.vedic.on span{color:#FFF8E7}
+.vedic-rail{background:linear-gradient(180deg,#FFFBF0,#FFF4DC);border-top:3px solid #B45309}.vedic-rail h2{color:#7B1E1E;font-family:"Noto Serif Devanagari",Georgia,serif;text-transform:none;letter-spacing:0;font-size:15px}.vedic-rail .pj th,.vedic-rail .stars th{color:#7C2D12}.vedic-rail .kun-inv{text-align:center;color:#B45309;font-weight:700;font-size:12px;padding-top:8px}

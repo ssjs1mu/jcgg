@@ -96,4 +96,5 @@ J.astroPanel=()=>{const lang=get("jcgg-astro-lang")||"en";const T=L[lang];const 
    <p class="hint" style="margin:8px 0 0">${T.hdr.note}</p></div>`};
 J.act("astroLang",el=>{put("jcgg-astro-lang",el.value);J.render()});
 J.act("astroNak",el=>{put("jcgg-nak",el.value);J.render()});
+J.astroKit={L,GOOD,positions,ingresses,house,dayReading,sidereal,ORDER};
 })();
