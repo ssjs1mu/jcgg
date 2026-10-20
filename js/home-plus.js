@@ -52,9 +52,9 @@ J.homeDay=()=>"";
 // ---------- weather header (Open-Meteo, free, no key; cached 30 min) ----------
 const WMO=c=>c===0?["☀️","Clear","clear"]:c<=2?["🌤️","Partly cloudy","part"]:c===3?["☁️","Overcast","cloud"]:c<=48?["🌫️","Haze / fog","fog"]:c<=57?["🌦️","Drizzle","rain"]:c<=67?["🌧️","Rain","rain"]:c<=77?["🌨️","Snow","cloud"]:c<=82?["🌧️","Showers","rain"]:["⛈️","Thunderstorm","storm"];
 let wx=null,wxLoading=false;try{const c=JSON.parse(get("jcgg-wx")||"null");if(c&&Date.now()-c.at<30*6e4)wx=c}catch(e){}
-async function loadWx(){if(wxLoading)return;wxLoading=true;const s=J.settings();const lat=+s.lat||22.5726,lon=+s.lon||88.3639;
+let wxTried=0;async function loadWx(){if(wxLoading||Date.now()-wxTried<5*6e4)return;wxTried=Date.now();wxLoading=true;const s=J.settings();const lat=+s.lat||22.5726,lon=+s.lon||88.3639;
   try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m&hourly=temperature_2m,weather_code,precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=Asia%2FKolkata&forecast_days=4`);const j=await r.json();if(j.current){wx={at:Date.now(),j};put("jcgg-wx",JSON.stringify(wx))}}catch(e){}
-  wxLoading=false;if(S.route.mod==="home")J.render()}
+  wxLoading=false;if(S.route.mod==="home")J.softRender()}
 J.homeHead=(greet,sub,btns)=>{if(!wx||Date.now()-wx.at>30*6e4)setTimeout(loadWx,30);const j=wx?.j;const now=new Date();let rise,set_;
   if(j?.daily){rise=new Date(j.daily.sunrise[0]+":00+05:30");set_=new Date(j.daily.sunset[0]+":00+05:30")}else{try{const p=window.Panchang(now,{});rise=p.sunrise;set_=p.sunset}catch(e){rise=new Date(now.setHours(6,0,0,0));set_=new Date(new Date().setHours(17,30,0,0))}}
   const n=Date.now(),day=n>=rise&&n<=set_;const f=Math.max(0,Math.min(1,(n-rise)/(set_-rise)));
@@ -85,7 +85,7 @@ async function loadNews(force){if(loading||(news&&!force))return;loading=true;er
   await Promise.all(FEEDS.map(async([src,u])=>{try{const r=await fetch("https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(u));const j=await r.json();if(j.status!=="ok")return;
     for(const it of (j.items||[]).slice(0,15))out.push({t:dec(String(it.title||"").replace(/<[^>]+>/g,"")).trim(),l:it.link,d:it.pubDate?Date.parse(it.pubDate.replace(" ","T")+"Z")||0:0,s:src})}catch(e){}}));
   const seen=new Set();news=out.filter(x=>x.t&&!seen.has(x.t.toLowerCase())&&seen.add(x.t.toLowerCase())).sort((a,b)=>b.d-a.d);if(!news.length)err="News feeds could not be reached just now.";
-  put("jcgg-news",JSON.stringify({at:Date.now(),items:news}));loading=false;if(S.route.mod==="home")J.render()}
+  put("jcgg-news",JSON.stringify({at:Date.now(),items:news}));loading=false;if(S.route.mod==="home")J.softRender()}
 const ago=d=>{if(!d)return "";const m=Math.round((Date.now()-d)/6e4);return m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":Math.round(m/1440)+" d ago"};
 const myNames=()=>{const n=new Set();for(const w of J.all("watch")){if(w.id)n.add(String(w.id).toLowerCase());if(w.name)n.add(String(w.name).toLowerCase())}for(const k of Object.keys(J.D?.hold?.H||{}))n.add(k.toLowerCase());return [...n].filter(x=>x.length>=3)};
 J.homeNews=()=>{if(!news&&!loading)setTimeout(()=>loadNews(),50);const t=today();const mine=myNames();const hit=x=>mine.find(n=>new RegExp("\\b"+n.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b","i").test(x.t));

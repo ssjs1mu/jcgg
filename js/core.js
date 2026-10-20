@@ -95,7 +95,16 @@ const derivers=[];J.onDerive=fn=>derivers.push(fn);
 J.D={};
 function derive(){for(const fn of derivers){try{fn(J.D)}catch(e){console.error(e)}}}
 J.derive=derive;
-J.refresh=()=>{derive();if(renderQ)return;renderQ=true;requestAnimationFrame(()=>{renderQ=false;J.render()})};
+// background updates (data arriving, feeds, timers) must not redraw the screen under the user's hand:
+// while a dropdown is open, a field is being typed in, or a press is in progress, the redraw waits until they finish
+let ptrDown=0,pend=false;
+const busyUI=()=>{if(ptrDown&&Date.now()-ptrDown<4000)return true;const a=document.activeElement;if(!a||a===document.body)return false;if(!a.closest?.("#view,#nav,#mnav,.drawer"))return false;return a.tagName==="SELECT"||a.tagName==="TEXTAREA"||(a.tagName==="INPUT"&&!["checkbox","radio","button","submit","file"].includes(a.type))};
+const flush=()=>{if(!pend)return;if(busyUI()){return}pend=false;requestAnimationFrame(()=>J.render())};
+document.addEventListener("pointerdown",()=>{ptrDown=Date.now()},true);
+document.addEventListener("pointerup",()=>{ptrDown=0;setTimeout(flush,250)},true);document.addEventListener("pointercancel",()=>{ptrDown=0;setTimeout(flush,250)},true);
+document.addEventListener("focusout",()=>setTimeout(flush,200),true);document.addEventListener("change",()=>setTimeout(flush,300),true);
+J.softRender=()=>{if(busyUI()){pend=true;return}pend=false;J.render()};
+J.refresh=()=>{derive();if(renderQ)return;renderQ=true;requestAnimationFrame(()=>{renderQ=false;J.softRender()})};
 let unsubs=[],mUnsubs=[];
 function subscribe(){
   const got=new Set();
@@ -213,12 +222,13 @@ const GROUPS=["Home","Operations","Finance","Governance"];
 const ICON=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 J.ICON=ICON;
 J.go=(mod,tab)=>{const m=MODS.find(x=>x.id===mod);if(!m)return;S.route={mod,tab:tab||m.tabs[0][0]};S.hold=null;S.confirm=null;J.render();window.scrollTo(0,0);try{history.replaceState(null,"","#"+mod+(tab?"-"+tab:""))}catch(e){}};
+const setHTML=(el,h)=>{if(el&&el._h!==h){el.innerHTML=h;el._h=h}};
 function renderRail(){
   const vis=MODS.filter(m=>J.canSee(m.id));
   let h="";for(const g of GROUPS){const ms=vis.filter(m=>m.group===g);if(!ms.length)continue;if(g!=="Home")h+=`<div class="ng">${g}</div>`;
     h+=ms.map(m=>{const b=m.badge?.();return `<button data-go="${m.id}" ${S.route.mod===m.id?'aria-current="page"':""}>${ICON(m.icon)}<span>${esc(m.label)}</span>${b?`<span class="count">${b}</span>`:""}</button>`}).join("")}
-  $("#nav").innerHTML=h;const who=$("#who");if(who&&S.me.email)who.innerHTML=(S.me.photo?`<img src="${esc(S.me.photo)}" alt="" referrerpolicy="no-referrer">`:"")+`<span>${esc((S.me.name||S.me.email).split(" ")[0])} · ${esc(myRole())}</span>`;$("#bizName").textContent=J.settings().business||"JCGG";
-  $("#mnav").innerHTML=[["jdash","Dashboard"],["home","Home"],["accounts","Accounts"],["inventory","Stock"],["kot","Staff KOT"]].filter(([k])=>J.canSee(k)).map(([k,l])=>{const m=MODS.find(x=>x.id===k);return `<button data-go="${k}" ${S.route.mod===k?'aria-current="page"':""}>${ICON(m.icon)}<span>${l}</span></button>`}).join("")+`<button data-a="modmenu">${ICON('<path d="M4 6h16M4 12h16M4 18h16"/>')}<span>More</span></button>`;
+  setHTML($("#nav"),h);const who=$("#who");if(who&&S.me.email)setHTML(who,(S.me.photo?`<img src="${esc(S.me.photo)}" alt="" referrerpolicy="no-referrer">`:"")+`<span>${esc((S.me.name||S.me.email).split(" ")[0])} · ${esc(myRole())}</span>`);const bn=J.settings().business||"JCGG";if($("#bizName").textContent!==bn)$("#bizName").textContent=bn;
+  setHTML($("#mnav"),[["jdash","Dashboard"],["home","Home"],["accounts","Accounts"],["inventory","Stock"],["kot","Staff KOT"]].filter(([k])=>J.canSee(k)).map(([k,l])=>{const m=MODS.find(x=>x.id===k);return `<button data-go="${k}" ${S.route.mod===k?'aria-current="page"':""}>${ICON(m.icon)}<span>${l}</span></button>`}).join("")+`<button data-a="modmenu">${ICON('<path d="M4 6h16M4 12h16M4 18h16"/>')}<span>More</span></button>`);
 }
 J.render=()=>{
   document.documentElement.classList.toggle("ro",J.readOnly());
