@@ -131,7 +131,7 @@ const KCSS=`.kun h2.kun-t{text-align:center;color:#7B1E1E;font-size:20pt;margin:
  .kun-l{margin:0;padding-left:18px}.kun-l li{margin:3px 0;text-align:justify}.kun-l li.ok::marker{color:#15803D}.kun-l li.warn::marker{color:#B45309}.kun-l li.cur{font-weight:600}.kun p{margin:4px 0;text-align:justify}.kun-note{font-size:9.5pt;color:#7C5A3A;margin-top:12px;border-top:1px dashed #D4A017;padding-top:6px}
  .pframe{border:3px double #B45309;padding:10mm 9mm;min-height:250mm}@media (max-width:800px){.kun-grid{grid-template-columns:1fr}}`;
 {const st=document.createElement("style");st.textContent=KCSS+`.vedic-page{display:flex;flex-direction:column;gap:14px}.vedic-page .panel{background:linear-gradient(180deg,#FFFBF0,#FFF4DC);border-top:3px solid #B45309}.kun{font-family:"Noto Serif","Noto Serif Devanagari","Noto Serif Bengali",Georgia,serif;color:#2B1B0E;line-height:1.55}.vedic-form h2{color:#7B1E1E;font-family:"Noto Serif Devanagari",Georgia,serif}`;document.head.appendChild(st)}
-{const h=J.MODS.find(m=>m.id==="home");if(h&&!h.tabs.find(x=>x[0]==="jyotish"))h.tabs.push(["jyotish","Jyotish · कुण्डली",vJyotish])}
+J.kundaliKit={TX,CITY,chart,KCSS,LORD,dig,natalGood,report,DL,DY};
 // ---------- merged Home panel: पञ्चाङ्ग · ज्योतिष ----------
 J.vedicRailTitle=()=>{const lang=get("jcgg-astro-lang")||"en";return lang==="bn"?"পঞ্জিকা · জ্যোতিষ":lang==="hi"?"पञ्चाङ्ग · ज्योतिष":"Panchang · Jyotish"};
 J.vedicOpenBtn=()=>`<button class="btn w" style="margin-top:8px" data-go="home" data-tab="jyotish">🕉 ${TX[get("jcgg-astro-lang")||"en"].h.open}</button>`;
