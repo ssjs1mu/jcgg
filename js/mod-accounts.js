@@ -38,7 +38,7 @@ Object.assign(J,{accName,balanceOf,balanceBefore,movement,accsOf,sysAcc,isCleare
 let OPT_MONTH=null;
 function optAcc(kinds,sel,blank){const groups={};let list=accsOf(kinds);if(OPT_MONTH&&J.staffInMonth&&kinds.some(k=>k==="staff"||k==="staffadv"||k==="staffloan")){const ms=Array.isArray(OPT_MONTH)?OPT_MONTH:[OPT_MONTH];const inM=[...new Map(ms.flatMap(m=>J.staffInMonth(m)).map(s=>[s.id,s])).values()];const subs=inM.flatMap(s=>["adv-","loan-"].map(p=>J.get("accounts",p+s.id)).filter(Boolean)).filter(a=>kinds.includes(a.kind));list=[...list.filter(a=>!["staff","staffadv","staffloan"].includes(a.kind)),...(kinds.includes("staff")?inM:[]),...subs];const cur=sel&&J.get("accounts",sel);if(cur&&!list.includes(cur))list.push(cur)}for(const a of list)(groups[a.kind==="expense"&&a.cat?"Expenses · "+a.cat:KINDS[a.kind]?.g||"Other"]??=[]).push(a);
   const rk=g=>GROUP_ORDER.indexOf(g.split(" · ")[0])+(g.includes(" · ")?(J.EXP_CAT_ORDER?.(g.split(" · ")[1])??50)/1000+0.001:0);
-  return (blank!=null?`<option value="">${esc(blank)}</option>`:"")+Object.keys(groups).sort((a,b)=>rk(a)-rk(b)).map(g=>`<optgroup label="${esc(g)}">${groups[g].map(a=>`<option value="${a.id}" ${a.id===sel?"selected":""}>${esc(a.name)}</option>`).join("")}</optgroup>`).join("")}
+  return (blank!=null?`<option value="">${esc(blank)}</option>`:"")+Object.keys(groups).sort((a,b)=>rk(a)-rk(b)).map(g=>`<optgroup label="${esc(g)}">${groups[g].map(a=>`<option value="${a.id}" ${a.id===sel?"selected":""}>${esc(a.name)}</option>`).join("")}</optgroup>`).join("")+(J.qaOpts?J.qaOpts("acc",kinds):"")}
 const selA=(n,kinds,v,blank)=>`<select name="${n}" id="f-${n}">${optAcc(kinds,v,blank)}</select>`;
 J.optAcc=optAcc;J.selA=selA;
 
