@@ -46,7 +46,7 @@ window.Panchang=(date=new Date(),opt={})=>{const lat=opt.lat??22.5726,lon=opt.lo
   const sunSign=el.ssign(J0);const sank=el.ssign(J0-1)!==sunSign;
   return {date:local.toISOString().slice(0,10),vara:VARA[wd],sunrise:toD(st.rise),sunset:toD(st.set),
     tithi:{name:t===29?"Amavasya":TITHI[t%15],paksha,end:toD(endOf(el.tithi,J0))},
-    nak:{name:NAK[nk],end:toD(endOf(el.nak,J0)),pada:Math.floor((sid(moonLon(J0),J0)%(360/27))/(360/108))+1},yoga:{name:YOGA[yg],end:toD(endOf(el.yoga,J0))},karana:{name:kname,end:toD(endOf(el.kar,J0))},
+    nak:{i:nk,name:NAK[nk],end:toD(endOf(el.nak,J0)),pada:Math.floor((sid(moonLon(J0),J0)%(360/27))/(360/108))+1},yoga:{name:YOGA[yg],end:toD(endOf(el.yoga,J0))},karana:{name:kname,end:toD(endOf(el.kar,J0))},
     moon:{sign:ms,name:RASHI[ms],end:toD(endOf(el.msign,J0,60))},sun:{sign:sunSign,name:RASHI[sunSign],sankranti:sank},
     rahu:seg(RAHU[wd]),yama:seg(YAMA[wd]),gulika:seg(GULI[wd]),abhijit:[toD(mid-len/30),toD(mid+len/30)],
     month:{amanta,purnimanta:purn,bangla:BANGLA[sunSign]},samvat:{vikram:y+57-(beforeNewYear?1:0),shaka:y-78-(beforeNewYear?1:0)},vrat:vrat.filter(Boolean),RASHI}};
@@ -57,4 +57,5 @@ const GOCHAR={1:["good","Comfort and good food; a fresh, positive start. Steady 
   10:["good","Work gets done and recognised; a good day for important tasks and staff matters."],11:["good","Gains and good news; collections, profits and fulfilment of wishes."],12:["caution","Expenses and fatigue; rest well, avoid lending money and overspending."]};
 window.Panchang.gochar=(moonSign,r)=>{const h=((moonSign-r+12)%12)+1;return {house:h,tone:GOCHAR[h][0],text:GOCHAR[h][1]}};
 window.Panchang.RASHI=RASHI;
+window.Panchang.NAK=NAK;window.Panchang.YOGA=YOGA;window.Panchang.ayan=ayan;window.Panchang.jd=jd;window.Panchang.moonSid=d=>{const J=jd(d);return sid(moonLon(J),J)};window.Panchang.sunSid=d=>{const J=jd(d);return sid(sunLon(J),J)};
 })();

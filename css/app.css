@@ -536,3 +536,6 @@ table.hol{width:100%}table.hol td{padding:6px 8px;border-bottom:1px solid var(--
 .promo-card{display:flex;flex-direction:column;gap:6px;align-items:flex-start;text-align:left;background:#fff;border:1px solid var(--rule);border-radius:14px;padding:10px;cursor:pointer}
 .promo-card img,.promo-card .ph{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:linear-gradient(135deg,#FDE68A,#F472B6);display:grid;place-items:center;color:#fff;font-weight:700}
 .promo-tn{width:40px;height:40px;border-radius:8px;object-fit:cover;float:left;margin-right:8px}
+.astro-ctl{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}.astro2 .astro-c.now{border-color:var(--m-home);border-width:2px}
+.astro-h{margin:12px 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-2)}.astro-l{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13.5px}
+.astro2 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle}.astro2 .dot.ok{background:#16A34A}.astro2 .dot.warn{background:#F59E0B}
