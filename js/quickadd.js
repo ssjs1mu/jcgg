@@ -9,7 +9,7 @@ const QK=["vendor","cash","bank","card","wallet","customer","expense","income","
 const addable=kinds=>(kinds||[]).filter(k=>QK.includes(k));
 J.qaOpts=(type,kinds)=>{const ks=type==="item"?[]:addable(kinds);if(type!=="item"&&!ks.length)return "";
   const key=type==="item"?"item":ks.join(",");
-  return `<optgroup label="──────────"><option value="__new__" data-qa="${type}" data-qk="${esc(key)}">＋ Add new ${type==="item"?"item":ks.length===1?(J.KINDS[ks[0]]?.l||"").toLowerCase().replace(/ \/.*$/,""):"ledger (vendor, bank, card, wallet…)"}…</option><option value="__edit__" data-qa="${type}" data-qk="${esc(key)}">✎ Edit / remove selected…</option></optgroup>`};
+  return `<optgroup label="──────────"><option value="__new__" data-qa="${type}" data-qk="${esc(key)}">＋ Add new ${type==="item"?"item":ks.length===1?(J.KINDS[ks[0]]?.l||"").toLowerCase().replace(/ \/.*$/,""):ks.every(k=>J.MONEY.includes(k))?"bank / card / wallet / cash":"ledger (vendor, bank, card, wallet…)"}…</option><option value="__edit__" data-qa="${type}" data-qk="${esc(key)}">✎ Edit / remove selected…</option></optgroup>`};
 
 // remember the value before the user picks one of the special options
 document.addEventListener("focusin",e=>{const s=e.target;if(s?.tagName==="SELECT"&&s.querySelector('option[value="__new__"]'))s.dataset.prev=s.value},true);
