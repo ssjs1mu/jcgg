@@ -39,7 +39,7 @@ function emiRows(e){const P=+e.principal||0,n=+e.n||0,r=(+e.rate||0)/1200;if(!P|
 const emiVid=(e,i)=>"emi-"+e.id+"-"+i;
 // ---------- Home reminders ----------
 J.duesAlerts=()=>{const out=[];const t=today();const from=mAdd(ym(t),-3),to=mAdd(ym(t),1);
-  for(const c of items().filter(x=>x.active!==false))for(const m of occMonths(c,from,to)){const o=occ(c,m);const s=state(o);if(s[0]==="bad"||s[0]==="crit"||(s[0]==="warn"&&o.due<=addDays(t,+c.remind||5)))out.push({lvl:s[0]==="warn"?"warn":s[0],text:o.label+" — "+s[1]+(o.bill!=null?" · "+money(r2(o.bill-o.paid)):""),go:"dues",tab:"month"});
+  for(const c of items().filter(x=>x.active!==false))for(const m of occMonths(c,from,to)){const o=occ(c,m);if(o.done)continue;const s=state(o);if(s[0]==="bad"||s[0]==="crit"||(s[0]==="warn"&&o.due<=addDays(t,+c.remind||5)))out.push({lvl:s[0]==="warn"?"warn":s[0],text:o.label+" — "+s[1]+(o.bill!=null?" · "+money(r2(o.bill-o.paid)):""),go:"dues",tab:"month"});
     else if(o.bill==null&&o.due<=addDays(t,+c.remind||5)&&c.kind!=="salary")out.push({lvl:"warn",text:o.label+" — enter the bill amount (due "+fmtDate(o.due)+")",go:"dues",tab:"month"})}
   for(const e of emis().filter(x=>x.active!==false))for(const r of emiRows(e))if(!J.get("vouchers",emiVid(e,r.i))&&r.date<=addDays(t,5))out.push({lvl:r.date<t?"bad":"crit",text:"EMI "+r.i+"/"+e.n+" "+e.item+" "+money(r.emi+r.gst)+" due "+fmtDate(r.date),go:"dues",tab:"emi"});
   return out};
