@@ -15,6 +15,7 @@ const HOL=[
  ["2026-09-04","Janmashtami","S"],["2026-09-14","Ganesh Chaturthi","M"],["2026-09-17","Vishwakarma Puja","S"],["2026-09-22","Karam Puja","S"],
  ["2026-10-02","Mahatma Gandhi Jayanti","NSM"],["2026-10-10","Mahalaya","S"],["2026-10-15","Durga Puja — Chaturthi","S"],["2026-10-16","Durga Puja — Panchami","S"],["2026-10-17","Durga Puja — Shashthi","S"],["2026-10-18","Durga Puja — Saptami","S"],["2026-10-19","Durga Puja — Ashtami","S"],["2026-10-20","Durga Puja — Navami / Dussehra","SM"],["2026-10-21","Vijaya Dashami","S"],["2026-10-22","Durga Puja (additional)","S"],["2026-10-23","Durga Puja (additional)","S"],["2026-10-24","Durga Puja (additional)","S"],["2026-10-25","Lakshmi Puja","S"],
  ["2026-11-08","Kali Puja / Diwali (Muhurat trading)","S"],["2026-11-09","Kali Puja (additional)","S"],["2026-11-10","Diwali Balipratipada / Kali Puja (additional)","SM"],["2026-11-11","Bhai Dooj","S"],["2026-11-12","Day after Bhai Dooj","S"],["2026-11-15","Chhath Puja / Birsa Munda Jayanti","S"],["2026-11-16","Chhath Puja (additional)","S"],["2026-11-24","Guru Nanak Jayanti","SM"],["2026-12-25","Christmas","SM"]];
+J.homeHolidays=()=>HOL;
 const HK={N:["National","hol-n"],S:["West Bengal","hol-s"],M:["Market (NSE/BSE)","hol-m"]};
 // ---------- money ----------
 const sum=(kind,f,t)=>r2(J.accsOf([kind]).reduce((s,a)=>{const m=J.movement(a.id,f,t);return s+(kind==="income"?m.cr-m.dr:m.dr-m.cr)},0));

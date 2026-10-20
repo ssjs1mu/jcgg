@@ -525,3 +525,14 @@ table.hol{width:100%}table.hol td{padding:6px 8px;border-bottom:1px solid var(--
 .hbar{display:grid;grid-template-columns:90px 1fr auto;gap:8px;align-items:center;font-size:13px;margin-top:6px}.hbar i{display:block;height:10px;border-radius:6px;background:linear-gradient(90deg,#0EA5E9,#7E22CE)}
 .dow{display:flex;gap:6px;align-items:flex-end;height:110px}.dow div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;font-size:11px}.dow i{display:block;width:70%;border-radius:6px 6px 2px 2px;background:linear-gradient(180deg,#F59E0B,#EC4899)}.dow small{color:var(--ink-3);font-size:10px}
 .topi{margin:0;padding-left:18px;display:grid;gap:3px;font-size:13px}.topi li span{display:inline-block;min-width:70%}
+/* ===== Promotions ===== */
+.promo-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:14px;align-items:start}@media (max-width:1000px){.promo-grid{grid-template-columns:1fr}}
+.promo-prev{background:repeating-conic-gradient(#f3f4f6 0 25%,#fff 0 50%) 0/20px 20px;border-radius:12px;padding:10px;display:grid;place-items:center}
+.promo-prev canvas{max-width:100%;max-height:70vh;height:auto;border-radius:8px;box-shadow:0 10px 30px -10px rgba(0,0,0,.4)}
+.dish-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;max-height:280px;overflow:auto;padding:2px}
+.dish-pick label{display:flex;flex-direction:column;align-items:center;gap:4px;border:1px solid var(--rule);border-radius:10px;padding:6px;cursor:pointer;font-size:12px;text-align:center;position:relative;background:#fff}
+.dish-pick label.on{border-color:#7E22CE;box-shadow:0 0 0 2px #7E22CE inset}.dish-pick input{position:absolute;top:6px;left:6px}.dish-pick img,.dish-pick .ph{width:64px;height:64px;border-radius:50%;object-fit:cover;background:#eee;display:grid;place-items:center;font-size:10px;color:#888}
+.promo-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.promo-card{display:flex;flex-direction:column;gap:6px;align-items:flex-start;text-align:left;background:#fff;border:1px solid var(--rule);border-radius:14px;padding:10px;cursor:pointer}
+.promo-card img,.promo-card .ph{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:linear-gradient(135deg,#FDE68A,#F472B6);display:grid;place-items:center;color:#fff;font-weight:700}
+.promo-tn{width:40px;height:40px;border-radius:8px;object-fit:cover;float:left;margin-right:8px}
