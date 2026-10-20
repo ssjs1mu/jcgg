@@ -158,7 +158,7 @@ J.freePanel=()=>{if(!(S.me.owner||["Super Admin","Admin"].includes(J.myRole?.())
   ${row("Database — Cloud Firestore storage","1 GB",mb.toFixed(1)+" MB in "+docs.toLocaleString("en-IN")+" records",mb<700)}
   ${row("Database — reads","50,000 a day","about "+docs.toLocaleString("en-IN")+" per app open (20 opens a day ≈ "+estReads.toLocaleString("en-IN")+")",estReads<40000)}
   ${row("Database — writes","20,000 a day","entries, imports, attendance",true)}
-  ${row("Files & bill PDFs","Kept inside Firestore (no paid Storage)","counted in the 1 GB above",true)}
+  ${row("Files & bill PDFs","In the dedicated Google Drive (JCGG Suite › Files › module) when Drive is connected; otherwise inside Firestore","Drive 15 GB · or the 1 GB above",true)}
   ${row("Backup — Google Drive","15 GB free Google account","Backup files",true)}
   ${row("WhatsApp / SMS messages","Free — opens WhatsApp or SMS on your phone","one tap to send",true)}
   ${row("Login emails — Apps Script relay","100 emails a day (Gmail)","optional",true)}
