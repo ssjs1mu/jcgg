@@ -13,7 +13,7 @@ const asTime=v=>{if(v===""||v==null)return "";if(typeof v==="number"&&v<1){const
 const asBool=v=>/^(y|yes|true|1|on|applicable)$/i.test(str(v));
 const norm=s=>str(s).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
 function matchAcc(name,kinds){const n=norm(name);if(!n)return null;const list=J.all("accounts").filter(a=>!kinds||kinds.includes(a.kind));
-  return list.find(a=>norm(a.name)===n)||(n==="cash"?list.find(a=>a.sys==="cash"):null)||list.find(a=>norm(a.name).startsWith(n)||n.startsWith(norm(a.name)))||null}
+  return list.find(a=>norm(a.name)===n)||(n==="cash"?list.find(a=>a.sys==="cash"):null)||list.find(a=>{const m=norm(a.name);const [x,y]=m.length<n.length?[m,n]:[n,m];return y.startsWith(x)&&x.length>=y.length*0.6})||null}
 const matchItem=name=>{const n=norm(name);return J.all("items").find(i=>norm(i.name)===n)||null};
 const matchStaff=name=>{const n=norm(name);return J.staffList(true).find(s=>norm(s.name)===n)||J.staffList(true).find(s=>norm(s.name).split(" ")[0]===n)||null};
 const NONVEG=/\b(egg|eggs|chicken|mutton|lamb|fish|prawns?|shrimps?|meat|beef|pork|gelatine?|keema|tuna|salmon)\b/i;
