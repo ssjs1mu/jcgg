@@ -286,6 +286,22 @@ J.parseDate=s=>{s=String(s||"").trim();let m;
   if(m=s.match(/^(\d{1,2})[\/\-. ](\d{1,2})[\/\-. ](\d{2,4})/)){const y=m[3].length===2?"20"+m[3]:m[3];return y+"-"+pad(m[2])+"-"+pad(m[1])}
   if(m=s.match(/^(\d{1,2})[\/\-. ]([A-Za-z]{3})[A-Za-z]*[\/\-. ,]+(\d{2,4})/)){const mo=MON[m[2].toLowerCase()];if(mo){const y=m[3].length===2?"20"+m[3]:m[3];return y+"-"+pad(mo)+"-"+pad(m[1])}}
   return null};
+/* Expiry as printed on the pack → an actual date. Accepts a full date (15/03/2027, 2027-03-15, 15 Mar 2027),
+   month & year only (03/2027, Mar 2027, MAR-27 → last day of that month), or a period ("Best before 6 months",
+   "9 m", "180 days", "1 year") counted from the manufacturing date (or from the purchase date if no mfg date). */
+J.monthYear=(s,end)=>{s=String(s||"").trim();let m,y,mo;
+  if(m=s.match(/^(\d{1,2})[\/\-. ](\d{4}|\d{2})$/)){mo=+m[1];y=m[2]}else if(m=s.match(/^(\d{4})[\/\-.](\d{1,2})$/)){y=m[1];mo=+m[2]}
+  else if(m=s.match(/^([A-Za-z]{3})[A-Za-z]*[\/\-. ,']*(\d{4}|\d{2})$/)){mo=MON[m[1].toLowerCase()];y=m[2]}
+  if(!mo||mo>12)return null;y=String(y).length===2?"20"+y:String(y);return end?iso(new Date(+y,mo,0)):y+"-"+pad(mo)+"-01"};
+J.packDate=(s,end)=>{s=String(s||"").trim();if(!s)return null;return J.parseDate(s)||J.monthYear(s,end)||null};
+J.expiryCalc=(raw,mfg,from)=>{raw=String(raw||"").trim();if(!raw)return {exp:"",how:""};
+  const d=J.parseDate(raw);if(d&&/\d{4}|\d{1,2}[\/\-. ]\d{1,2}[\/\-. ]\d{2}/.test(raw))return {exp:d,how:"date on pack"};
+  const my=J.monthYear(raw,true);if(my)return {exp:my,how:"end of month on pack"};
+  const m=raw.toLowerCase().match(/(\d+(?:\.\d+)?)\s*(y|yr|yrs|year|years|m|mo|mon|mons|month|months|w|wk|week|weeks|d|day|days)\b/);
+  if(m){const base=J.packDate(mfg)||from||today();const n=+m[1],u=m[2][0];const b=parseISO(base);
+    if(u==="y")b.setMonth(b.getMonth()+Math.round(n*12));else if(u==="m")b.setMonth(b.getMonth()+Math.round(n));else if(u==="w")b.setDate(b.getDate()+Math.round(n*7));else b.setDate(b.getDate()+Math.round(n));
+    return {exp:iso(b),how:(J.packDate(mfg)?"from mfg date":"from purchase date — add mfg date")}}
+  return {exp:"",how:"not understood"}};
 J.numOf=s=>{s=String(s??"").replace(/[₹,\s]/g,"");let neg=false;if(/^\(.*\)$/.test(s)){neg=true;s=s.slice(1,-1)}if(/dr$/i.test(s)){neg=true;s=s.slice(0,-2)}s=s.replace(/cr$/i,"");const n=parseFloat(s);return isNaN(n)?0:(neg?-n:n)};
 J.headerMap=(rows,need)=>{const hi=rows.findIndex(r=>r.some(c=>need.test(String(c))));if(hi<0)return null;const h=rows[hi].map(c=>String(c).trim().toLowerCase());return {hi,col:re=>h.findIndex(c=>re.test(c))}};
 J.readFileInput=(id)=>new Promise(res=>{const f=document.getElementById(id)?.files?.[0];if(!f)return res(null);const r=new FileReader();r.onload=()=>res(String(r.result));r.onerror=()=>res(null);r.readAsText(f)});
