@@ -197,7 +197,7 @@ J.gate=(kind,msg)=>{const g=$("#gate");if(!kind){g.hidden=true;document.querySel
 
 // ---------- roles ----------
 const ROLES=["Super Admin","Admin","Manager","Accountant","Chef","Auditor"];
-const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","sales","accounts","inventory","kitchen","kot","staff","directory","assets","insurance","care"],"Accountant":["home","sales","accounts","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*","Kitchen Staff":["kitchen"],"Customer Care":["care","kitchen","directory"]};
+const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","sales","accounts","dues","inventory","kitchen","kot","staff","directory","assets","insurance","care"],"Accountant":["home","sales","accounts","dues","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*","Kitchen Staff":["kitchen"],"Customer Care":["care","kitchen","directory"]};
 J.ROLES=ROLES;
 function myRole(){if(S.me.owner)return "Super Admin";if(S.me.kitchen)return "Kitchen Staff";if(S.me.cc)return "Customer Care";return J.get("meta","roles")?.map?.[S.me.email]||"Manager"}
 J.myRole=myRole;
