@@ -15,6 +15,7 @@ function alerts(){const out=[];const t=today();const add=(lvl,text,go,tab)=>out.
   for(const p of J.all("policies")){if(p.status==="quote")continue;const r=J.policyRenew(p);if(r&&r[2]<=30)add(r[2]<0?"bad":r[2]<=15?"crit":"warn",p.type+" policy "+(r[2]<0?"expired on ":"expires ")+fmtDate(p.end),"insurance","radar")}
   for(const a of J.all("assets"))if(a.amc?.till&&!a.disposed&&daysBetween(t,a.amc.till)<=30)add(daysBetween(t,a.amc.till)<0?"bad":"warn","AMC for "+a.name+(daysBetween(t,a.amc.till)<0?" lapsed ":" ends ")+fmtDate(a.amc.till),"assets","register");
   try{for(const x of J.duesAlerts?.()||[])add(x.lvl,x.text,x.go,x.tab)}catch(e){}
+  try{for(const x of J.upkeepAlerts?.()||[])add(x.lvl,x.text,x.go,x.tab)}catch(e){}
   const order={bad:0,crit:1,warn:2,ok:3};return out.sort((a,b)=>order[a.lvl]-order[b.lvl])}
 J.homeAlerts=alerts;
 function search(q){q=q.toLowerCase();const r=[];const push=(kind,name,sub,act,x)=>r.push({kind,name,sub,act,x});
