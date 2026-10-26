@@ -65,19 +65,19 @@ async function dueAcc(o){const s=J.staffList?.(true).find(x=>norm(x.name.split("
 async function postDay(date,orders,acc){const os=orders.filter(o=>counted(o,date));const id="ppsale-"+date;const old=J.get("vouchers",id);
   const kh=J.settings().kotHouse;const hk=kh?.acc&&J.get("accounts",kh.acc)?kh:null;const hos=hk?orders.filter(o=>live(o)&&houseOf(o,date)):[];
   if(!os.length&&!hos.length){if(old)await J.store.del("vouchers",id);return null}
-  const dr={},cr={};const add=(m,a,v)=>{if(a&&Math.abs(v)>0.004)m[a]=r2((m[a]||0)+v)};
+  const hl=[];const dr={},cr={};const add=(m,a,v)=>{if(a&&Math.abs(v)>0.004)m[a]=r2((m[a]||0)+v)};
   for(const o of os){add(cr,acc[o.ch]||acc.dine,o.amt+o.deliv+o.cont);if(o.tax){add(cr,acc.ogst||acc[o.ch],o.tax)}add(dr,acc.disc,o.disc);if(o.round>0)add(cr,acc.round,o.round);else add(dr,acc.round,-o.round);
     for(const p of o.pays){let a=p.m==="cash"?acc.cash:p.m==="upi"?acc.upi:p.m==="card"?acc.card:p.m==="online"?(acc[o.agg]||acc.online):p.m==="comp"?acc.comp:p.m==="due"?await dueAcc(o):acc.susp;add(dr,a,p.amt)}}
   // house account orders (all staff KOTs of the day, paid together): received against the house ledger, not sales
   // the payment clears the house (client) ledger, where each day's combined bill is posted with its per-person breakup
   {let paid=0;for(const o of hos)for(const p of o.pays){if(p.m==="due")continue;const a=p.m==="cash"?acc.cash:p.m==="upi"?acc.upi:p.m==="card"?acc.card:acc.susp;add(dr,a,p.amt);paid=r2(paid+p.amt)}
-   if(paid)add(cr,hk.acc,paid)
+   for(const o of hos)for(const p of o.pays){if(p.m==="due")continue;hl.push({a:hk.acc,dr:0,cr:p.amt,n:"Received "+inr0.format(p.amt)+" — "+({cash:"Cash in hand",upi:"Google Pay / UPI",card:"Card / POS"}[p.m]||"Suspense")+" · bill #"+o.no})}
    // unpaid part of a house bill: moves from the welfare account to the person's dues ledger (shows in receivables)
-   for(const o of hos){const du=r2(o.pays.filter(p=>p.m==="due").reduce((s,p)=>s+p.amt,0));if(du>0.004){add(dr,await dueAcc(o),du);add(cr,hk.acc,du)}}
+   for(const o of hos){const du=r2(o.pays.filter(p=>p.m==="due").reduce((s,p)=>s+p.amt,0));if(du>0.004){add(dr,await dueAcc(o),du);hl.push({a:hk.acc,dr:0,cr:du,n:"Not received "+inr0.format(du)+" — moved to "+(o.name||"customer")+" dues · bill #"+o.no})}}
    // house bill not covered by that day's staff KOTs: shown on the welfare account as unallocated so the day total still matches Petpooja
    const bill=r2(hos.reduce((s,o)=>s+o.net,0)),kt=r2(Object.values(J.skDayByStaff?.(date)||{}).reduce((s,a)=>s+a,0));
-   if(bill-kt>0.5){const un=r2(bill-kt);add(dr,hk.acc,un);add(cr,acc.dine,un)}}
-  const lines=[...Object.entries(dr).map(([a,v])=>v>0?{a,dr:v,cr:0}:{a,dr:0,cr:-v}),...Object.entries(cr).map(([a,v])=>v>0?{a,dr:0,cr:v}:{a,dr:-v,cr:0})];
+   if(bill-kt>0.5){const un=r2(bill-kt);hl.push({a:hk.acc,dr:un,cr:0,n:"Petpooja house bill not covered by staff KOTs "+inr0.format(un)});add(cr,acc.dine,un)}}
+  const lines=[...hl,...Object.entries(dr).map(([a,v])=>v>0?{a,dr:v,cr:0}:{a,dr:0,cr:-v}),...Object.entries(cr).map(([a,v])=>v>0?{a,dr:0,cr:v}:{a,dr:-v,cr:0})];
   const d=r2(lines.reduce((s,l)=>s+l.dr-l.cr,0));if(Math.abs(d)>0.004)lines.push(d>0?{a:acc.round,dr:0,cr:d}:{a:acc.round,dr:-d,cr:0});
   const by=m=>r2(os.flatMap(o=>o.pays).filter(p=>p.m===m).reduce((s,p)=>s+p.amt,0));
   const hp=r2(hos.reduce((s,o)=>s+o.pays.filter(p=>p.m!=="due").reduce((a,p)=>a+p.amt,0),0));
