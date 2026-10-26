@@ -48,10 +48,25 @@ J.act("subDel",async el=>{if(!el.dataset.armed){el.dataset.armed="1";el.textCont
 J.act("billEdit",el=>{const b=J.get("bills",el.dataset.x);if(!b)return;J.drawer({title:"Edit bill · "+(b.invNo||""),submit:"Save",body:`<div class="form">${fld("Bill date",dateI("date",b.date))}${fld("Invoice no.",txt("inv",b.invNo))}${fld("Order no.",txt("ord",b.orderNo||""))}</div>${fld("Note",area("note",b.note||"",2))}<p class="hint">The accounting entry and stock receipt move to the new date. To change the items, delete the bill and upload it again.</p>`,
   onSubmit:async fd=>{const v=J.get("vouchers",b.vid);if(v)await J.postVoucher({...v,id:v.id,date:fd.date,ref:fd.inv.trim()});const mv=b.moveId&&J.get("moves",b.moveId);if(mv)await J.store.put("moves",{...mv,date:fd.date,m:fd.date.slice(0,7),inv:fd.inv.trim()});
     await J.store.patch("bills",b.id,{date:fd.date,invNo:fd.inv.trim(),orderNo:fd.ord.trim(),note:fd.note.trim(),editedAt:Date.now(),editedBy:S.me.email});toast("Bill updated");setTimeout(()=>J.billsReconcile?.(),800)}})});
-// ---------- staff KOT: edit date, quantities, rates ----------
-J.act("skEdit",el=>{const k=J.all("kots").find(x=>x.id===el.dataset.x);if(!k)return;const items=arr(k.items);
-  J.drawer({title:"Edit KOT "+k.no,wide:true,submit:"Save KOT",body:`<div class="form">${fld("Date",dateI("date",k.date))}</div><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Rate ₹</th></tr></thead><tbody>${items.map((it,i)=>`<tr><td>${esc(it.name)}</td><td><input type="number" step="any" min="0" name="q${i}" id="f-q${i}" value="${it.qty}" style="width:80px"></td><td><input type="number" step="any" min="0" name="r${i}" id="f-r${i}" value="${it.rate}" style="width:90px"></td></tr>`).join("")}</tbody></table></div><p class="hint">Set a quantity to 0 to remove that item.</p>`,
-    onSubmit:async fd=>{const ni=items.map((it,i)=>({...it,qty:+fd["q"+i]||0,rate:+fd["r"+i]||0})).filter(it=>it.qty>0);if(!ni.length)return "Keep at least one item, or delete the KOT.";
-      const n={...k,date:fd.date,m:fd.date.slice(0,7),items:ni,total:r2(ni.reduce((t,x)=>t+x.qty*x.rate,0)),editedAt:Date.now(),editedBy:S.me.name||S.me.email||""};
-      if(n.date!==k.date)await J.store.del("kots",k.id);await J.store.put("kots",n);const lc=J.H?.lastClosedMonth?.()||"";if(k.date.slice(0,7)<=lc||n.date.slice(0,7)<=lc)J.H.syncSoon("staff food edited");toast(k.no+" saved")}})});
+// ---------- staff KOT: edit date, person, items, quantities, prices ----------
+J.act("skEdit",el=>{const k=J.all("kots").find(x=>x.id===el.dataset.x);if(!k)return;const items=arr(k.items);const menu=(J.skMenuList?J.skMenuList():[]);const staff=J.staffList(true);const n=items.length+3;
+  const rt=[["","Keep as is"],["staff","Staff rate"],["gr","Gr. Floor"],["mez","Mez. Floor"],["grBf","Gr. Breakfast"],["mezBf","Mez. Breakfast"]];
+  const rows=[...Array(n)].map((_,i)=>{const it=items[i]||{};return `<tr><td><input name="n${i}" id="f-n${i}" list="sk-edl" value="${esc(it.name||"")}" placeholder="${it.name?"":"Add an item…"}" style="min-width:170px" autocomplete="off"></td><td><input type="number" step="any" min="0" name="q${i}" id="f-q${i}" value="${it.qty??""}" style="width:70px"></td><td><select name="t${i}" id="f-t${i}">${rt.map(([v,l])=>`<option value="${v}">${l}</option>`).join("")}</select></td><td><input type="number" step="any" min="0" name="r${i}" id="f-r${i}" value="${it.rate??""}" style="width:80px"></td></tr>`}).join("");
+  J.drawer({title:"Edit KOT "+k.no,wide:true,submit:"Save KOT",body:`<div class="form">${fld("Date",dateI("date",k.date))}${fld("Staff member",`<select name="staff" id="f-staff">${staff.map(s=>`<option value="${s.id}" ${s.id===k.staff?"selected":""}>${esc((s.code?s.code+" · ":"")+s.name)}</option>`).join("")}</select>`)}</div>
+    <datalist id="sk-edl">${menu.map(m=>`<option value="${esc(m.name)}">`).join("")}</datalist>
+    <div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">Qty</th><th>Price list</th><th class="num">Rate ₹</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="hint">Change the person, rename or swap an item (pick from the menu), set the quantity, and choose a price list — Staff, Ground Floor, Mezzanine or breakfast — to re-price the line from the Kitchen menu, or type any rate. Quantity 0 removes the line; fill a spare row to add an item.</p>`,
+    onSubmit:async fd=>{const ni=[];for(let i=0;i<n;i++){const nm=(fd["n"+i]||"").trim();const q=+fd["q"+i]||0;if(!nm||!(q>0))continue;const old=items[i];const m=menu.find(x=>x.name.toLowerCase()===nm.toLowerCase());const t=fd["t"+i];
+        let rate=+fd["r"+i]||0,basis=old?.basis||"manual";
+        if(t&&m){const v=J.menuRate(m,t);if(!(v>0))return nm+" has no "+(J.RATE_LABEL[t]||t)+".";rate=v;basis=t}
+        else if(m&&(!old||old.name.toLowerCase()!==nm.toLowerCase())&&!(+fd["r"+i]>0)){const p=J.staffPrice(m);rate=p.rate;basis=p.basis}
+        else if(old&&rate!==old.rate)basis="manual";
+        if(!(rate>=0))return "Enter a rate for "+nm+".";
+        const {flag,...rest}=old||{};ni.push({...rest,mid:m?.id||old?.mid||"",name:m?.name||nm,qty:q,rate,basis,...(old?.flag&&rate===old.rate&&nm===old.name?{flag}:{})})}
+      if(!ni.length)return "Keep at least one item, or delete the KOT.";
+      const s=J.get("accounts",fd.staff);if(!s)return "Choose the staff member.";const dupe=fd.staff!==k.staff&&J.all("kots").find(x=>x.id!==k.id&&x.kind==="staff"&&x.date===fd.date&&x.staff===fd.staff);
+      const nk={...k,date:fd.date,m:fd.date.slice(0,7),staff:s.id,staffName:s.name,items:ni,total:r2(ni.reduce((t,x)=>t+x.qty*x.rate,0)),editedAt:Date.now(),editedBy:S.me.name||S.me.email||""};
+      if(nk.date!==k.date)await J.store.del("kots",k.id);await J.store.put("kots",nk);const lc=J.H?.lastClosedMonth?.()||"";if(k.date.slice(0,7)<=lc||nk.date.slice(0,7)<=lc)J.H.syncSoon("staff food edited");
+      for(const m of new Set([k.date.slice(0,7),nk.date.slice(0,7)]))if(J.foodViaHouse?.(m))setTimeout(()=>J.skHouseSync?.(m),800);
+      toast(k.no+" saved"+(k.staff!==s.id?" · now "+s.name:"")+(dupe?" — note: "+s.name+" already has a KOT that day":""))}})});
 })();

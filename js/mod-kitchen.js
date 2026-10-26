@@ -5,6 +5,8 @@ const ui=()=>J.ui("kit",{q:"",cat:"",only:"",view:"tiles"});
 const RATES=[["gr","Ground Floor"],["mez","Mezzanine Floor"],["grBf","Gr. Flr. Breakfast"],["mezBf","Mez. Flr. Breakfast"],["staff","Staff rate"]];
 const rate=(m,k)=>{const v=m.rates?.[k];return v===""||v==null?(k==="gr"&&m.price?+m.price:null):+v};
 J.menuRate=rate;J.MENU_RATES=RATES;
+J.RATE_LABEL={staff:"Staff rate",gr:"Gr. Floor rate",mez:"Mez. Floor rate",grBf:"Gr. Breakfast rate",mezBf:"Mez. Breakfast rate",sheet:"Sheet rate",manual:"Manual rate"};
+J.allRates=m=>[["staff","Staff"],["gr","Gr. Flr"],["mez","Mez. Flr"],["grBf","Gr. Bkfst"],["mezBf","Mez. Bkfst"]].map(([k,l])=>[k,l,rate(m,k)]).filter(x=>x[2]!=null&&x[2]>0);
 // staff KOT price: the staff rate when the item carries one, otherwise the Ground Floor rate
 J.staffPrice=m=>{const s=rate(m,"staff");if(s!=null&&s>0)return {rate:s,basis:"staff"};const g=rate(m,"gr");return {rate:g||0,basis:"gr"}};
 // ---- one tile per dish: the same dish listed under Gr.Flr / Mezzanine / Breakfast / Staff / Online is merged ----

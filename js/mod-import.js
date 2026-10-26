@@ -205,8 +205,8 @@ function skPersons(){const U=ui();const hdr=(U.rows[U.hdr]||[]).map(c=>str(c));c
 function skDates(){const U=ui();const di=U.map?.date;if(di==null)return [];return U.rows.slice(U.hdr+1).map(r=>asDate(r[di])).filter(Boolean).sort()}
 function skGuess(h,from,to){const al=J.get("meta","kotAliases")?.map||{};if(al[h])return al[h];const n=norm(h).replace(/\s+/g,"");if(n.length<3)return "";const cands=J.staffList(true).filter(s=>!from||J.H.inServiceRange(s,from,to));const tok=s=>norm(s.name).split(/\s+/);
   const hit=cands.filter(s=>tok(s).some(t=>t===n||(n.length>=4&&t.startsWith(n))));return hit.length===1?hit[0].id:""}
-function skMenu(name){const n=norm(name);return J.all("menu").filter(m=>m.active!==false&&norm(m.name)===n)}
-T.staffkot={label:"Staff KOT register",group:"People",desc:"Staff food sheet: Date, Item, Rate and one column per person with the quantity taken. Each column is linked to a staff member (remembered for next time); every line is checked against the person's working dates and the Kitchen menu staff rate before it is added. One KOT per person per day; uploading the same days again replaces them.",
+function skMenu(name){const n=norm(name);return (J.menuItems?J.menuItems():J.all("menu").filter(m=>m.active!==false)).filter(m=>norm(m.name)===n)}
+T.staffkot={label:"Staff KOT register",group:"People",desc:"Staff food sheet: Date, Item, Rate and one column per person with the quantity taken. The sheet rate is matched to any menu price (staff, Ground Floor, Mezzanine, breakfast) and billed as that price. Each column is linked to a staff member (remembered for next time); every line is checked against the person's working dates and the Kitchen menu staff rate before it is added. One KOT per person per day; uploading the same days again replaces them.",
   fields:SKF,
   opts:o=>{const ps=skPersons();const ds=skDates();const from=ds[0],to=ds.at(-1);o.pmap=o.pmap||{};for(const p of ps)if(o.pmap[p.h]===undefined)o.pmap[p.h]=skGuess(p.h,from,to);
     const inR=s=>!from||J.H.inServiceRange(s,from,to);const staff=J.staffList(true).sort((a,b)=>(inR(b)-inR(a))||(a.code||"").localeCompare(b.code||""));
@@ -214,13 +214,14 @@ T.staffkot={label:"Staff KOT register",group:"People",desc:"Staff food sheet: Da
     <label class="row" style="gap:6px"><input type="checkbox" id="io-skany" data-ui="imp.opt.anyDate" ${o.anyDate?"checked":""}> Add linked columns even on days outside the person's working dates</label>
     <label class="row" style="gap:6px"><input type="checkbox" id="io-sksheet" data-ui="imp.opt.useSheet" ${o.useSheet?"checked":""}> Accept the sheet's rate when it differs from the menu (otherwise such lines are held back)</label>`},
   prep(r,o){const d=asDate(r.date);const item=str(r.item);if(!d&&!item)return r.skip=1;if(!d){r.err.push("bad date");return}if(!item){r.err.push("no item");return}const rate=asNum(r.rate);if(!(rate>=0)){r.err.push("no rate");return}
-    const ms=skMenu(item);const exp=[...new Set(ms.map(m=>{const s=J.menuRate(m,"staff");return s!=null&&s>0?s:J.menuRate(m,"gr")}).filter(v=>v!=null))];const mm=ms.find(m=>{const s=J.menuRate(m,"staff");return (s!=null&&s>0?s:J.menuRate(m,"gr"))===rate})||ms.find(m=>m.cat==="STAFF")||ms[0];
-    const priceOk=exp.includes(rate);r.lines=[];r.held=[];
+    const ms=skMenu(item);const KEYS=["staff","gr","mez","grBf","mezBf"];const hit=m=>KEYS.find(k=>{const v=J.menuRate(m,k);return v>0&&v===rate});
+    const exp=[...new Set(ms.flatMap(m=>KEYS.map(k=>J.menuRate(m,k)).filter(v=>v>0)))];const mm=ms.find(m=>hit(m))||ms.find(m=>m.cat==="STAFF")||ms[0];const key=mm&&hit(mm)||"";
+    const priceOk=!!key;r.lines=[];r.held=[];
     for(const p of skPersons()){const q=asNum(r._row[p.i]);if(!(q>0))continue;const sid=o.pmap?.[p.h];const s=sid&&J.get("accounts",sid);let why="";
-      if(!s)why=p.h+" not linked to a staff member";else if(!o.anyDate&&J.H.stints(s).length&&!J.H.inService(s,d))why=s.name+" not in service on "+fmtDate(d);else if(!ms.length)why="“"+item+"” is not on the Kitchen menu";else if(!priceOk&&!o.useSheet)why="rate ₹"+rate+" ≠ menu ₹"+exp.join("/");
-      if(why)r.held.push({h:p.h,q,amt:r2(q*rate),why});else r.lines.push({sid,q,rate,mid:mm?.id||"",name:mm?.name||item,basis:priceOk&&J.menuRate(mm,"staff")>0?"staff":priceOk?"gr":"sheet"})}
+      if(!s)why=p.h+" not linked to a staff member";else if(!o.anyDate&&J.H.stints(s).length&&!J.H.inService(s,d))why=s.name+" not in service on "+fmtDate(d);else if(!ms.length)why="“"+item+"” is not on the Kitchen menu";else if(!priceOk&&!o.useSheet)why="rate ₹"+rate+" matches none of the menu prices (₹"+exp.join("/")+")";
+      if(why)r.held.push({h:p.h,q,amt:r2(q*rate),why});else r.lines.push({sid,q,rate,mid:mm?.id||"",name:mm?.name||item,basis:priceOk?key:"sheet"})}
     if(!r.lines.length&&!r.held.length)return r.skip=1;if(r.held.length)r.warn.push(r.held.map(x=>x.h+" ×"+x.q+": "+x.why).join("; "));if(!r.lines.length)r.err.push("nothing to add — "+r.held[0].why);
-    r.view=[d,item,"₹"+inr.format(rate)+(priceOk?"":" ⚠ menu ₹"+(exp.join("/")||"—")),r.lines.map(l=>(J.get("accounts",l.sid)?.name||"").split(" ")[0]+" ×"+l.q).join(", ")+(r.held.length?" · held: "+r.held.map(x=>x.h+" ×"+x.q).join(", "):"")]},
+    r.view=[d,item,"₹"+inr.format(rate)+(priceOk?" · "+(J.RATE_LABEL[key]||key):" ⚠ menu ₹"+(exp.join("/")||"—")),r.lines.map(l=>(J.get("accounts",l.sid)?.name||"").split(" ")[0]+" ×"+l.q).join(", ")+(r.held.length?" · held: "+r.held.map(x=>x.h+" ×"+x.q).join(", "):"")]},
   cols:["Date","Item","Rate","Staff × qty"],
   async commit(recs,o,log){const g={};for(const r of recs)for(const l of r.lines){const d=asDate(r.date);const k=d+"|"+l.sid;(g[k]??={d,sid:l.sid,items:[]}).items.push({mid:l.mid,name:l.name,qty:l.q,rate:l.rate,basis:l.basis,...(l.basis==="sheet"?{flag:"Sheet rate ₹"+l.rate+" kept; menu rate differs"}:{})})}
     await J.store.put("meta",{id:"kotAliases",map:{...(J.get("meta","kotAliases")?.map||{}),...Object.fromEntries(Object.entries(o.pmap||{}).filter(([,v])=>v))}});
