@@ -4,7 +4,7 @@
    Feeds the Home Reminders panel (J.mismatches()) and "Add to To-do". Read-only: it never posts anything. */
 (()=>{
 const J=window.J,{S,esc,fmtDate,today,addDays,daysBetween,inr}=J;
-const r2=x=>Math.round(x*100)/100,m0=x=>"₹"+inr.format(Math.round(x));
+const r2=x=>Math.round(x*100)/100,m0=x=>"₹"+J.inr0.format(Math.round(x));
 const LAG=3;// days a UPI / card settlement can take before it is called late
 J.mismatches=()=>{const out=[];const t=today();const fy=J.fyOf(t);const add=(scope,key,title,reason,fix,amt,go,tab,sev)=>out.push({scope,key,title,reason,fix,amt:amt||0,go,tab,sev:sev||"warn"});
   const pp=J.all("ppday").sort((a,b)=>a.id.localeCompare(b.id));const V=id=>J.get("vouchers",id);const kindOf=id=>J.get("accounts",id)?.kind;
