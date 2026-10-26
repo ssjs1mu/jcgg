@@ -45,7 +45,9 @@ J.optAcc=optAcc;J.selA=selA;
 // ---- shared posting API for other modules ----
 J.ensureAcc=async(name,kind,sys)=>{let a=sys?sysAcc(sys):null;if(!a)a=J.all("accounts").find(x=>x.name.toLowerCase()===name.toLowerCase());if(a)return a.id;
   const id=(sys||kind)+"-"+uid();await J.store.put("accounts",{id,name,kind,opening:0,active:true,...(sys?{sys}:{})});S.c.accounts.set(id,{id,name,kind,opening:0,active:true,...(sys?{sys}:{})});return id};
-function nextNo(type,date,keep){const fy=fyOf(date),p=TYPES[type]?.p||"JV";if(keep&&keep.startsWith(p+"/"+fy.short+"/"))return keep;const pre=p+"/"+fy.short+"/";let mx=0;for(const v of S.c.vouchers.values())if(v.no?.startsWith(pre))mx=Math.max(mx,+v.no.slice(pre.length)||0);return pre+String(mx+1).padStart(4,"0")}
+const NOS_USED=new Set();// numbers handed out in this session — two entries created at the same moment can never get the same number
+function nextNo(type,date,keep){const fy=fyOf(date),p=TYPES[type]?.p||"JV";if(keep&&keep.startsWith(p+"/"+fy.short+"/")){NOS_USED.add(keep);return keep}const pre=p+"/"+fy.short+"/";let mx=0;for(const v of S.c.vouchers.values())if(v.no?.startsWith(pre))mx=Math.max(mx,+v.no.slice(pre.length)||0);let n=pre+String(mx+1).padStart(4,"0");while(NOS_USED.has(n)){mx++;n=pre+String(mx+1).padStart(4,"0")}NOS_USED.add(n);return n}
+J.nextVoucherNo=(type,date)=>nextNo(type,date)
 J.postVoucher=async spec=>{
   const lines=(spec.lines||[]).filter(l=>l.a&&(+l.dr||+l.cr)).map(l=>({a:l.a,dr:r2(l.dr),cr:r2(l.cr),...(l.n?{n:String(l.n)}:{}),...(l.s?{s:String(l.s)}:{})}));
   for(const l of lines)if(!J.get("accounts",l.a)&&/^(adv|loan)-/.test(l.a))await J.staffSubAcc(l.a.slice(l.a.indexOf("-")+1),l.a.startsWith("adv")?"adv":"loan");

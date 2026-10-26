@@ -115,9 +115,12 @@ function review(){const st=ui().stg;const os=st.orders;const okk=os.filter(live)
     await commit(os,{post:!!fd.post,points:!!fd.points,file:st.file});ui().stg=null}})}
 async function commit(os,opt){const byDay={};for(const o of os)if(o.date)(byDay[o.date]??=[]).push(o);const days=Object.keys(byDay).sort();
   J.busy.start("Importing Petpooja orders",days.length+(opt.points?1:0),"steps");let acc=null;try{if(opt.post)acc=await L();
-    for(const d of days){J.busy.label(fmtDate(d));const old=arr(J.get("ppday",d)?.orders);const m=new Map(old.map(o=>[o.no,o]));for(const o of byDay[d])m.set(o.no,o);const list=[...m.values()].sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+    const frozen=[];for(const d of days){J.busy.label(fmtDate(d));try{const old=arr(J.get("ppday",d)?.orders);const m=new Map(old.map(o=>[o.no,o]));for(const o of byDay[d])m.set(o.no,o);const list=[...m.values()].sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+      // a day whose sales entry is matched / frozen can only be changed with the passcode
+      const sig=l=>JSON.stringify(l.map(o=>[o.no,o.net,o.status,o.pays.map(p=>p.m+p.amt).join()]));const fv=J.get("vouchers",J.get("ppday",d)?.vid||"");if(fv&&J.lock?.isFrozen(fv)&&old.length&&sig(old)!==sig(list))await J.lock.guard(fv,"re-import this day");
       let vid=J.get("ppday",d)?.vid||"";if(opt.post){const v=await postDay(d,list,acc);vid=v?.id||""}
-      await J.store.put("ppday",{id:d,m:d.slice(0,7),orders:list,vid,file:opt.file,at:Date.now(),by:S.me.email});J.busy.tick()}
+      await J.store.put("ppday",{id:d,m:d.slice(0,7),orders:list,vid,file:opt.file,at:Date.now(),by:S.me.email})}catch(e){if(e?.frozen){frozen.push(d)}else throw e}J.busy.tick()}
+    if(frozen.length)toast(frozen.length+" frozen day"+(frozen.length>1?"s":"")+" left unchanged ("+frozen.slice(0,4).map(fmtDate).join(", ")+(frozen.length>4?"…":"")+") — unlock with the passcode to re-import them");
     if(opt.points){J.busy.label("Client history & points");await toClients(os.filter(o=>counted(o)&&o.phone))}J.busy.tick();
     toast(os.filter(live).length+" orders imported over "+days.length+" days")}catch(e){console.error(e);toast("Stopped: "+(e.message||e))}finally{J.busy.end()}J.go("sales","daily")}
 async function toClients(os){const per=+J.settings().rewardPer||100;const byPh={};for(const o of os)(byPh[o.phone]??=[]).push(o);let mx=0;for(const c of J.all("clients")){const n=+String(c.code||"").replace(/\D/g,"");if(n>mx)mx=n}
@@ -248,5 +251,5 @@ J.orderHabits=c=>{const e=arr(c.pts).filter(p=>p.type==="earn"&&arr(p.items).len
   <p class="hint" style="margin:6px 0 0">Sits at <b>${esc(md(p=>p.ch==="dine"?[p.table,p.area].filter(Boolean).join(" · "):p.agg||p.ch))}</b> · pays by <b>${esc(md(p=>(MODE_L[String(p.mode||"").split("+")[0]]||"")))}</b> · ${(e.reduce((s,p)=>s+p.items.length,0)/e.length).toFixed(1)} items a bill.</p></div>`};
 // ---------- module ----------
 J.mod({id:"sales",label:"Sales & Cash",group:"Finance",icon:'<path d="M3 7h18v10H3z"/><circle cx="12" cy="12" r="2.5"/><path d="M6 10v4M18 10v4"/>',sub:"Petpooja orders, daily sales posting, UPI and aggregator reconciliation, and the cash counter.",
-  tabs:[["daily","Daily sales",vDaily],["upi","UPI ↔ Google Pay",vUpi],["gpay","Google Pay collections",()=>J.gpayView?J.gpayView():"<div class=\"panel pb muted\">Loading…</div>"],["agg","Swiggy / Zomato",vAgg],["cash","Cash counter",vCash],["items","Items & habits",vItems]]});
+  tabs:[["daily","Daily sales",vDaily],["upi","Google Pay & UPI",()=>J.gpay&&J.gpay.txns().length?J.gpayView():vUpi()],["agg","Swiggy / Zomato",vAgg],["cash","Cash counter",vCash],["items","Items & habits",vItems]]});
 })();
