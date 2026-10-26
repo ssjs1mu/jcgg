@@ -76,7 +76,7 @@ J.weatherAlerts=()=>{const out=[];const j=wx?.j;const d=j?.daily;
       if(hi[i]>=41)out.push({lv:"red",ic:"🔥",t:`Severe heat ${DN(i)} — ${Math.round(hi[i])}°C. Keep staff hydrated; cold storage will be under load.`});
       else if(hi[i]>=38)out.push({lv:"amber",ic:"🌡️",t:`Heat ${DN(i)} — ${Math.round(hi[i])}°C.`});
       if(uv[i]>=11&&i===0)out.push({lv:"info",ic:"☀️",t:`Extreme UV today (${Math.round(uv[i])}).`})}}
-  for(const c of alx?.cy||[])out.push({lv:/red/i.test(c.lv)?"red":"amber",ic:"🌀",t:`Cyclone ${c.n}${c.lv?" ("+c.lv+" alert)":""} active — about ${c.d} km from you. Follow IMD bulletins.`});
+  for(const c of alx?.cy||[])out.push({lv:/red/i.test(c.lv)?"red":"amber",ic:"🌀",t:`${/cyclone|storm|hurricane|typhoon/i.test(c.n)?c.n:"Cyclone "+c.n}${c.lv?" — "+c.lv+" alert":""}${(c.sev.match(/\d+\s*km\/h/)||[""])[0]?", winds up to "+c.sev.match(/\d+\s*km\/h/)[0]:""} — about ${c.d} km from you. Follow IMD bulletins.`});
   for(const e of alx?.eq||[])out.push({lv:e.m>=5.5||e.d<400?"red":e.m>=5?"amber":"info",ic:"🌍",t:`Earthquake M${e.m.toFixed(1)} — ${e.pl}, ${e.d} km away (${new Date(e.at).toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit"})}).`});
   const rk={red:0,amber:1,info:2};return out.sort((a,b)=>rk[a.lv]-rk[b.lv]).filter((x,i,a)=>a.findIndex(y=>y.t===x.t)===i).slice(0,6)};
 J.homeHead=(greet,sub,btns)=>{if(!alx||Date.now()-alx.at>30*6e4)setTimeout(loadAlerts,60);const wal=J.weatherAlerts();if(!wx||Date.now()-wx.at>30*6e4)setTimeout(loadWx,30);const j=wx?.j;const now=new Date();let rise,set_;

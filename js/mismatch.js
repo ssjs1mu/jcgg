@@ -8,13 +8,13 @@ const r2=x=>Math.round(x*100)/100,m0=x=>"₹"+inr.format(Math.round(x));
 const LAG=3;// days a UPI / card settlement can take before it is called late
 J.mismatches=()=>{const out=[];const t=today();const fy=J.fyOf(t);const add=(scope,key,title,reason,fix,amt,go,tab,sev)=>out.push({scope,key,title,reason,fix,amt:amt||0,go,tab,sev:sev||"warn"});
   const pp=J.all("ppday").sort((a,b)=>a.id.localeCompare(b.id));const V=id=>J.get("vouchers",id);const kindOf=id=>J.get("accounts",id)?.kind;
-  const win=addDays(t,-45);
+  const win=addDays(t,-45);const win14=addDays(t,-14);
   // ---------- DAILY ----------
   for(const d of pp){if(d.id<win||d.id>t)continue;const live=d.orders.filter(o=>!/cancel|saved/i.test(o.status||""));if(!live.length)continue;
     const v=d.vid?V(d.vid):null;
     if(!v){add("daily",d.id,`${fmtDate(d.id)}: Petpooja sales not posted`,`Orders for the day are uploaded (${live.length} bills) but there is no sales entry in Accounts, so Sales, GST and the settlement ledgers are short.`,"Open Sales & Cash → Petpooja, select the day and press Post.",live.reduce((s,o)=>s+o.net,0),"sales","petpooja","bad");continue}
     // payments Petpooja says were received but nothing matched them yet
-    const late=daysBetween(d.id,t)>LAG;const un={};
+    const late=daysBetween(d.id,t)>LAG&&daysBetween(d.id,t)<=10;const un={};// older unmatched days are rolled into the account-level finding below
     if(late)for(const l of v.lines||[]){if(!(l.dr>0))continue;const k=kindOf(l.a);if(!["aggregator","bank","card"].includes(k)||v.rec?.[l.a])continue;un[l.a]=r2((un[l.a]||0)+l.dr)}
     for(const [a,amt] of Object.entries(un))add("daily",d.id+a,`${fmtDate(d.id)}: ${m0(amt)} received per Petpooja, not seen in ${J.accName(a)}`,`Petpooja shows ${m0(amt)} collected into ${J.accName(a)}, but no matching credit has been ticked in the bank / Google Pay / aggregator statement ${daysBetween(d.id,t)} days later. Possible causes: statement not uploaded yet, payment taken as cash or UPI to a different QR, or amount keyed wrong at the counter.`,"Upload the latest bank or Google Pay statement in Accounts → Reconcile and match it. If the money never arrived, correct the payment mode on that Petpooja bill.",amt,"accounts","recon")
     // cash tally
@@ -26,7 +26,7 @@ J.mismatches=()=>{const out=[];const t=today();const fy=J.fyOf(t);const add=(sco
   // Petpooja days missing between first and last upload this month and last month
   {const have=new Set(pp.map(d=>d.id));const from=pp.find(d=>d.id>=addDays(t,-45))?.id;if(from)for(let d=from;d<addDays(t,0);d=addDays(d,1)){if(!have.has(d)&&daysBetween(d,t)>=1)add("daily",d+"gap",`${fmtDate(d)}: no Petpooja sales uploaded`,"Sales for this date are not in the app — either the restaurant was closed or the day's Petpooja report was not uploaded. Sales, GST and the settlement ledgers are short by that day.","Upload the Petpooja order report for the date (Sales & Cash → Petpooja). If it was a closed day, ignore.",0,"sales","petpooja","info")}}
   // purchases without a bill (last 45 days)
-  for(const m of J.all("moves")){if(m.type!=="purchase"||m.date<win)continue;const v=m.vid?V(m.vid):null;if(v&&(v.docs||[]).length)continue;
+  for(const m of J.all("moves")){if(m.type!=="purchase"||m.date<addDays(t,-14))continue;const v=m.vid?V(m.vid):null;if(v&&(v.docs||[]).length)continue;
     const amt=v?J.vAmount(v):0;add("daily",m.id+"nb",`${fmtDate(m.date)}: purchase from ${m.vendor?J.accName(m.vendor):"supplier"}${m.inv?" #"+m.inv:""} has no bill saved (${m0(amt)})`,m.noBill?"Marked 'no bill available' — GST input credit cannot be claimed and the vendor statement cannot be checked.":"The purchase entry was made without uploading the bill, so the vendor balance cannot be verified.","Open Inventory → Purchases and use 'No bill · upload' on the row (Flipkart / Amazon / Zepto invoices can be uploaded from the header button).",amt,"inventory","purchases")}
   // ---------- MONTHLY ----------
   const months=[...new Set([t.slice(0,7),addDays(t.slice(0,7)+"-01",-1).slice(0,7)])];
