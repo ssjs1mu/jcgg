@@ -52,7 +52,9 @@ const ovr=()=>J.get("meta","costrates")?.map||{};
 function rateFor(name){const o=ovr();const n=name.toLowerCase();
   for(const [key,r] of Object.entries(o))if(r&&r.rate>=0&&n.includes(key.toLowerCase()))return {src:"own",label:key,unit:r.unit,rate:+r.rate,gCup:r.gCup,gPc:r.gPc,gTsp:r.gTsp,key};
   const s=STD.find(x=>x[1].test(name));if(!s)return null;
-  const inv=invMatch(s[0],name);if(inv)return {...inv,gCup:s[4],gPc:s[5],gTsp:s[6],std:s};
+  const inv=invMatch(s[0],name);
+  // an inventory rate is used only when its unit matches the standard unit and it is in a believable range (0.4x–2.5x of market); otherwise fall back to the market rate
+  if(inv&&inv.unit===s[2]&&inv.rate>0&&inv.rate>=s[3]*.4&&inv.rate<=s[3]*2.5)return {...inv,gCup:s[4],gPc:s[5],gTsp:s[6],std:s};
   return {src:"std",label:s[0],unit:s[2],rate:s[3],gCup:s[4],gPc:s[5],gTsp:s[6],key:s[0]}}
 // inventory: an item whose name shares the standard ingredient's main word, priced at its latest purchase (else average)
 function invMatch(stdName,line){const items=J.all("items");if(!items.length)return null;const D=J.D.inv?.items||{};
