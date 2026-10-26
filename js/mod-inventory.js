@@ -115,7 +115,10 @@ function purchaseDrawer(old,preItem){const n=Math.max(5,(old?.lines?.length||0)+
 // bill from an online platform (Flipkart, Amazon, Instamart, Zepto, Blinkit…): pick the file, the platform / invoice no. / date are read when possible, and the purchase form opens with the bill already attached
 const PLAT_RE=[["Flipkart Minutes",/flipkart\s*minutes/i],["Flipkart",/flipkart|ekart/i],["Amazon",/amazon|amzn/i],["Instamart",/instamart|swiggy/i],["Zepto",/zepto|kiranakart/i],["Blinkit",/blinkit|grofers/i],["BigBasket",/big\s*basket|innovative retail/i],["Zomato Hyperpure",/hyperpure/i]];
 J.act("platBill",()=>{const i=document.createElement("input");i.type="file";i.multiple=true;i.accept="image/*,application/pdf,.xls,.xlsx,.xlsm,.ods,.csv";
-  i.onchange=async()=>{const files=[...i.files];if(!files.length)return;let txt=files.map(f=>f.name).join(" ");
+  i.onchange=async()=>{const files=[...i.files];if(!files.length)return;
+    // Flipkart / Flipkart Minutes tax-invoice PDFs are read in full (items, GST, Flipkart vs Flipkart Minutes) and go to the bill review
+    try{const pf=files.filter(x=>/pdf/i.test(x.type)||/\.pdf$/i.test(x.name));if(pf.length===files.length&&J.billParseFile){const ps=await Promise.all(pf.map(f=>J.billParseFile(f).catch(()=>null)));if(ps.every(b=>b&&b.vendorKey==="flipkart")){await J.billStage(pf);return}}}catch(e){console.warn("flipkart parse",e)}
+    let txt=files.map(f=>f.name).join(" ");
     try{const f=files.find(x=>/pdf/i.test(x.type));if(f){const lib=await J.loadPdfJs();const pdf=await lib.getDocument({data:new Uint8Array(await f.arrayBuffer()),isEvalSupported:false}).promise;const pg=await pdf.getPage(1);txt+=" "+(await pg.getTextContent()).items.map(x=>x.str).join(" ")}}catch(e){console.warn("bill text",e)}
     const plat=(PLAT_RE.find(([,re])=>re.test(txt))||[])[0]||"";const inv=((txt.match(/(?:invoice|order)\s*(?:no\.?|number|#|id)\s*[:#]?\s*([A-Z0-9][A-Z0-9\-\/]{5,})/i)||[])[1]||"");
     const dm=txt.match(/\b(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2})\b/);const date=dm?dm[3]+"-"+dm[2].padStart(2,"0")+"-"+dm[1].padStart(2,"0"):"";

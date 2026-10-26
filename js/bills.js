@@ -12,7 +12,23 @@ async function pdfItems(file){const lib=await J.loadPdfJs();const pdf=await lib.
 const rowsOf=items=>{const R=[];for(const i of [...items].sort((a,b)=>b.y-a.y||a.x-b.x)){const r=R.find(r=>Math.abs(r.y-i.y)<=2);if(r)r.t.push(i);else R.push({y:i.y,t:[i]})}R.forEach(r=>{r.t.sort((a,b)=>a.x-b.x);r.text=r.t.map(t=>t.s).join(" ")});return R};
 const N=s=>+String(s).replace(/,/g,"");const MON={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
 const isoDate=s=>{const m=String(s).match(/(\d{1,2})[ -]([A-Za-z]{3})[a-z]*[ -,]*(\d{4})/);if(m)return `${m[3]}-${String(MON[m[2].toLowerCase()]).padStart(2,"0")}-${m[1].padStart(2,"0")}`;const d=String(s).match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);return d?`${d[3]}-${d[2].padStart(2,"0")}-${d[1].padStart(2,"0")}`:""};
-J.parseBill=items=>{const R=rowsOf(items);const all=R.map(r=>r.text).join("\n");const b={lines:[],charges:[],warnings:[]};
+// Flipkart / Flipkart Minutes tax invoice (Sold By … · Order ID OD… · Invoice Number # …)
+// Flipkart Minutes is Flipkart's quick-commerce service, invoiced by its own dark-store company (Cigfil Retail); marketplace orders are invoiced by the individual sellers
+function parseFlipkart(R,all){const b={lines:[],charges:[],warnings:[],docType:"Tax invoice",vendorKey:"flipkart"};
+  b.sellerName=(all.match(/Sold By:\s*([^,\n]+)/i)?.[1]||"").trim();b.vendorName=/cigfil|flipkart\s*(minutes|quick)|\bFKM\b/i.test(b.sellerName+" "+all)?"Flipkart Minutes":"Flipkart";
+  b.vendorGstin=(all.match(/GSTIN\s*-?\s*:?\s*([0-9]{2}[A-Z0-9]{13})/)||[])[1]||"";b.invNo=(all.match(/Invoice Number\s*#?\s*([A-Z0-9]{8,})/i)||[])[1]||"";b.orderNo=(all.match(/\b(OD\d{12,})\b/)||[])[1]||"";
+  const idt=all.match(/Invoice Date:?\s*(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/i);b.date=idt?`${idt[3]}-${idt[2].padStart(2,"0")}-${idt[1].padStart(2,"0")}`:isoDate(all);
+  const hdr=R.find(r=>/^Product\b/.test(r.text)&&/Title/.test(r.text));const xT=hdr?.t.find(t=>/^Title/.test(t.s))?.x??190;
+  const NUM=/(-?[\d,]+\.\d{2})/g;let last=null;
+  for(let i=0;i<R.length;i++){const r=R[i];const m=r.text.match(/\s(\d+)((?:\s+-?[\d,]+\.\d{2}){6})\s*$/);if(!m||/^Total\b/.test(r.text))continue;
+    const nums=m[2].trim().split(/\s+/).map(N);const [gross,disc,taxable,sgst,cgst,total]=nums;const title=r.t.filter(t=>t.x>=xT-8&&!/^-?[\d,.]+$/.test(t.s)).map(t=>t.s).join(" ").trim()||r.text.slice(0,m.index).trim();const qty=+m[1];
+    if(/^Handling Fee$/i.test(title)){if(total>0.004)b.charges.push({sno:b.charges.length+1,desc:"Handling Fee",hsn:"9997",qty,price:r2(total/Math.max(1,qty)),uom:"",taxable,gstPct:0,tax:r2(total-taxable),total});continue}
+    let pct=0,hsn="";for(let j=i+1;j<Math.min(R.length,i+6);j++){const tx=R[j].text;if(/^Handling Fee/i.test(tx)||(tx.match(/\s\d+(\s+-?[\d,]+\.\d{2}){6}\s*$/)&&!/FSN|HSN|GST/.test(tx)))break;for(const g of tx.matchAll(/(?:SGST\/UTGST|CGST|IGST):\s*([\d.]+)\s*%/g))pct+=+g[1];const h=tx.match(/HSN\/SAC:\s*(\d{4,8})/);if(h)hsn=h[1]}
+    b.lines.push({sno:b.lines.length+1,desc:title,hsn,qty,price:r2(total/Math.max(1,qty)),uom:"",taxable,gstPct:pct,tax:r2(total-taxable),total})}
+  const tr=R.find(r=>/^Total\b/.test(r.text));const tn=tr?(tr.text.match(NUM)||[]).map(N):[];b.total=tn.at(-1)||r2(b.lines.reduce((s,l)=>s+l.total,0));b.taxable=tn.length>=3?tn[2]:0;
+  const sum=r2([...b.lines,...b.charges].reduce((s,l)=>s+l.total,0));if(Math.abs(sum-b.total)>1)b.warnings.push(`Lines add up to ${money(sum)} but the bill total is ${money(b.total)} — check the lines.`);
+  if(!b.lines.length)b.warnings.push("No item lines could be read from this Flipkart invoice. Enter them by hand.");return b}
+J.parseBill=items=>{const R=rowsOf(items);const all=R.map(r=>r.text).join("\n");if(/Sold By:/i.test(all)&&/Invoice Number\s*#/i.test(all)&&/\bOD\d{12,}/.test(all)&&/Order ID/i.test(all))return parseFlipkart(R,all);const b={lines:[],charges:[],warnings:[]};
   b.docType=/BILL OF SUPPLY/i.test(all)?"Bill of supply":/TAX INVOICE/i.test(all)?"Tax invoice":"Invoice";
   b.vendorName=(all.match(/Bill From[^:\n]*:\s*([^\n]+)/i)?.[1]||"").replace(/\s*\(.*$/,"").replace(/Limted/i,"Limited").trim();
   if(/hyperpure/i.test(all))b.vendorKey="hyperpure";
@@ -52,9 +68,11 @@ function mapLine(l,isCharge){const exp=isCharge?expOf(l.desc,l.hsn)||"delivch":e
   return {kind:"stock",item:ex?.id||"new",newName:nm,cat:catOf(l.desc,l.hsn),unit:ex?.unit||pk?.unit||"PCS",perPack:pk&&(!ex||ex.unit===pk.unit)?pk.q:1}}
 // ---------------- upload & review ----------------
 const STG={bills:[]};
-J.act("billUpload",()=>{const i=document.createElement("input");i.type="file";i.accept="application/pdf";i.multiple=true;i.onchange=async()=>{const files=[...i.files];if(!files.length)return;STG.bills=[];J.busy.start("Reading supplier bills",files.length,"bills");
+J.billParseFile=async f=>J.parseBill(await pdfItems(f));
+J.billStage=async files=>{STG.bills=[];J.busy.start("Reading supplier bills",files.length,"bills");
   for(const f of files){J.busy.label(f.name);try{const b=J.parseBill(await pdfItems(f));b.file=f;b.fileName=f.name;b.dup=J.all("bills").find(x=>x.invNo&&x.invNo===b.invNo);b.lines.forEach(l=>l.map=mapLine(l,false));b.charges.forEach(l=>l.map=mapLine(l,true));STG.bills.push(b)}catch(e){STG.bills.push({file:f,fileName:f.name,err:e.message,lines:[],charges:[],warnings:[]})}J.busy.tick()}J.busy.end();
-  STG.bills.sort((a,b)=>(a.date||"").localeCompare(b.date||""));reviewDrawer()};i.click()});
+  STG.bills.sort((a,b)=>(a.date||"").localeCompare(b.date||""));reviewDrawer()};
+J.act("billUpload",()=>{const i=document.createElement("input");i.type="file";i.accept="application/pdf";i.multiple=true;i.onchange=()=>{const f=[...i.files];if(f.length)J.billStage(f)};i.click()});
 const itemOptions=sel=>`<option value="new" ${sel==="new"?"selected":""}>＋ New stock item</option>${J.all("items").sort((a,b)=>a.name.localeCompare(b.name)).map(it=>`<option value="${esc(it.id)}" ${sel===it.id?"selected":""}>${esc(it.name)} (${esc(it.unit)})</option>`).join("")}`;
 function lineRow(bi,kind,li,l){const m=l.map;const k=`${bi}-${kind}-${li}`;
   return `<tr><td>${esc(l.desc)}<div class="hint mono">HSN ${esc(l.hsn)} · ${l.qty} ${esc(l.uom)} × ₹${inr.format(l.price)}${l.gstPct?` · GST ${l.gstPct}%`:""}</div></td><td class="num">₹${inr.format(l.total)}</td>
@@ -64,11 +82,12 @@ function lineRow(bi,kind,li,l){const m=l.map;const k=`${bi}-${kind}-${li}`;
   :`<select data-ach="billMap" data-k="${k}" data-f="exp">${EXP.map(([s,n])=>`<option value="${s}" ${m.exp===s?"selected":""}>${esc(n)}</option>`).join("")}</select>`}</td></tr>`}
 function reviewDrawer(){const gstin=J.settings().gstin;
   J.drawer({title:"Review bills · "+STG.bills.length,wide:true,submit:"Save bills & post to accounts",body:`${gstin?"":`<p class="note" style="margin:0">Your business has no GSTIN in Settings, so GST on these bills cannot be claimed back — it is added to the cost of each item and expense.</p>`}
-  ${STG.bills.map((b,bi)=>`<section class="bill-rv"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:baseline"><b>${esc(b.vendorName||"Supplier not recognised")}</b><span class="chip plain">${esc(b.docType||"")}</span><span class="mono">${esc(b.invNo||b.fileName)}</span>${b.orderNo?`<span class="hint mono">Order ${esc(b.orderNo)}</span>`:""}<span>${b.date?fmtDate(b.date):""}</span><b style="margin-left:auto">${money(b.total||0)}</b></div>
+  ${STG.bills.map((b,bi)=>`<section class="bill-rv"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:baseline"><b>${esc(b.vendorName||"Supplier not recognised")}</b>${b.vendorKey==="flipkart"?`<select data-ach="billPlat" data-x="${bi}" aria-label="Flipkart or Flipkart Minutes">${["Flipkart","Flipkart Minutes"].map(x=>`<option ${b.vendorName===x?"selected":""}>${x}</option>`).join("")}</select>${b.sellerName?`<span class="hint">sold by ${esc(b.sellerName)}</span>`:""}`:""}<span class="chip plain">${esc(b.docType||"")}</span><span class="mono">${esc(b.invNo||b.fileName)}</span>${b.orderNo?`<span class="hint mono">Order ${esc(b.orderNo)}</span>`:""}<span>${b.date?fmtDate(b.date):""}</span><b style="margin-left:auto">${money(b.total||0)}</b></div>
     ${b.err?`<div class="err">${esc(b.err)}</div>`:""}${b.dup?`<div class="err">Already uploaded on ${fmtDate(new Date(b.dup.createdAt).toISOString().slice(0,10))} — this bill will be skipped.</div>`:""}${(b.warnings||[]).map(w=>`<div class="note">${esc(w)}</div>`).join("")}
     ${b.lines.length||b.charges.length?`<div class="tbl-wrap"><table class="bill-tbl"><thead><tr><th>Line on the bill</th><th class="num">Amount</th><th>Goes to</th></tr></thead><tbody>${b.lines.map((l,li)=>lineRow(bi,"lines",li,l)).join("")}${b.charges.map((l,li)=>lineRow(bi,"charges",li,l)).join("")}</tbody></table></div>`:""}</section>`).join("")}
   <p class="hint">Each bill is posted as one purchase entry (stock items to Kitchen Purchases, other lines to their expense heads, total to the supplier's ledger), its PDF is kept with the entry, and stock is added in Inventory. Bills are then matched to your bank payments to the supplier.</p>`,
   onSubmit:async()=>{const n=await saveAll();if(typeof n==="string")return n}})}
+J.act("billPlat",el=>{const b=STG.bills[+el.dataset.x];if(b){b.vendorName=el.value;const st=document.getElementById("drawerForm")?.scrollTop;reviewDrawer();const fm=document.getElementById("drawerForm");if(fm)fm.scrollTop=st}});
 J.act("billMap",el=>{const [bi,kind,li]=el.dataset.k.split("-");const l=STG.bills[+bi][kind][+li];const f=el.dataset.f;
   if(f==="stockQty"){l.map.stockQty=+el.value;return}l.map[f]=el.value;if(f==="item"&&el.value!=="new"){const it=J.get("items",el.value);const pk=PACK(l.desc);l.map.perPack=pk&&pk.unit===it.unit?pk.q:1;l.map.unit=it.unit}
   if(f==="unit"){const pk=PACK(l.desc);l.map.perPack=pk&&pk.unit===el.value?pk.q:1}if(f==="kind"&&el.value==="exp"&&!l.map.exp)l.map.exp=expOf(l.desc,l.hsn)||"miscexp";
