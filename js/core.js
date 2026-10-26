@@ -217,7 +217,7 @@ J.readOnly=()=>myRole()==="Auditor"||!!S.me.kitchen;
 // ---------- modules & routing ----------
 const MODS=[];J.MODS=MODS;
 J.mod=m=>{MODS.push(m);return m};
-const actions={};J.act=(name,fn)=>{actions[name]=fn};J.run=(name,x,extra={})=>actions[name]?.({dataset:{x,...extra}});
+const actions={};J.act=(name,fn)=>{if(actions[name])console.warn("Duplicate action name — the later one wins:",name);actions[name]=fn};J.run=(name,x,extra={})=>actions[name]?.({dataset:{x,...extra}});
 const GROUPS=["Home","Operations","Finance","Governance"];
 const ICON=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 J.ICON=ICON;
