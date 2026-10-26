@@ -54,8 +54,9 @@ function rateFor(name){const o=ovr();const n=name.toLowerCase();
   const s=STD.find(x=>x[1].test(name));if(!s)return null;
   const inv=invMatch(s[0],name);
   // an inventory rate is used only when its unit matches the standard unit and it is in a believable range (0.4x–2.5x of market); otherwise fall back to the market rate
-  if(inv&&inv.unit===s[2]&&inv.rate>0&&inv.rate>=s[3]*.4&&inv.rate<=s[3]*2.5)return {...inv,gCup:s[4],gPc:s[5],gTsp:s[6],std:s};
+  if(invOk(s,inv))return {...inv,gCup:s[4],gPc:s[5],gTsp:s[6],std:s};
   return {src:"std",label:s[0],unit:s[2],rate:s[3],gCup:s[4],gPc:s[5],gTsp:s[6],key:s[0]}}
+const invOk=(s,inv)=>!!inv&&inv.unit===s[2]&&inv.rate>0&&inv.rate>=s[3]*.4&&inv.rate<=s[3]*2.5;
 // inventory: an item whose name shares the standard ingredient's main word, priced at its latest purchase (else average)
 function invMatch(stdName,line){const items=J.all("items");if(!items.length)return null;const D=J.D.inv?.items||{};
   const words=stdName.toLowerCase().split(/[^a-z]+/).filter(w=>w.length>2);
@@ -183,7 +184,7 @@ J.vCosting=()=>{if(J.limited())return "";const kit=K();const U=kit.ui();const q=
   <details class="panel pb"><summary><b>Ingredient rates used</b> — ${Object.keys(ovr()).length} set by you, ${STD.length} indicative</summary>
   <div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>Ingredient</th><th class="num">Rate</th><th>Source</th><th></th></tr></thead><tbody>
   ${Object.entries(ovr()).map(([k,r])=>`<tr><td>${esc(k)}</td><td class="num">₹${inr.format(r.rate)}/${esc(r.unit)}</td><td><span class="chip plain">Your rate</span></td><td><button class="linkbtn" data-a="costRate" data-x="${esc(k)}" data-k="${esc(k)}">change</button></td></tr>`).join("")}
-  ${STD.filter(s=>!FREE.test(s[0])).map(s=>{const inv=invMatch(s[0],s[0]);return `<tr><td>${esc(s[0])}</td><td class="num">₹${inr.format(inv?inv.rate:s[3])}/${inv?inv.unit:s[2]}</td><td>${inv?`<span class="chip ok">Inventory · ${esc(inv.label)}</span>`:'<span class="chip warn">Indicative</span>'}</td><td><button class="linkbtn" data-a="costRate" data-x="${esc(s[0])}">set my rate</button></td></tr>`}).join("")}</tbody></table></div></details>`};
+  ${STD.filter(s=>!FREE.test(s[0])).map(s=>{const inv0=invMatch(s[0],s[0]);const inv=invOk(s,inv0)?inv0:null;return `<tr><td>${esc(s[0])}</td><td class="num">₹${inr.format(inv?inv.rate:s[3])}/${inv?inv.unit:s[2]}</td><td>${inv?`<span class="chip ok">Inventory · ${esc(inv.label)}</span>`:'<span class="chip warn">Indicative</span>'}</td><td><button class="linkbtn" data-a="costRate" data-x="${esc(s[0])}">set my rate</button></td></tr>`}).join("")}</tbody></table></div></details>`};
 J.act("costCsv",()=>{const rows=[["Dish","Category","New item","Serves","Cost per serve","Menu price","Food cost %","Price at target","Unpriced lines"]];for(const m of J.all("menu").filter(m=>(m.active!==false||m.trial)&&K().hasRcp(m))){const c=J.recipeCosting(m);const p=priceOf(m);rows.push([m.name,m.cat||"",m.trial?"Y":"",c.base,c.perServe.toFixed(2),p||"",p?(c.perServe/p*100).toFixed(1):"",sugg(c.perServe),c.unpriced])}J.saveFile("dish-costing-"+today()+".csv",J.toCSV(rows))});
 // ---------------- share target: links shared to the installed app arrive as ?url= / ?text= / ?title= ----------------
 (()=>{try{const p=new URLSearchParams(location.search);const u=p.get("url")||"",t=p.get("text")||"",ti=p.get("title")||"";if(u||/https?:\/\//.test(t)){sessionStorage.setItem("jcgg-share",JSON.stringify({u,t,ti}));history.replaceState(null,"",location.pathname+"#kitchen-new")}}catch(e){}})();
