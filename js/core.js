@@ -206,19 +206,20 @@ J.gate=(kind,msg)=>{const g=$("#gate");if(!kind){g.hidden=true;document.querySel
 
 // ---------- roles ----------
 const ROLES=["Super Admin","Admin","Manager","Accountant","Chef","Auditor"];
-const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","sales","accounts","dues","promo","inventory","kitchen","kot","staff","directory","assets","insurance","care"],"Accountant":["home","sales","accounts","dues","staff","assets","insurance","invest","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*","Kitchen Staff":["kitchen"],"Customer Care":["care","kitchen","directory"]};
+const ACCESS={"Super Admin":"*","Admin":"*","Manager":["home","sales","accounts","dues","promo","inventory","kitchen","kot","staff","directory","assets","care"],"Accountant":["home","sales","accounts","dues","staff","assets","directory"],"Chef":["home","inventory","kitchen","kot","directory"],"Auditor":"*","Kitchen Staff":["kitchen"],"Customer Care":["care","kitchen","directory"]};
 J.ROLES=ROLES;
 function myRole(){if(S.me.owner)return "Super Admin";if(S.me.kitchen)return "Kitchen Staff";if(S.me.cc)return "Customer Care";return J.get("meta","roles")?.map?.[S.me.email]||"Manager"}
 J.myRole=myRole;
 J.limited=()=>!!S.me.kitchen;J.isCC=()=>!!S.me.cc;
-J.canSee=mod=>{const r=myRole();if(mod==="manual")return true;if(mod==="jdash")return r==="Super Admin"||r==="Admin";const a=ACCESS[r]||[];return a==="*"||a.includes(mod)||(mod==="settings"&&!S.me.kitchen&&!S.me.cc)};
+const MKJ=["mkjacc","mkjinv","mkjassets","invest","insurance"];J.MKJ_MODS=MKJ;
+J.canSee=mod=>{const r=myRole();if(mod==="manual")return true;if(mod==="jdash")return r==="Super Admin"||r==="Admin";if(MKJ.includes(mod))return r==="Super Admin";const a=ACCESS[r]||[];return a==="*"||a.includes(mod)||(mod==="settings"&&!S.me.kitchen&&!S.me.cc)};
 J.readOnly=()=>myRole()==="Auditor"||!!S.me.kitchen;
 
 // ---------- modules & routing ----------
 const MODS=[];J.MODS=MODS;
 J.mod=m=>{MODS.push(m);return m};
 const actions={};J.act=(name,fn)=>{if(actions[name])console.warn("Duplicate action name — the later one wins:",name);actions[name]=fn};J.run=(name,x,extra={})=>actions[name]?.({dataset:{x,...extra}});
-const GROUPS=["Home","Operations","Finance","Governance"];
+const GROUPS=["Home","Operations","Finance","Governance","MKJ"];
 const ICON=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 J.ICON=ICON;
 J.go=(mod,tab)=>{const m=MODS.find(x=>x.id===mod);if(!m)return;S.route={mod,tab:tab||m.tabs[0][0]};S.hold=null;S.confirm=null;J.render();window.scrollTo(0,0);try{history.replaceState(null,"","#"+mod+(tab?"-"+tab:""))}catch(e){}};

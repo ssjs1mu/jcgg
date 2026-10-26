@@ -105,6 +105,6 @@ J.act("editWatch",el=>{const id=el.dataset.x;const w=id?J.get("watch",id)||{id}:
   <h3 class="ph" style="padding:6px 0 0">Stock X-ray ratios</h3><div class="form">${RATIOS.map(([k,l])=>fld(l,num(k,w[k],""))).join("")}${fld("Ratios as on",dateI("ratAt",w.ratAt||today()))}</div>`,
   onSubmit:async fd=>{const sym=SYM(fd.sym);if(!sym)return "Enter the symbol.";const n={...w,id:sym,sym,resDate:fd.resDate,revY:fd.revY===""?"":+fd.revY,patY:fd.patY===""?"":+fd.patY,note:fd.note,ratAt:fd.ratAt};for(const [k] of RATIOS)n[k]=fd[k]===""?"":+fd[k];await J.store.put("watch",n);toast("Saved "+sym)}})});
 
-J.mod({id:"invest",label:"Investments",group:"Finance",icon:'<path d="M4 19h16"/><path d="M6 15l4-4 3 3 5-6"/><path d="M15 8h3v3"/>',sub:"Corporate equity holdings and trade levels, from data you enter or upload.",
+J.mod({id:"invest",label:"Investments",group:"MKJ",icon:'<path d="M4 19h16"/><path d="M6 15l4-4 3 3 5-6"/><path d="M15 8h3v3"/>',sub:"Corporate equity holdings and trade levels, from data you enter or upload.",
   tabs:[["holdings","Holdings",vHold],["trades","Trades",vTrades],["levels","Levels & setup",vLevels],["results","Results & X-ray",vResults]]});
 })();
