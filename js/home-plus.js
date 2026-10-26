@@ -52,11 +52,34 @@ J.act("homeRailTab",el=>{const c0=get("jcgg-hd-tab")||"";const c=["pj","st","ved
 J.homeDay=()=>"";
 // ---------- weather header (Open-Meteo, free, no key; cached 30 min) ----------
 const WMO=c=>c===0?["☀️","Clear","clear"]:c<=2?["🌤️","Partly cloudy","part"]:c===3?["☁️","Overcast","cloud"]:c<=48?["🌫️","Haze / fog","fog"]:c<=57?["🌦️","Drizzle","rain"]:c<=67?["🌧️","Rain","rain"]:c<=77?["🌨️","Snow","cloud"]:c<=82?["🌧️","Showers","rain"]:["⛈️","Thunderstorm","storm"];
-let wx=null,wxLoading=false;try{const c=JSON.parse(get("jcgg-wx")||"null");if(c&&Date.now()-c.at<30*6e4)wx=c}catch(e){}
+let wx=null,wxLoading=false;try{const c=JSON.parse(get("jcgg-wx2")||"null");if(c&&Date.now()-c.at<30*6e4)wx=c}catch(e){}
 let wxTried=0;async function loadWx(){if(wxLoading||Date.now()-wxTried<5*6e4)return;wxTried=Date.now();wxLoading=true;const s=J.settings();const lat=+s.lat||22.5726,lon=+s.lon||88.3639;
-  try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m&hourly=temperature_2m,weather_code,precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=Asia%2FKolkata&forecast_days=4`);const j=await r.json();if(j.current){wx={at:Date.now(),j};put("jcgg-wx",JSON.stringify(wx))}}catch(e){}
+  try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m&hourly=temperature_2m,weather_code,precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_gusts_10m_max,uv_index_max,sunrise,sunset&timezone=Asia%2FKolkata&forecast_days=4`);const j=await r.json();if(j.current){wx={at:Date.now(),j};put("jcgg-wx2",JSON.stringify(wx))}}catch(e){}
   wxLoading=false;if(S.route.mod==="home")J.softRender()}
-J.homeHead=(greet,sub,btns)=>{if(!wx||Date.now()-wx.at>30*6e4)setTimeout(loadWx,30);const j=wx?.j;const now=new Date();let rise,set_;
+// ---- weather / disaster alerts: rain, storm, wind, heat, UV from the forecast; earthquakes (USGS, last 24 h, M4+ within 1,500 km); cyclones (GDACS tropical-cyclone feed, Indian Ocean) ----
+let alx=null,alLoading=false;try{const c=JSON.parse(get("jcgg-alx")||"null");if(c&&Date.now()-c.at<30*6e4)alx=c}catch(e){}
+let alTried=0;const km=(a,b,c,d)=>{const R=6371,t=x=>x*Math.PI/180,dl=t(c-a),dn=t(d-b),h=Math.sin(dl/2)**2+Math.cos(t(a))*Math.cos(t(c))*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(h))};
+async function loadAlerts(){if(alLoading||Date.now()-alTried<10*6e4)return;alTried=Date.now();alLoading=true;const s=J.settings();const lat=+s.lat||22.5726,lon=+s.lon||88.3639;const eq=[],cy=[];
+  await Promise.all([(async()=>{try{const r=await fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.0_day.geojson");const j=await r.json();for(const f of j.features||[]){const [lo,la]=f.geometry.coordinates;const d=km(lat,lon,la,lo);if(d<=1500)eq.push({m:f.properties.mag,pl:f.properties.place,d:Math.round(d),at:f.properties.time})}}catch(e){}})(),
+   (async()=>{try{const r=await fetch("https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH?eventlist=TC&fromdate="+new Date(Date.now()-5*864e5).toISOString().slice(0,10)+"&todate="+new Date(Date.now()+864e5).toISOString().slice(0,10));const j=await r.json();for(const f of j.features||[]){const p=f.properties||{};const c=f.geometry?.coordinates;if(!c||p.iscurrent==="false")continue;const [lo,la]=Array.isArray(c[0])?c[0]:c;if(lo>40&&lo<110&&la>-5&&la<30)cy.push({n:p.name||"Cyclone",lv:p.alertlevel,d:Math.round(km(lat,lon,la,lo)),sev:p.severitydata?.severitytext||""})}}catch(e){}})()]);
+  alx={at:Date.now(),eq:eq.sort((a,b)=>b.m-a.m).slice(0,3),cy:cy.slice(0,2)};put("jcgg-alx",JSON.stringify(alx));alLoading=false;if(S.route.mod==="home")J.softRender()}
+// returns [{lv:"red"|"amber"|"info", ic, t}]
+J.weatherAlerts=()=>{const out=[];const j=wx?.j;const d=j?.daily;
+  if(d){const gust=d.wind_gusts_10m_max||[],ps=d.precipitation_sum||[],uv=d.uv_index_max||[],pp=d.precipitation_probability_max||[],hi=d.temperature_2m_max||[];const DN=i=>i===0?"today":i===1?"tomorrow":new Date(d.time[i]+"T12:00:00+05:30").toLocaleDateString("en-IN",{weekday:"long"});
+    for(let i=0;i<Math.min(3,d.time.length);i++){const code=d.weather_code[i];
+      if(ps[i]>=115)out.push({lv:"red",ic:"🌧️",t:`Extremely heavy rain ${DN(i)} — ${Math.round(ps[i])} mm expected. Expect waterlogging; plan deliveries and stock early.`});
+      else if(ps[i]>=65)out.push({lv:"amber",ic:"🌧️",t:`Heavy rain ${DN(i)} — about ${Math.round(ps[i])} mm (${pp[i]}% chance). Delivery delays and fewer walk-ins likely.`});
+      else if(ps[i]>=15&&pp[i]>=60)out.push({lv:"info",ic:"🌦️",t:`Rain ${DN(i)} — about ${Math.round(ps[i])} mm (${pp[i]}% chance).`});
+      if(code>=95)out.push({lv:"amber",ic:"⛈️",t:`Thunderstorm ${DN(i)} — keep gas, power and outdoor seating secure.`});
+      if(gust[i]>=90)out.push({lv:"red",ic:"🌀",t:`Very strong winds ${DN(i)} — gusts up to ${Math.round(gust[i])} km/h (storm / cyclone strength). Secure signboards and awnings.`});
+      else if(gust[i]>=60)out.push({lv:"amber",ic:"💨",t:`Strong winds ${DN(i)} — gusts up to ${Math.round(gust[i])} km/h.`});
+      if(hi[i]>=41)out.push({lv:"red",ic:"🔥",t:`Severe heat ${DN(i)} — ${Math.round(hi[i])}°C. Keep staff hydrated; cold storage will be under load.`});
+      else if(hi[i]>=38)out.push({lv:"amber",ic:"🌡️",t:`Heat ${DN(i)} — ${Math.round(hi[i])}°C.`});
+      if(uv[i]>=11&&i===0)out.push({lv:"info",ic:"☀️",t:`Extreme UV today (${Math.round(uv[i])}).`})}}
+  for(const c of alx?.cy||[])out.push({lv:/red/i.test(c.lv)?"red":"amber",ic:"🌀",t:`Cyclone ${c.n}${c.lv?" ("+c.lv+" alert)":""} active — about ${c.d} km from you. Follow IMD bulletins.`});
+  for(const e of alx?.eq||[])out.push({lv:e.m>=5.5||e.d<400?"red":e.m>=5?"amber":"info",ic:"🌍",t:`Earthquake M${e.m.toFixed(1)} — ${e.pl}, ${e.d} km away (${new Date(e.at).toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit"})}).`});
+  const rk={red:0,amber:1,info:2};return out.sort((a,b)=>rk[a.lv]-rk[b.lv]).filter((x,i,a)=>a.findIndex(y=>y.t===x.t)===i).slice(0,6)};
+J.homeHead=(greet,sub,btns)=>{if(!alx||Date.now()-alx.at>30*6e4)setTimeout(loadAlerts,60);const wal=J.weatherAlerts();if(!wx||Date.now()-wx.at>30*6e4)setTimeout(loadWx,30);const j=wx?.j;const now=new Date();let rise,set_;
   if(j?.daily){rise=new Date(j.daily.sunrise[0]+":00+05:30");set_=new Date(j.daily.sunset[0]+":00+05:30")}else{try{const p=window.Panchang(now,{});rise=p.sunrise;set_=p.sunset}catch(e){rise=new Date(now.setHours(6,0,0,0));set_=new Date(new Date().setHours(17,30,0,0))}}
   const n=Date.now(),day=n>=rise&&n<=set_;const f=Math.max(0,Math.min(1,(n-rise)/(set_-rise)));
   const cur=j?.current;const w=cur?WMO(cur.weather_code):null;const kind=w?w[2]:"clear";
@@ -76,7 +99,8 @@ J.homeHead=(greet,sub,btns)=>{if(!wx||Date.now()-wx.at>30*6e4)setTimeout(loadWx,
    ${rain?`<div class="wx-rain" aria-hidden="true">${Array.from({length:24},(_,i)=>`<i style="left:${(i*37)%100}%;animation-delay:${(i%7)*0.17}s"></i>`).join("")}</div>`:""}
    <div class="wx-fg"><div><h1>${greet}</h1><p>${sub}</p>
      <p class="wx-line">${cur?`<b>${!day&&w[2]==="clear"?"🌙":!day&&w[2]==="part"?"☁️":w[0]} ${Math.round(cur.temperature_2m)}° ${w[1]}</b> · feels ${Math.round(cur.apparent_temperature)}° · ${cur.relative_humidity_2m}% humidity · 🌅 ${tm(rise)} – 🌇 ${tm(set_)} <span class="wx-nx">· ${nx.join(" · ")}</span>`:(wxLoading?"Loading weather… · ":"")+`🌅 ${tm(rise)} – 🌇 ${tm(set_)}`}</p></div>
-    <div class="row">${btns}</div></div></div>`};
+    <div class="row">${btns}</div></div>
+   <div class="wx-al" role="region" aria-label="Weather and disaster alerts">${wal.length?wal.map(a=>`<span class="wx-chip ${a.lv}" title="${esc(a.t)}"><i>${a.ic}</i> ${esc(a.t)}</span>`).join(""):`<span class="wx-chip ok"><i>✅</i> No weather, cyclone or earthquake alerts for ${esc(J.settings().place||"Kolkata")} right now.</span>`}</div></div>`};
 // ---------- news & results ----------
 const FEEDS=[["ET Markets","https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms"],["ET Stocks","https://economictimes.indiatimes.com/markets/stocks/news/rssfeeds/2146842.cms"],["Mint Markets","https://www.livemint.com/rss/markets"],["Business Standard","https://www.business-standard.com/rss/markets-106.rss"]];
 const RES=/\bresults?\b|\bQ[1-4]\b|earnings|net profit|profit (jumps|rises|falls|drops|declines|up|down)|revenue|board meet|dividend|quarterly/i;
