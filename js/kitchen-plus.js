@@ -91,7 +91,14 @@ function parseLine(raw){let s=String(raw).replace(/\([^)]*\)/g," ");const label=
   return out}
 // ---------------- recipe cost ----------------
 const costCache=new Map();
-J.recipeCosting=(m,serves,depth=0)=>{const kit=K();const base=kit.baseServes(m)||4;const want=serves||base;const f=want/base;const own=kit.selfKeys(m);
+// ready-to-serve packaged goods: one bought unit per serve. Inventory purchase rate when it is believable, otherwise a size-aware market rate (never the generic ₹20 drink rate)
+const PKG=[[/packaged water.*(200|250)|water.*(200|250) ?ml/i,/water/i,/200|250/,5,"Packaged water 200/250 ml"],[/packaged water.*500|water.*500 ?ml/i,/water/i,/500/,8,"Packaged water 500 ml"],[/packaged water.*(1 ?ltr|1 ?l\b|1 ?litre)|water.*1 ?ltr/i,/water/i,/\b1 ?(l|ltr|litre)\b|1000/i,12,"Packaged water 1 L"],
+  [/kinley|soda.*750|750 ?ml/i,/soda/i,/750/,14,"Soda 750 ml"],[/lay'?s|chips/i,/lay|chips/i,null,19,"Chips packet"]];
+function pkgCost(m,want){const nm=m.name||"";const e=PKG.find(x=>x[0].test(nm));if(!e)return null;const D=J.D.inv?.items||{};let rate=e[3],src="std",label=e[4]+" — market rate ₹"+e[3];
+  const it=J.all("items").find(i=>e[1].test(i.name||"")&&(!e[2]||e[2].test(i.name||""))&&(D[i.id]?.last||D[i.id]?.avg)>0);
+  if(it){const r=D[it.id].last||D[it.id].avg;if(r>=e[3]*.4&&r<=e[3]*2.5){rate=r;src="inv";label=it.name}}
+  return {rows:[{text:nm,src,label,costBase:rate,cost:rate*want,qty:"1 pc",kind:"main"}],total:rate*want,perServe:rate,baseTotal:rate,basePerServe:rate,serves:want,base:1,unpriced:0}}
+J.recipeCosting=(m,serves,depth=0)=>{const kit=K();{const pk=pkgCost(m,serves||1);if(pk)return pk}const base=kit.baseServes(m)||4;const want=serves||base;const f=want/base;const own=kit.selfKeys(m);
   const L=kit.lines(m.recipe?.en?.ing);const rows=[];let tot=0,totBase=0,unpriced=0;
   for(const ln of L){const refs=depth<2?kit.findRefs(ln,own):[];
     if(refs.length){const rm=kit.itemOf(refs[0].name);
