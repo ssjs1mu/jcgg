@@ -188,7 +188,7 @@ J.act("aggBook",async el=>{const [a,vid,gap,date]=el.dataset.x.split("|");await 
 // ---------- Cash counter ----------
 const DEN=[[500,"note"],[200,"note"],[100,"note"],[50,"note"],[20,"note"],[10,"note"],[20,"coin"],[10,"coin"],[5,"coin"],[2,"coin"],[1,"coin"]];
 const dk=([v,t])=>t[0]+v;
-function vCash(){const U=ui();if(!U.date)U.date=today();const boxes=J.accsOf(["cash"]);if(!U.box||!J.get("accounts",U.box))U.box=J.sysAcc("cash")?.id||boxes[0]?.id||"";const box=U.box,d=U.date;
+function vCash(){const U=ui();if(!U.date){const ds=J.all("ppday").map(x=>x.id).filter(x=>x<=today()).sort();U.date=J.get("ppday",today())||!ds.length?today():ds.at(-1)}const boxes=J.accsOf(["cash"]);if(!U.box||!J.get("accounts",U.box))U.box=J.sysAcc("cash")?.id||boxes[0]?.id||"";const box=U.box,d=U.date;
   const open=J.balanceBefore(box,d);const posts=(J.D.post?.get(box)||[]).filter(p=>p.date===d);const inn=posts.filter(p=>p.dr>0),out=posts.filter(p=>p.cr>0);const tin=r2(inn.reduce((s,p)=>s+p.dr,0)),tout=r2(out.reduce((s,p)=>s+p.cr,0));const exp=r2(open+tin-tout);
   const saved=J.get("cashday",box+"_"+d);const firstCnt=!J.all("cashday").some(c=>c.box===box&&c.date<d);const cnt=U.cnt[box+d]||saved?.counts||{};const counted=r2(DEN.reduce((s,x)=>s+(+cnt[dk(x)]||0)*x[0],0));const pp=J.get("ppday",d);
   const ppCash=pp?r2(pp.orders.filter(counted0).flatMap(o=>o.pays).filter(p=>p.m==="cash").reduce((s,p)=>s+p.amt,0)):null;

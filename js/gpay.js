@@ -85,11 +85,13 @@ J.gpayAlerts=()=>{const r=run();const out=[];if(!r.colls.length){if(J.all("ppday
 async function markTallied(){const acc=upiAcc();if(!acc||J.readOnly?.())return 0;const r=run();let n=0;for(const x of Object.values(r.days)){if(x.state!=="tallied"||!x.o.length)continue;const d=J.get("ppday",x.d);const v=d?.vid&&J.get("vouchers",d.vid);if(!v||v.rec?.[acc.id])continue;const at=x.batches.map(b=>b.bank?.date).filter(Boolean).sort().at(-1)||x.d;await J.store.patch("vouchers",v.id,{rec:{...(v.rec||{}),[acc.id]:at}});n++}return n}
 // ---------- UI ----------
 const ui=()=>J.ui("gpay",{month:"",f:"all"});
-const chip=s=>s==="tallied"?'<span class="chip ok">Tallied</span>':s==="pending"?'<span class="chip warn">Pending</span>':'<span class="chip plain">—</span>';
-J.gpayView=()=>{const U=ui();const r=run();const F=files();const months=[...new Set([...Object.keys(r.days).map(d=>d.slice(0,7))])].sort().reverse();if(!U.month)U.month=months[0]||today().slice(0,7);
+const chip=s=>s==="nofile"?'<span class="chip warn">Upload newer file</span>':s==="tallied"?'<span class="chip ok">Tallied</span>':s==="pending"?'<span class="chip warn">Pending</span>':'<span class="chip plain">—</span>';
+J.gpayView=()=>{const U=ui();const r=run();const F=files();const months=[...new Set([...Object.keys(r.days).map(d=>d.slice(0,7)),...J.all("ppday").filter(d=>d.id>r.hi).map(d=>d.id.slice(0,7))])].sort().reverse();if(!U.month)U.month=months[0]||today().slice(0,7);
   const head=`<div class="filters"><button class="btn primary w" data-a="gpUpload">Upload Google Pay transactions (CSV)</button><button class="btn w" data-a="gpRerun">Match again</button><span class="hint">${r.colls.length?`${r.colls.length} collections · ${fmtDate(r.lo)} – ${fmtDate(r.hi)} · ${F.length} file${F.length===1?"":"s"} kept in Drive`:"Google Pay for Business → Transactions → Export CSV, then upload it here."}</span></div>`;
   if(!r.colls.length)return head+`<div class="panel pb muted">No Google Pay file uploaded yet. Once uploaded, every Petpooja UPI bill is matched with its Google Pay collection, and each day is marked Tallied or Pending.</div>`;
-  const all=Object.values(r.days);const tal=all.filter(x=>x.state==="tallied").length,pen=all.filter(x=>x.state==="pending").length;const unO=r.O.filter(o=>!o.used&&o.date>=r.lo&&o.date<=r.hi),unC=r.colls.filter(c=>!c.used);
+  // Petpooja days after the last Google Pay collection in the file: shown as waiting for a newer file
+  const ext=J.all("ppday").filter(d=>d.id>r.hi&&d.id<=today()).map(d=>({d:d.id,o:d.orders.flatMap(o=>live(o)?o.pays.filter(p=>p.m==="upi"&&p.amt>0).map(p=>({a:p.amt})):[]),c:[],un:[],uc:[],batches:[],state:"nofile",why:["Google Pay file ends on "+fmtDate(r.hi)+" — upload a newer one"]})).filter(x=>x.o.length).map(x=>({...x,po:r2(x.o.reduce((s,o)=>s+o.a,0)),pc:0}));
+  for(const x of ext)r.days[x.d]=x;const all=Object.values(r.days);const tal=all.filter(x=>x.state==="tallied").length,pen=all.filter(x=>x.state==="pending").length;const unO=r.O.filter(o=>!o.used&&o.date>=r.lo&&o.date<=r.hi),unC=r.colls.filter(c=>!c.used);
   const rows=all.filter(x=>x.d.startsWith(U.month)).filter(x=>U.f==="all"||x.state===U.f).sort((a,b)=>b.d.localeCompare(a.d));
   const dues=unO.slice().sort((a,b)=>a.date.localeCompare(b.date));
   return `${head}
