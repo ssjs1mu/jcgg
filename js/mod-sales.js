@@ -26,6 +26,7 @@ const HDR={no:/^order\s*no/i,ext:/client\s*order/i,type:/^order\s*type/i,sub:/su
   amt:/my\s*amount/i,disc:/discount/i,deliv:/delivery\s*charge/i,cont:/container/i,tax:/total\s*tax|^tax/i,round:/round/i,total:/grand\s*total/i,pay:/payment\s*type/i,pdesc:/payment\s*desc/i,status:/^status/i,created:/^created|order\s*date|^date/i};
 const DUMMY=new Set(["1098765432","9999999999","0000000000","1234567890"]);
 const isStaffItem=i=>/-e$|\bstaff\b/i.test(String(i).trim());
+const housePh=()=>{const l=arr(J.settings().ppHousePh).map(x=>String(x).replace(/\D/g,"").slice(-10)).filter(Boolean);return new Set(l.length?l:["9840176639","9331498500"])};
 const house=()=>arr(J.settings().ppHouse).length?arr(J.settings().ppHouse):["Suraj Joshi"];
 // ---------- parse an Order Listing sheet ----------
 J.parseOrderListing=rows=>{const hi=rows.findIndex(r=>r.some(c=>HDR.no.test(String(c||"")))&&r.some(c=>/^items?$/i.test(String(c||"").trim())));if(hi<0)return null;
@@ -38,7 +39,7 @@ J.parseOrderListing=rows=>{const hi=rows.findIndex(r=>r.some(c=>HDR.no.test(Stri
     const o={no,ext:String(g(r,"ext")||"").trim(),ch,table:(type.match(/\(([^)]+)\)/)||[])[1]||"",area:ch==="dine"?sub:"",agg:/swiggy/i.test(sub)?"swiggy":/zomato/i.test(sub)?"zomato":/eazy/i.test(sub)?"eazydiner":"",
       name:String(g(r,"name")||"").trim(),phone:ph.length===10&&!DUMMY.has(ph)?ph:"",items,amt:r2(nm(g(r,"amt"))),disc:r2(nm(g(r,"disc"))),deliv:r2(nm(g(r,"deliv"))),cont:r2(nm(g(r,"cont"))),tax:r2(nm(g(r,"tax"))),round:r2(nm(g(r,"round"))),
       total:r2(nm(g(r,"total"))),payType:String(g(r,"pay")||"").trim(),mode:payMode(g(r,"pay")),status:String(g(r,"status")||"").trim(),date,time,split:[]};
-    o.house=hs.has(norm(o.name))||(items.length>0&&items.every(isStaffItem));out.push(o);cur=o}
+    o.house=hs.has(norm(o.name))||(!!o.phone&&housePh().has(o.phone))||(items.length>0&&items.every(isStaffItem));out.push(o);cur=o}
   for(const o of out){const calc=r2(o.amt-o.disc+o.deliv+o.cont+o.tax+o.round);o.net=o.mode!=="part"&&o.total>0?o.total:calc;let pays;
     if(o.mode==="part")pays=o.split.filter(p=>p.amt>0&&!["due","notpaid"].includes(p.m));else if(["due","notpaid"].includes(o.mode))pays=[];else pays=[{m:o.mode||"other",amt:o.total||o.net}];
     const paid=r2(pays.reduce((s,p)=>s+p.amt,0));const due=r2(o.net-paid);if(due>0.5)pays.push({m:"due",amt:due});else if(due<-0.5)o.extra=r2(-due);
@@ -46,7 +47,7 @@ J.parseOrderListing=rows=>{const hi=rows.findIndex(r=>r.some(c=>HDR.no.test(Stri
   return out};
 const live=o=>!/cancel|saved|void|deleted/i.test(o.status||"");
 // a house-account order (all staff KOTs of the day on one bill) is never a sale while the house account is in use for that month
-const isHouseName=o=>new Set(house().map(norm)).has(norm(o.name))||(arr(o.items).length>0&&o.items.every(isStaffItem));
+const isHouseName=o=>new Set(house().map(norm)).has(norm(o.name))||(!!o.phone&&housePh().has(String(o.phone).slice(-10)))||(arr(o.items).length>0&&o.items.every(isStaffItem));
 const houseOf=(o,d)=>o.house||(!!d&&J.foodViaHouse?.(String(d).slice(0,7))&&isHouseName(o));
 J.ppIsHouse=houseOf;
 J.ppHousePaid=d=>{const x=J.get("ppday",d);return x?r2(x.orders.filter(o=>live(o)&&houseOf(o,d)).flatMap(o=>o.pays).filter(p=>p.m!=="due").reduce((s,p)=>s+p.amt,0)):0};
@@ -70,7 +71,12 @@ async function postDay(date,orders,acc){const os=orders.filter(o=>counted(o,date
   // house account orders (all staff KOTs of the day, paid together): received against the house ledger, not sales
   // the payment clears the house (client) ledger, where each day's combined bill is posted with its per-person breakup
   {let paid=0;for(const o of hos)for(const p of o.pays){if(p.m==="due")continue;const a=p.m==="cash"?acc.cash:p.m==="upi"?acc.upi:p.m==="card"?acc.card:acc.susp;add(dr,a,p.amt);paid=r2(paid+p.amt)}
-   if(paid)add(cr,hk.acc,paid)}
+   if(paid)add(cr,hk.acc,paid)
+   // unpaid part of a house bill: moves from the welfare account to the person's dues ledger (shows in receivables)
+   for(const o of hos){const du=r2(o.pays.filter(p=>p.m==="due").reduce((s,p)=>s+p.amt,0));if(du>0.004){add(dr,await dueAcc(o),du);add(cr,hk.acc,du)}}
+   // house bill not covered by that day's staff KOTs: shown on the welfare account as unallocated so the day total still matches Petpooja
+   const bill=r2(hos.reduce((s,o)=>s+o.net,0)),kt=r2(Object.values(J.skDayByStaff?.(date)||{}).reduce((s,a)=>s+a,0));
+   if(bill-kt>0.5){const un=r2(bill-kt);add(dr,hk.acc,un);add(cr,acc.dine,un)}}
   const lines=[...Object.entries(dr).map(([a,v])=>v>0?{a,dr:v,cr:0}:{a,dr:0,cr:-v}),...Object.entries(cr).map(([a,v])=>v>0?{a,dr:0,cr:v}:{a,dr:-v,cr:0})];
   const d=r2(lines.reduce((s,l)=>s+l.dr-l.cr,0));if(Math.abs(d)>0.004)lines.push(d>0?{a:acc.round,dr:0,cr:d}:{a:acc.round,dr:-d,cr:0});
   const by=m=>r2(os.flatMap(o=>o.pays).filter(p=>p.m===m).reduce((s,p)=>s+p.amt,0));
@@ -97,7 +103,7 @@ function review(){const st=ui().stg;const os=st.orders;const okk=os.filter(live)
    <tr><td>Due / not paid → customer or staff ledger</td><td>${dues.length?dues.map(o=>`#${esc(o.no)} ${esc(o.name||"—")} ${money0(o.pays.find(p=>p.m==="due").amt)}`).join("<br>"):"none"}</td></tr>
    <tr><td>Cancelled / saved (not billed) — skipped</td><td>${skip.length}</td></tr>
    <tr><td>Days already imported</td><td>${have.length?have.length+" — their orders are replaced by this file (no doubles)":"none"}</td></tr></tbody></table></div>
-  <section class="panel pb" style="margin:8px 0"><b>House / staff orders: ${hs.length} · ${money0(sum(hs,o=>o.net))}</b><div class="hint">Orders for ${esc(house().join(", "))} or with only staff items (names ending “-e” or “Staff”).</div>
+  <section class="panel pb" style="margin:8px 0"><b>House / staff orders: ${hs.length} · ${money0(sum(hs,o=>o.net))}</b><div class="hint">Orders for ${esc(house().join(", "))}, or from phone ${esc([...housePh()].join(", "))} (Suraj Joshi, Manoj Joshi), or with only staff items (names ending “-e” or “Staff”).</div>
    ${fld("House account names (comma separated)",txt("house",house().join(", ")))}
    <label class="row" style="gap:6px"><input type="radio" name="houseAs" value="staff" ${st.houseAs==="staff"?"checked":""}> Staff / owner food — not sales: matched each day with the staff KOTs and received against the house ledger (Staff KOT → Daily tally)</label>
    <label class="row" style="gap:6px"><input type="radio" name="houseAs" value="sales" ${st.houseAs==="sales"?"checked":""}> Count them as sales, paid as Petpooja shows</label></section>
@@ -105,7 +111,7 @@ function review(){const st=ui().stg;const os=st.orders;const okk=os.filter(live)
   <label class="row" style="gap:6px"><input type="checkbox" name="points" ${st.points?"checked":""}> Add every bill with its items to the client master (history, habits and reward points)</label>
   <p class="hint">Each day becomes one sales entry, so UPI sales can be matched with Google Pay credits in the bank (Sales &amp; Cash → UPI ↔ Google Pay) and cash with the counter count (Cash counter).</p>`,
   onSubmit:async fd=>{const hn=String(fd.house||"").split(",").map(s=>s.trim()).filter(Boolean);if(hn.join()!==house().join())await J.store.patch("meta","settings",{ppHouse:hn});const hs2=new Set(hn.map(norm));
-    for(const o of os){o.house=fd.houseAs==="sales"?false:(hs2.has(norm(o.name))||(o.items.length>0&&o.items.every(isStaffItem)))}
+    for(const o of os){o.house=fd.houseAs==="sales"?false:(hs2.has(norm(o.name))||(!!o.phone&&housePh().has(o.phone))||(o.items.length>0&&o.items.every(isStaffItem)))}
     await commit(os,{post:!!fd.post,points:!!fd.points,file:st.file});ui().stg=null}})}
 async function commit(os,opt){const byDay={};for(const o of os)if(o.date)(byDay[o.date]??=[]).push(o);const days=Object.keys(byDay).sort();
   J.busy.start("Importing Petpooja orders",days.length+(opt.points?1:0),"steps");let acc=null;try{if(opt.post)acc=await L();
