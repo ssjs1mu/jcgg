@@ -212,7 +212,11 @@ function myRole(){if(S.me.owner)return "Super Admin";if(S.me.kitchen)return "Kit
 J.myRole=myRole;
 J.limited=()=>!!S.me.kitchen;J.isCC=()=>!!S.me.cc;
 const MKJ=["mkjacc","mkjinv","mkjassets","invest","insurance"];J.MKJ_MODS=MKJ;
-J.canSee=mod=>{const r=myRole();if(mod==="manual")return true;if(mod==="jdash")return r==="Super Admin"||r==="Admin";if(MKJ.includes(mod))return r==="Super Admin";const a=ACCESS[r]||[];return a==="*"||a.includes(mod)||(mod==="settings"&&!S.me.kitchen&&!S.me.cc)};
+J.roleDefault=r=>{const jc=MODS.filter(m=>!MKJ.includes(m.id));if(r==="Admin")return jc.filter(m=>["Home","Operations","Finance"].includes(m.group)||m.id==="manual").map(m=>m.id);const a=ACCESS[r];return a==="*"?jc.map(m=>m.id):(a||[]).filter(x=>!MKJ.includes(x))};
+J.canSee=mod=>{const r=myRole();if(mod==="manual")return true;if(mod==="jdash")return r==="Super Admin"||r==="Admin";if(MKJ.includes(mod))return r==="Super Admin";
+  if(r!=="Super Admin"&&r!=="Auditor"&&!S.me.kitchen&&!S.me.cc){const c=J.get("meta","roles")?.mods?.[S.me.email];if(Array.isArray(c))return mod==="home"||mod==="settings"&&r==="Admin"||c.includes(mod)}
+  if(r==="Admin")return mod==="settings"||J.roleDefault("Admin").includes(mod);
+  const a=ACCESS[r]||[];return a==="*"||a.includes(mod)||(mod==="settings"&&!S.me.kitchen&&!S.me.cc)};
 J.readOnly=()=>myRole()==="Auditor"||!!S.me.kitchen;
 
 // ---------- modules & routing ----------
