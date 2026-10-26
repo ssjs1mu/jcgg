@@ -7,7 +7,19 @@ const rate=(m,k)=>{const v=m.rates?.[k];return v===""||v==null?(k==="gr"&&m.pric
 J.menuRate=rate;J.MENU_RATES=RATES;
 // staff KOT price: the staff rate when the item carries one, otherwise the Ground Floor rate
 J.staffPrice=m=>{const s=rate(m,"staff");if(s!=null&&s>0)return {rate:s,basis:"staff"};const g=rate(m,"gr");return {rate:g||0,basis:"gr"}};
-const items=()=>J.all("menu").filter(m=>m.active!==false).sort((a,b)=>(a.cat||"").localeCompare(b.cat||"")||a.name.localeCompare(b.name));
+// ---- one tile per dish: the same dish listed under Gr.Flr / Mezzanine / Breakfast / Staff / Online is merged ----
+const CHAN=c=>{c=String(c||"").toLowerCase();const bf=/break|\bbf\b/.test(c);if(/online|swiggy|zomato/.test(c))return "online";if(/staff/.test(c))return "staff";if(/mez/.test(c))return bf?"mezBf":"mez";if(/\bgr\b|\bgr\.|ground|gr\s*fl|gf\b/.test(c))return bf?"grBf":"gr";return ""};
+const dk=n=>String(n||"").toLowerCase().replace(/[^a-z0-9\u0900-\u097f\u0980-\u09ff]+/g," ").trim();
+const score=m=>(m.recipe&&Object.keys(m.recipe).length?4:0)+(m.photo||m.img?2:0)+(CHAN(m.cat)?0:1)+Object.values(m.rates||{}).filter(v=>v!==""&&v!=null).length*.1;
+function menuGroups(){const g={};for(const m of J.all("menu")){if(m.active===false)continue;(g[dk(m.name)]=g[dk(m.name)]||[]).push(m)}return Object.values(g)}
+function mergeOne(arr){const best=[...arr].sort((a,b)=>score(b)-score(a))[0];if(arr.length<2)return best;const rt={...(best.rates||{})};let online=!!best.online;const keep=arr.find(x=>!CHAN(x.cat)&&x.cat);
+  for(const m of arr){const ch=CHAN(m.cat);for(const k of ["gr","mez","grBf","mezBf","staff"]){const v=m.rates?.[k];if((rt[k]===""||rt[k]==null)&&v!==""&&v!=null)rt[k]=v}
+    if(ch==="online")online=true;else if(ch&&m.price>0&&(rt[ch]===""||rt[ch]==null))rt[ch]=+m.price;if(m.online)online=true}
+  if(rt.gr===""||rt.gr==null){if(best.price>0&&!CHAN(best.cat))rt.gr=+best.price}
+  return {...best,cat:CHAN(best.cat)?(keep?.cat||"Other"):(best.cat||keep?.cat||"Other"),rates:rt,online,_dups:arr.filter(x=>x.id!==best.id).map(x=>x.id)}}
+const items=()=>menuGroups().map(mergeOne).sort((a,b)=>(a.cat||"").localeCompare(b.cat||"")||a.name.localeCompare(b.name));
+J.menuDupCount=()=>menuGroups().reduce((n,a)=>n+a.length-1,0);
+J.menuMergeAll=async()=>{let n=0;for(const arr of menuGroups()){if(arr.length<2)continue;const m=mergeOne(arr);const {_dups,...rest}=m;await J.store.put("menu",{...rest,updatedAt:Date.now()});for(const id of _dups){await J.store.del("menu",id);n++}}return n};
 J.menuItems=items;
 function vMenu(){if(!autoRan){autoRan=true;setTimeout(()=>J.kitAutoFill(),300)}const U=ui();const q=(U.q||"").toLowerCase();const all=items();const cats=[...new Set(all.map(m=>m.cat||"Other"))].sort();
   const list=all.filter(m=>(!U.cat||(m.cat||"Other")===U.cat)&&(!q||(m.name+" "+(m.cat||"")).toLowerCase().includes(q))&&(U.only!=="online"||m.online)&&(U.only!=="staff"||rate(m,"staff")>0)&&(!U.rc||(U.rc==="rcp")===hasRcp(m)));
@@ -17,7 +29,7 @@ function vMenu(){if(!autoRan){autoRan=true;setTimeout(()=>J.kitAutoFill(),300)}c
     <div class="seg">${[["","All"],["online","Online"],["staff","Staff items"]].map(([k,l])=>`<button data-set="kit.only=${k}" aria-pressed="${(U.only||"")===k}">${l}</button>`).join("")}</div>
     <div class="seg" role="group" aria-label="View">${[["tiles","▦ Tiles"],["rows","☰ Rows"]].map(([k,l])=>`<button data-set="kit.view=${k}" aria-pressed="${(U.view||"tiles")===k}">${l}</button>`).join("")}</div>
     <div class="seg">${[["","Any"],["rcp","With recipe"],["norcp","No recipe yet"]].map(([k,l])=>`<button data-set="kit.rc=${k}" aria-pressed="${(U.rc||"")===k}">${l}</button>`).join("")}</div>
-    <div class="row" style="margin-left:auto;flex-wrap:wrap"><button class="btn w" data-a="kitUpload">Upload menu (Excel)</button><button class="btn" data-a="kitExport">Download menu</button><button class="btn" data-a="kitPrint">Print / PDF</button><button class="btn primary w" data-a="kitNew">+ New item</button></div></div>
+    <div class="row" style="margin-left:auto;flex-wrap:wrap"><button class="btn w" data-a="kitUpload">Upload menu (Excel)</button>${J.menuDupCount()?`<button class="btn warn" data-a="kitMerge">Merge ${J.menuDupCount()} duplicate rows</button>`:""}<button class="btn" data-a="kitExport">Download menu</button><button class="btn" data-a="kitPrint">Print / PDF</button><button class="btn primary w" data-a="kitNew">+ New item</button></div></div>
   <div class="kpis">${J.kpi("Menu items",String(all.length),cats.length+" categories")}${J.kpi("Recipes written",String(all.filter(hasRcp).length)+" / "+all.length,J.RECIPE_LIB?all.filter(m=>!hasRcp(m)).length+" still to write":"English · हिंदी · বাংলা")}${J.kpi("Online",String(all.filter(m=>m.online).length),"sold at Mezzanine rates")}${J.kpi("Staff items",String(all.filter(m=>rate(m,"staff")>0).length),"others bill staff at Gr. Floor rate")}</div>
   ${(U.view||"tiles")==="tiles"?tilesHtml(list):`<div class="panel"><div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Category</th>${RATES.map(([,l])=>`<th class="num">${l}</th>`).join("")}<th>Online</th><th class="num">Online rate</th><th></th></tr></thead><tbody>
   ${list.map(m=>`<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.cat||"")}</td>${RATES.map(([k])=>`<td class="num">${f(rate(m,k))}</td>`).join("")}<td><label class="row" style="gap:4px"><input type="checkbox" data-ach="kitOnline" data-x="${m.id}" id="ko-${m.id}" ${m.online?"checked":""} aria-label="Available online"> ${m.online?"Yes":"No"}</label></td><td class="num">${m.online?f(rate(m,"mez")):'<span class="muted">—</span>'}</td><td><button class="btn small ${hasRcp(m)?"w":""}" data-a="rcpView" data-x="${m.id}">${hasRcp(m)?"📖 Recipe "+langs(m):"＋ Recipe"}</button> ${J.docsBtn("menu",m,m.name)} <button class="btn small w" data-a="kitEdit" data-x="${m.id}">Edit</button></td></tr>`).join("")||J.emptyRow(10,"No menu items yet","Upload your menu from Excel: Item name, Category, Ground Floor, Mezzanine Floor, Gr.Flr.Breakfast, Mez.Flr.Breakfast, Staff Rates, Online.")}
@@ -49,6 +61,7 @@ J.recipeFromLib=name=>{const e=libFor(name);if(!e)return null;const split=t=>Str
   const n=e.n||[];const nutrition={};["kcal","protein","carbs","fat","fibre","sugar","sodium"].forEach((k,i)=>{if(n[i]!=null)nutrition[k]=n[i]});nutrition.basis="per serving, approximate";
   return {recipe,nutrition,serves:e.s||"",prepMin:e.p||"",cookMin:e.c||"",recipeSrc:"library",recipeKey:e.key,recipeLibV:e.v||1,...(e.note?{recipeNote:e.note}:{})}};
 let filling=false;
+J.act("kitMerge",async()=>{if(!confirm("Merge duplicate dishes into one item each? Rates from every floor/breakfast/staff/online row are combined; the extra rows are removed."))return;const n=await J.menuMergeAll();toast(n+" duplicate rows merged");J.render()});
 J.kitAutoFill=async quiet=>{if(filling||J.readOnly?.()||J.isCC?.()||J.limited?.()||!S.ready)return 0;filling=true;let n=0;try{await J.loadRecipeLib();
   for(const m of J.all("menu").filter(x=>(x.active!==false||x.trial)&&(!hasRcp(x)||x.recipeSrc==="library"))){const r=J.recipeFromLib(m.name);if(!r)continue;if(hasRcp(m)&&(m.recipeLibV||1)>=r.recipeLibV)continue;await J.store.patch("menu",m.id,r);n++}
   if(n&&!quiet)toast("Recipes filled from the library for "+n+" dish"+(n>1?"es":""))}catch(e){console.warn(e)}finally{filling=false}if(n)J.render();return n};

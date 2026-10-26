@@ -12,7 +12,7 @@ J.act("lnGrp",el=>{const i=el.dataset.x;const td=document.getElementById("f-ln-g
 const UNITS=["KG","GM","LTR","ML","PCS","BUNDLE","PKT","BOX"];
 const CONV={KG:{GM:0.001,KG:1},GM:{KG:1000,GM:1},LTR:{ML:0.001,LTR:1},ML:{LTR:1000,ML:1}};
 const conv=(qty,from,to)=>{if(!from||from===to)return qty;const f=CONV[to]?.[from];return f?qty*f:qty};
-const DEPTS=["Main Kitchen","Bakery","Sweet Section","Banquet","Tandoor","Beverages","Staff Meals"];
+const DEPTS=["Main Kitchen","Bakery","Sweet Section","Banquet","Tandoor","Beverages","Staff Meals","Counter Sell"];
 const CATS=["Vegetables","Fruits","Dairy","Grains & Pulses","Flour & Atta","Spices & Masala","Oils & Ghee","Dry Fruits","Sweeteners","Bakery Inputs","Beverages","Packaging","Cleaning","Gas & Fuel","Other"];
 const NONVEG=/\b(egg|eggs|chicken|mutton|lamb|goat|fish|prawns?|shrimps?|meat|beef|pork|gelatine?|lard|anchov(y|ies)|crab|lobster|squid|bacon|ham|sausage|salami|keema|tuna|salmon)\b/i;
 const NOT_JAIN=/\b(onion|garlic|potato|aloo|carrot|beetroot|radish|mooli|ginger|adrak|lehsun|pyaz|yam|sweet potato|turnip)\b/i;
@@ -107,7 +107,7 @@ function purchaseDrawer(old,preItem){const n=Math.max(5,(old?.lines?.length||0)+
 async function saveSimple(type,fd,old){const lines=readLines(fd,type);if(!lines.length)return "Add at least one line with item and quantity.";if(type==="adjust"&&lines.some(l=>l.qty>0&&!(l.rate>0)))return "Lines that add stock need a rate.";
   const id=old?.id||uid();await J.store.put("moves",{id,type,date:fd.date,m:fd.date.slice(0,7),dept:fd.dept||"",note:fd.note||"",lines,createdAt:old?.createdAt||Date.now()});toast(type==="consume"?"Consumption logged":"Stock adjusted")}
 function consumeDrawer(old,pre){const n=Math.max(6,(old?.lines?.length||0)+1);const lines=old?.lines||(pre?[pre]:[]);
-  J.drawer({docs:["moves",old?.id],title:old?"Consumption":"Log consumption",wide:true,submit:"Save",body:`<div class="form">${fld("Date",dateI("date",old?.date||today()))}${fld("Department",selO("dept",DEPTS,old?.dept||"Main Kitchen"))}${fld("Reason",selO("note",["Kitchen usage","Wastage / spoilage","Expired write-off","Staff meals","Sampling"],old?.note||"Kitchen usage"))}</div>
+  J.drawer({docs:["moves",old?.id],title:old?"Consumption":"Log consumption",wide:true,submit:"Save",body:`<div class="form">${fld("Date",dateI("date",old?.date||today()))}${fld("Department",selO("dept",DEPTS,old?.dept||"Main Kitchen").replace("<select ",'<select data-ach="deptPick" '))}${fld("Reason",selO("note",["Kitchen usage","Direct Sell","Wastage / spoilage","Expired write-off","Staff meals","Sampling"],old?.note||(old?.dept==="Counter Sell"?"Direct Sell":"Kitchen usage")))}</div>
     <div class="tbl-wrap"><table class="lines-tbl"><thead><tr><th>Item</th><th>Qty used</th></tr></thead><tbody id="lnBody">${[...Array(n)].map((_,i)=>lineRow("consume",i,lines[i])).join("")}</tbody></table></div><button type="button" class="btn small" data-a="addLines" data-x="consume">Add rows</button>
     <p class="hint">Stock is drawn from the batch nearest expiry first, and costed at that batch's purchase rate.</p>`,onSubmit:fd=>saveSimple("consume",fd,old)})}
 function adjustDrawer(old){const n=Math.max(6,(old?.lines?.length||0)+1);
@@ -126,7 +126,7 @@ function returnDrawer(old,pre){const inv=J.D.inv;const vendor=old?.vendor||pre?.
       const v=await J.postVoucher({id:old?.vid,type:"debitnote",date:fd.date,lines:[{a:vend,dr:taxable+tax,cr:0},{a:head,dr:0,cr:taxable},...(tax?[{a:igst,dr:0,cr:tax}]:[])],party:vend,ref:fd.inv,narr:"Return · "+itemName(item)+" "+qty+" "+unitOf(item)+(fd.note?" · "+fd.note:""),gst:tax?{in:{[g]:[-taxable,-tax]}}:null,src:{col:"moves",id,label:"Inventory return"}});
       await J.store.put("moves",{id,type:"return",date:fd.date,m:fd.date.slice(0,7),vendor:vend,inv:fd.inv,note:fd.note,lines:[{item,qty,rate:+rate,gst:g,batch}],vid:v.id,createdAt:old?.createdAt||Date.now()});toast("Debit note "+v.no+" posted")}})}
 J.act("newPurchase",()=>purchaseDrawer(null));J.act("buyItem",el=>purchaseDrawer(null,el.dataset.x));
-J.act("newConsume",()=>consumeDrawer(null));J.act("useItem",el=>consumeDrawer(null,{item:el.dataset.x}));
+J.act("deptPick",el=>{const r=document.getElementById("f-note");if(r&&el.value==="Counter Sell")r.value="Direct Sell";else if(r&&r.value==="Direct Sell")r.value="Kitchen usage"});J.act("newConsume",()=>consumeDrawer(null));J.act("useItem",el=>consumeDrawer(null,{item:el.dataset.x}));
 J.act("useBatch",el=>{const [item]=el.dataset.x.split("|");const I=J.D.inv.items[item];const b=I.batches.find(x=>x.batch===el.dataset.x.split("|")[1]);consumeDrawer(null,{item,qty:b?r3(b.qty):""})});
 J.act("newReturn",()=>returnDrawer(null));J.act("retBatch",el=>{const [item,batch]=el.dataset.x.split("|");returnDrawer(null,{item,batch})});
 J.act("adjStock",()=>adjustDrawer(null));
