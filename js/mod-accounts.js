@@ -356,6 +356,6 @@ function vOverview(){const T=today();const P=J.ui("acc.ovp","");const fyStart=d=
 J.mod({id:"accounts",label:"Accounts",group:"Finance",icon:'<path d="M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4z"/><path d="M8 8h8M8 12h8M8 16h5"/>',sub:"Double-entry books: every module posts here.",
   headBtns:()=>`<button class="btn w" data-a="newAcc">+ New ledger</button><button class="btn w" data-a="impOpen" data-x="bank">Import statement</button><button class="btn primary w" data-a="goEntry">New entry</button>`,
   badge:()=>{if(!J.D.post)return 0;return accsOf(["bank","card"]).reduce((s,a)=>s+unclearedCount(a.id),0)||0},
-  tabs:[["overview","Overview",vOverview],["entry","New entry",vEntry,wireEntry],["book","Day book",vBook],["ledger","Ledgers",vLedger],["recon","Reconcile",vRecon],["suspense","Suspense",vSuspense],["reports","Reports",vReports]]});
+  tabs:[["overview","Overview",vOverview],["entry","New entry",vEntry,wireEntry],["book","Day book",vBook],["ledger","Ledgers",vLedger],["recon","Reconcile",vRecon],["suspense","Suspense",vSuspense],["reports","Reports",vReports],["controls","Freeze & checks",()=>J.lockView?J.lockView():""]]});
 J.act("goEntry",()=>{const E=ui().entry;if(!E.editId)E.f={};J.go("accounts","entry")});
 })();
