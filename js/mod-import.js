@@ -214,7 +214,7 @@ T.staffkot={label:"Staff KOT register",group:"People",desc:"Staff food sheet: Da
     <label class="row" style="gap:6px"><input type="checkbox" id="io-skany" data-ui="imp.opt.anyDate" ${o.anyDate?"checked":""}> Add linked columns even on days outside the person's working dates</label>
     <label class="row" style="gap:6px"><input type="checkbox" id="io-sksheet" data-ui="imp.opt.useSheet" ${o.useSheet?"checked":""}> Accept the sheet's rate when it differs from the menu (otherwise such lines are held back)</label>`},
   prep(r,o){const d=asDate(r.date);const item=str(r.item);if(!d&&!item)return r.skip=1;if(!d){r.err.push("bad date");return}if(!item){r.err.push("no item");return}const rate=asNum(r.rate);if(!(rate>=0)){r.err.push("no rate");return}
-    const ms=skMenu(item);const KEYS=["staff","gr","mez","grBf","mezBf"];const hit=m=>KEYS.find(k=>{const v=J.menuRate(m,k);return v>0&&v===rate});
+    const ms=skMenu(item);const KEYS=["staff","staff2","gr","mez","grBf","mezBf"];const hit=m=>KEYS.find(k=>{const v=J.menuRate(m,k);return v>0&&v===rate});
     const exp=[...new Set(ms.flatMap(m=>KEYS.map(k=>J.menuRate(m,k)).filter(v=>v>0)))];const mm=ms.find(m=>hit(m))||ms.find(m=>m.cat==="STAFF")||ms[0];const key=mm&&hit(mm)||"";
     const priceOk=!!key;r.lines=[];r.held=[];
     for(const p of skPersons()){const q=asNum(r._row[p.i]);if(!(q>0))continue;const sid=o.pmap?.[p.h];const s=sid&&J.get("accounts",sid);let why="";

@@ -2,11 +2,11 @@
 (()=>{
 const J=window.J,{S,esc,inr,inr0,r2,money0,fmtDate,today,uid,fld,txt,num,selO,area,toast}=J;
 const ui=()=>J.ui("kit",{q:"",cat:"",only:"",view:"tiles"});
-const RATES=[["gr","Ground Floor"],["mez","Mezzanine Floor"],["grBf","Gr. Flr. Breakfast"],["mezBf","Mez. Flr. Breakfast"],["staff","Staff rate"]];
+const RATES=[["gr","Ground Floor"],["mez","Mezzanine Floor"],["grBf","Gr. Flr. Breakfast"],["mezBf","Mez. Flr. Breakfast"],["staff","Staff rate"],["staff2","Staff rate 2 (higher)"]];
 const rate=(m,k)=>{const v=m.rates?.[k];return v===""||v==null?(k==="gr"&&m.price?+m.price:null):+v};
 J.menuRate=rate;J.MENU_RATES=RATES;
-J.RATE_LABEL={staff:"Staff rate",gr:"Gr. Floor rate",mez:"Mez. Floor rate",grBf:"Gr. Breakfast rate",mezBf:"Mez. Breakfast rate",sheet:"Sheet rate",manual:"Manual rate"};
-J.allRates=m=>[["staff","Staff"],["gr","Gr. Flr"],["mez","Mez. Flr"],["grBf","Gr. Bkfst"],["mezBf","Mez. Bkfst"]].map(([k,l])=>[k,l,rate(m,k)]).filter(x=>x[2]!=null&&x[2]>0);
+J.RATE_LABEL={staff:"Staff rate",staff2:"Staff rate 2",gr:"Gr. Floor rate",mez:"Mez. Floor rate",grBf:"Gr. Breakfast rate",mezBf:"Mez. Breakfast rate",sheet:"Sheet rate",manual:"Manual rate"};
+J.allRates=m=>[["staff","Staff"],["staff2","Staff 2"],["gr","Gr. Flr"],["mez","Mez. Flr"],["grBf","Gr. Bkfst"],["mezBf","Mez. Bkfst"]].map(([k,l])=>[k,l,rate(m,k)]).filter(x=>x[2]!=null&&x[2]>0);
 // staff KOT price: the staff rate when the item carries one, otherwise the Ground Floor rate
 J.staffPrice=m=>{const s=rate(m,"staff");if(s!=null&&s>0)return {rate:s,basis:"staff"};const g=rate(m,"gr");return {rate:g||0,basis:"gr"}};
 // ---- one tile per dish: the same dish listed under Gr.Flr / Mezzanine / Breakfast / Staff / Online is merged ----
@@ -15,7 +15,7 @@ const dk=n=>String(n||"").toLowerCase().replace(/[^a-z0-9\u0900-\u097f\u0980-\u0
 const score=m=>(m.recipe&&Object.keys(m.recipe).length?4:0)+(m.photo||m.img?2:0)+(CHAN(m.cat)?0:1)+Object.values(m.rates||{}).filter(v=>v!==""&&v!=null).length*.1;
 function menuGroups(){const g={};for(const m of J.all("menu")){if(m.active===false)continue;(g[dk(m.name)]=g[dk(m.name)]||[]).push(m)}return Object.values(g)}
 function mergeOne(arr){const best=[...arr].sort((a,b)=>score(b)-score(a))[0];if(arr.length<2)return best;const rt={...(best.rates||{})};let online=!!best.online;const keep=arr.find(x=>!CHAN(x.cat)&&x.cat);
-  for(const m of arr){const ch=CHAN(m.cat);for(const k of ["gr","mez","grBf","mezBf","staff"]){const v=m.rates?.[k];if((rt[k]===""||rt[k]==null)&&v!==""&&v!=null)rt[k]=v}
+  for(const m of arr){const ch=CHAN(m.cat);for(const k of ["gr","mez","grBf","mezBf","staff","staff2"]){const v=m.rates?.[k];if((rt[k]===""||rt[k]==null)&&v!==""&&v!=null)rt[k]=v}
     if(ch==="online")online=true;else if(ch&&m.price>0&&(rt[ch]===""||rt[ch]==null))rt[ch]=+m.price;if(m.online)online=true}
   if(rt.gr===""||rt.gr==null){if(best.price>0&&!CHAN(best.cat))rt.gr=+best.price}
   return {...best,cat:CHAN(best.cat)?(keep?.cat||"Other"):(best.cat||keep?.cat||"Other"),rates:rt,online,_dups:arr.filter(x=>x.id!==best.id).map(x=>x.id)}}
@@ -83,7 +83,7 @@ function tilesHtml(list){const f=v=>v==null?"—":"₹"+inr0.format(v);
   return list.length?`<div class="menu-tiles">${list.map(m=>{const p=photo(m);const n=m.nutrition||{};const st=rate(m,"staff"),gr=rate(m,"gr");return `<article class="mtile">
     <button type="button" class="mt-img" data-a="rcpView" data-x="${m.id}" aria-label="Open recipe for ${esc(m.name)}">${p?`<img src="${p}" alt="">`:`<span>${esc(J.initials(m.name))}</span>`}${m.online?'<em class="mt-on">Online</em>':""}</button>
     <div class="mt-body"><div class="mt-cat">${esc(m.cat||"Other")}</div><h3>${esc(m.name)}</h3>
-    <div class="mt-rates" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px 8px">${[["Gr. Flr","gr"],["Mez. Flr","mez"],["Gr. Breakfast","grBf"],["Mez. Breakfast","mezBf"],["Staff","staff"]].map(([l,k])=>{const v=rate(m,k);return `<span class="${k==="staff"?"mt-staff":""}" style="display:flex;flex-direction:column;line-height:1.2"><small class="muted">${l}</small><b>${v==null?"—":f(v)}</b></span>`}).join("")}<span style="display:flex;flex-direction:column;line-height:1.2"><small class="muted">Online</small><b>${m.online?f(rate(m,"mez")??gr):"—"}</b></span></div>
+    <div class="mt-rates" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px 8px">${[["Gr. Flr","gr"],["Mez. Flr","mez"],["Gr. Breakfast","grBf"],["Mez. Breakfast","mezBf"],["Staff","staff"],["Staff 2","staff2"]].filter(([l,k])=>k!=="staff2"||rate(m,k)>0).map(([l,k])=>{const v=rate(m,k);return `<span class="${k==="staff"?"mt-staff":""}" style="display:flex;flex-direction:column;line-height:1.2"><small class="muted">${l}</small><b>${v==null?"—":f(v)}</b></span>`}).join("")}<span style="display:flex;flex-direction:column;line-height:1.2"><small class="muted">Online</small><b>${m.online?f(rate(m,"mez")??gr):"—"}</b></span></div>
     <div class="mt-tags">${hasRcp(m)?`<span class="chip ok">📖 ${langs(m)}</span>`:`<span class="chip warn">No recipe</span>`}${n.kcal?`<span class="chip plain">${esc(n.kcal)} kcal</span>`:""}${(m.videos||[]).length?`<span class="chip plain">▶ ${m.videos.length}</span>`:""}</div>
     <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:auto"><button class="btn small w" data-a="rcpView" data-x="${m.id}">${hasRcp(m)?"Recipe":"＋ Recipe"}</button>${J.docsBtn("menu",m,m.name)}<button class="btn small" data-a="kitEdit" data-x="${m.id}">Edit</button></div></div></article>`}).join("")}</div>`
   :`<div class="panel"><div class="empty"><strong>No items match</strong><span>Clear the filters or upload the menu.</span></div></div>`}
