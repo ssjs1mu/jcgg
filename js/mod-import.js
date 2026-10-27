@@ -125,7 +125,7 @@ async function stmtCommit(recs,o,log){const susp=async()=>J.sysAcc("suspense")?.
   for(const r of ui().recs||[]){if(r.inc!==false||!r.dupId||r.err.length)continue;const v=J.get("vouchers",r.dupId);if(!v||v.bank)continue;
     // copy every statement detail onto the existing entry: narration, bank ref, UPI id / payee, value date, amount and balance
     const pt=r.party||{},bal=str(r._row?.[5]),nm=J.accName?.(r.target)||"bank";
-    const tag="Bank stmt · "+nm+" · "+str(r.desc)+(str(r.ref)?" · bank ref "+str(r.ref):"")+" · value date "+r.d+" · "+(r.out?"debit ₹"+r.out.toFixed(2):"credit ₹"+r.inn.toFixed(2))+(bal?" · balance after ₹"+bal:"")+(pt.vpa?" · UPI id "+pt.vpa:"")+(pt.ifscBank?" · payee bank "+pt.ifscBank:"")+(pt.utr?" · UTR "+pt.utr:"");
+    const tag=str(r.desc);
     await J.store.patch("vouchers",v.id,{...(o.clear!==false?{rec:{...(v.rec||{}),[r.target]:r.d}}:{}),narr:(v.narr?v.narr+" | ":"")+tag,lines:v.lines.map(l=>({...l,n:(l.n?l.n+" | ":"")+tag})),bank:{...bankInfo(r),desc:str(r.desc),amount:r.out||r.inn,balance:bal?+bal:null,party:{mode:pt.mode||"",utr:pt.utr||"",name:pt.name||"",bank:pt.ifscBank||pt.bank||"",vpa:pt.vpa||""},stmtFile:U.file||""},...(!v.ref&&str(r.ref)?{ref:str(r.ref)}:{})});log.note("ticked "+v.no)}
   for(const r of recs){if(r.inc===false){log.tick();continue}
     if(r.relink){const v=J.get("vouchers",r.relink);const s=v&&J.bankShape(v.lines);if(s){const lines=v.lines.map(l=>l.a===s.acc?{...l,a:r.target}:l);const rec={...(v.rec||{})};delete rec[s.acc];if(o.clear!==false)rec[r.target]=r.d;
