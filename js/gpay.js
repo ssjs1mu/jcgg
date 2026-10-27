@@ -35,12 +35,14 @@ async function saveTxns(list){const by={};for(const x of list)(by[x.d.slice(0,7)
 const isColl=x=>!/cashback|reward/i.test(x.ty+" "+x.via)&&x.ty!=="Daily collections"&&x.a>0;
 function simName(a,b){const A=nrm(a).split(" ").filter(w=>w.length>1),B=nrm(b).split(" ").filter(w=>w.length>1);if(!A.length||!B.length)return 0;let n=0;for(const w of A)if(B.some(v=>v===w||(w.length>2&&v.length>2&&(v.startsWith(w)||w.startsWith(v)))))n++;return n/Math.max(A.length,B.length)}
 let cache=null;
-function run(){const T=txns();const sig=T.length+"|"+J.all("ppday").map(d=>d.id+":"+(d.at||"")+":"+d.orders.length).join(",")+"|"+(J.get("meta","gpayMan")?.at||"")+"|"+(upiAcc()?(J.D.post?.get(upiAcc().id)||[]).length:0);if(cache&&cache.sig===sig)return cache;
+function run(){const T=txns();const sig=T.length+"|"+J.all("ppday").map(d=>d.id+":"+(d.at||"")+":"+d.orders.length).join(",")+"|"+(J.get("meta","gpayMan")?.at||"")+"|"+arr(J.get("meta","kotPay")?.items).map(i=>i.id+arr(i.gp).length).join()+"|"+(upiAcc()?(J.D.post?.get(upiAcc().id)||[]).length:0);if(cache&&cache.sig===sig)return cache;
   const colls=T.filter(isColl).map(x=>({...x,k:x.id,used:null}));const fees=T.filter(x=>x.ty==="Daily collections"||(x.a<0));
   const O=[];for(const d of J.all("ppday"))for(const o of d.orders){if(!live(o))continue;for(const p of o.pays)if(p.m==="upi"&&p.amt>0)O.push({k:d.id+"#"+o.no+"#"+O.length,date:d.id,no:o.no,t:o.time||"",a:r2(p.amt),n:o.name||"",ph:o.phone||"",used:null})}
   const pairs=[];const link=(o,c,how)=>{o.used=c.k;c.used=o.k;pairs.push({o,c,how})};
   // manual links the user made
   for(const [ok,ck] of Object.entries(J.get("meta","gpayMan")?.links||{})){const o=O.find(x=>x.k.split("#").slice(0,2).join("#")===ok&&!x.used),c=colls.find(x=>x.k===ck&&!x.used);if(o&&c)link(o,c,"manual")}
+  // collections already matched with staff KOT payments (Staff KOT → Match payments) are reserved first
+  for(const it of arr(J.get("meta","kotPay")?.items))for(const id of arr(it.gp)){const c=colls.find(x=>x.k===id&&!x.used);if(c)c.used="kot:"+it.id}
   // pass 1: same day, same amount — best time / name first
   {const cand=[];for(const o of O){if(o.used)continue;for(const c of colls){if(c.used||c.d!==o.date||Math.abs(c.a-o.a)>0.5)continue;const dt=tmin(o.t)!=null?Math.abs(tmin(o.t)-tmin(c.t)):300;cand.push({o,c,s:dt-simName(o.n,c.n)*120})}}
     cand.sort((a,b)=>a.s-b.s);for(const x of cand)if(!x.o.used&&!x.c.used)link(x.o,x.c,"day")}
