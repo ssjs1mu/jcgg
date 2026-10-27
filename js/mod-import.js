@@ -123,7 +123,10 @@ async function stmtCommit(recs,o,log){const susp=async()=>J.sysAcc("suspense")?.
   const bankInfo=r=>({from:"statement",narr:str(r.desc).slice(0,200),ref:str(r.ref),date:r.d,imp:log.id,at:Date.now(),by:S.me?.email||""});
   // lines already in the books (unticked as duplicates) are ticked off on the existing entry with the bank's details
   for(const r of ui().recs||[]){if(r.inc!==false||!r.dupId||r.err.length)continue;const v=J.get("vouchers",r.dupId);if(!v||v.bank)continue;
-    await J.store.patch("vouchers",v.id,{...(o.clear!==false?{rec:{...(v.rec||{}),[r.target]:r.d}}:{}),bank:bankInfo(r),...(!v.ref&&str(r.ref)?{ref:str(r.ref)}:{})});log.note("ticked "+v.no)}
+    // copy every statement detail onto the existing entry: narration, bank ref, UPI id / payee, value date, amount and balance
+    const pt=r.party||{},bal=str(r._row?.[5]),nm=J.accName?.(r.target)||"bank";
+    const tag="Bank stmt · "+nm+" · "+str(r.desc)+(str(r.ref)?" · bank ref "+str(r.ref):"")+" · value date "+r.d+" · "+(r.out?"debit ₹"+r.out.toFixed(2):"credit ₹"+r.inn.toFixed(2))+(bal?" · balance after ₹"+bal:"")+(pt.vpa?" · UPI id "+pt.vpa:"")+(pt.ifscBank?" · payee bank "+pt.ifscBank:"")+(pt.utr?" · UTR "+pt.utr:"");
+    await J.store.patch("vouchers",v.id,{...(o.clear!==false?{rec:{...(v.rec||{}),[r.target]:r.d}}:{}),narr:(v.narr?v.narr+" | ":"")+tag,lines:v.lines.map(l=>({...l,n:(l.n?l.n+" | ":"")+tag})),bank:{...bankInfo(r),desc:str(r.desc),amount:r.out||r.inn,balance:bal?+bal:null,party:{mode:pt.mode||"",utr:pt.utr||"",name:pt.name||"",bank:pt.ifscBank||pt.bank||"",vpa:pt.vpa||""},stmtFile:U.file||""},...(!v.ref&&str(r.ref)?{ref:str(r.ref)}:{})});log.note("ticked "+v.no)}
   for(const r of recs){if(r.inc===false){log.tick();continue}
     if(r.relink){const v=J.get("vouchers",r.relink);const s=v&&J.bankShape(v.lines);if(s){const lines=v.lines.map(l=>l.a===s.acc?{...l,a:r.target}:l);const rec={...(v.rec||{})};delete rec[s.acc];if(o.clear!==false)rec[r.target]=r.d;
       await J.postVoucher({...v,id:v.id,lines,rec,ref:v.ref||str(r.ref),bank:{...bankInfo(r),movedFrom:s.acc}});log.note(v.no+" moved to the bank");log.tick();continue}}
