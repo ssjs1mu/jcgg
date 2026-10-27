@@ -88,13 +88,14 @@ function smartParty(r,target){const p=r.party;if(!p)return null;const d=str(r.de
   if(p.name&&/capital|investment by owner|owner/i.test(p.remark||"")){const ex=accByParty(p)||J.all("accounts").find(a=>a.kind==="capital"&&nameKey(a.name).includes(nameKey(p.name)));return ex?{a:ex.id,by:"owner capital"}:{a:"make:capital:"+titleCase(p.name)+" — Capital",by:"new capital ledger"}}
   const s=(p.name||p.acNo)&&staffByParty(p);if(s){if(r.out&&/advance|adv\b/i.test(p.remark||"")){return {a:"adv-"+s.id,by:"staff advance · "+s.name}}if(r.out&&/loan/i.test(p.remark||""))return {a:"loan-"+s.id,by:"staff loan · "+s.name};return {a:s.id,by:"staff · "+s.name}}
   const a=accByParty(p);if(a)return {a:a.id,by:"known party"};
+  if(p.short&&p.name&&(p.vpa||p.acNo))return {a:"make:suspense:"+titleCase(p.name)+" · "+(p.vpa||"a/c "+p.acNo),by:"new party ledger (to classify)"};
   if(p.name&&p.name.length>=3&&!/^(upiintent|payviarazorpay)$/i.test(p.name))return {a:"make:suspense:"+titleCase(p.name),by:"new party ledger (to classify)"};return null}
 function stmtPrep(r,o,kinds){const d=asDate(r.date);if(!d)return r.skip=1;if(d<J.settings().startMonth+"-01")r.err.push("before book start");
   let out=0,inn=0;if(r._m.out||r._m.inn){out=Math.abs(asNum(r.out))||0;inn=Math.abs(asNum(r.inn))||0}
   else{const raw=str(r.amt);let n=asNum(r.amt);const dc=str(r.drcr).toLowerCase();if(/\bcr\b|credit/i.test(dc)||/cr\s*$/i.test(raw)){inn=Math.abs(n)}else if(/\bdr\b|debit/i.test(dc)||/dr\s*$/i.test(raw)){out=Math.abs(n)}else if(o.sign==="pos-out"){n>0?out=n:inn=-n}else{n<0?out=-n:inn=n}}
   out=r2(out);inn=r2(inn);if(!out&&!inn)return r.skip=1;if(out&&inn)r.err.push("both withdrawal and deposit filled");
   let target=o.target;if(r._m.acct&&str(r.acct)){const a=matchAcc(r.acct,J.MONEY);if(a)target=a.id;else r.err.push("account “"+str(r.acct)+"” not found")}if(!target)r.err.push("choose the account to import into");
-  r.d=d;r.out=out;r.inn=inn;r.target=target;r.party=window.BankPDF?window.BankPDF.party(str(r.desc)):null;if(!r.counter||!r.manual){const pm=(o._pm??={});const key=r.party?.name?nameKey(r.party.name):"";let c=(r.out&&J.svcMatch?.(str(r.desc)+" "+(r.party?.name||"")))||smartParty(r,target);if(key&&pm[key]&&(!c||/^make:suspense:/.test(c.a)))c={a:pm[key],by:"same party as above"};c=c||classify(r,o,target);if(key&&!/^(adv|loan)-/.test(c.a)&&c.a!=="suspense"&&!pm[key])pm[key]=c.a;r.counter=c.a;r.by=c.by;r.partyAcc=c.party||"";r.svc=c.svc||""}
+  r.d=d;r.out=out;r.inn=inn;r.target=target;r.party=window.BankPDF?window.BankPDF.party(str(r.desc)):null;if(!r.counter||!r.manual){const pm=(o._pm??={});const key=r.party?.short?nameKey((r.party.vpa||r.party.acNo||"")+" "+r.party.name):r.party?.name?nameKey(r.party.name):"";let c=(r.out&&J.svcMatch?.(str(r.desc)+" "+(r.party?.name||"")))||smartParty(r,target);if(key&&pm[key]&&(!c||/^make:suspense:/.test(c.a)))c={a:pm[key],by:"same party as above"};c=c||classify(r,o,target);if(key&&!/^(adv|loan)-/.test(c.a)&&c.a!=="suspense"&&!pm[key])pm[key]=c.a;r.counter=c.a;r.by=c.by;r.partyAcc=c.party||"";r.svc=c.svc||""}
   r.view=[d,str(r.desc),out?inr.format(out):"",inn?inr.format(inn):""]}
 // a statement line that is already in the books: same bank, same amount, within 2 days — or within 5 days for the same person.
 // A hand entry made from Cash for the same person and amount is offered to be moved onto this bank instead of adding a second entry.
@@ -108,7 +109,7 @@ function markDups(recs){const used=new Set();for(const r of recs){if(r.err.lengt
     .find(({v,s})=>s&&s.acc!==r.target&&J.get("accounts",s.acc)?.kind==="cash"&&s.side===(r.out?"out":"in")&&Math.abs(s.amt-amt)<0.005&&who(v));
   if(mv){used.add(mv.v.id);r.relink=mv.v.id;r.dup=mv.v.no;r.relinkFrom=J.accName(mv.s.acc);if(r.inc===undefined)r.inc=true;continue}
   if(r.inc===undefined)r.inc=true}}
-async function saveParty(id,p,r){const a=J.get("accounts",id);if(!a||!p||J.MONEY.includes(a.kind)||["expense","income","tax"].includes(a.kind))return;const patch={};const nm=p.name&&titleCase(p.name);
+async function saveParty(id,p,r){const a=J.get("accounts",id);if(!a||!p||J.MONEY.includes(a.kind)||["expense","income","tax"].includes(a.kind))return;const patch={};const nm=p.name&&!p.short&&titleCase(p.name);
   if(nm&&nameKey(nm)!==nameKey(a.name)&&!(a.aliases||[]).map(nameKey).includes(nameKey(nm)))patch.aliases=[...(a.aliases||[]),nm].slice(-8);
   if(p.vpa&&a.upi!==p.vpa&&!(a.vpas||[]).includes(p.vpa)){if(!a.upi)patch.upi=p.vpa;else patch.vpas=[...(a.vpas||[]),p.vpa]}
   const ac=String(p.acNo||"").replace(/\D/g,"");if(ac.length>=6&&!(a.banks||[]).some(k=>String(k.acNo).replace(/\D/g,"")===ac)){patch.banks=[...(a.banks||[]),{acNo:ac,bank:p.bank||"",ifsc:p.ifsc||"",seen:r.d,via:p.mode||""}];if(!a.bankAc&&a.kind!=="staff"){patch.bankAc=ac;if(p.bank&&!a.bankName)patch.bankName=p.bank}}

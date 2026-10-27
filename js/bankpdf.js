@@ -47,7 +47,8 @@ function parse(pages){const lines=toLines(pages);const all=lines.map(l=>l.text).
   return {meta,rows}}
 // counterparty from the narration
 function party(desc){const d=String(desc||"").replace(/\s+/g," ").trim();const p={raw:d};let m;
-  if((m=d.match(/^UPI\/([^\/]+)\/(\d{6,})\/?(.*)$/i))){p.mode="UPI";p.name=m[1].trim();p.utr=m[2];p.remark=m[3].trim()}
+  if((m=d.match(/^(?:REVERSED\s*:\s*)?UPI\/(\d{6,})\/(CR|DR)\/([^\/]*)\/([^\/]*)\/([^\/]*)(?:\/(.*))?$/i))){p.mode="UPI";p.utr=m[1];p.dir=m[2].toUpperCase();p.name=m[3].trim();p.short=true;p.ifscBank=m[4];const h=m[5].trim();if(/@/.test(h))p.vpa=h;else if(h)p.acNo=h.replace(/\D/g,"")||"";p.remark=(m[6]||"").trim();if(/^REVERSED/i.test(d))p.reversed=true}
+  else if((m=d.match(/^UPI\/([^\/]+)\/(\d{6,})\/?(.*)$/i))){p.mode="UPI";p.name=m[1].trim();p.utr=m[2];p.remark=m[3].trim()}
   else if((m=d.match(/^UPI[-\/](?:CR|DR)?[-\/]?(\d{6,})[-\/]([^\/]+)\/([^\/]*)\/([^\/]*)\/?(.*)$/i))){p.mode="UPI";p.utr=m[1];p.name=m[2].trim();p.ifscBank=m[3];p.vpa=/@/.test(m[4])?m[4]:"";p.remark=m[5]}
   else if((m=d.match(/(?:MB|IB|NB)?:?\s*Sent\s*(NEFT|IMPS|RTGS)\s*\/\s*([^\/]+)\/\s*([^\/]*)\/\s*([0-9Xx*]{4,20})\/?\s*(.*)$/i))){p.mode=m[1].toUpperCase();p.name=m[2].trim();p.bank=m[3].trim();p.acNo=m[4];p.remark=m[5].trim()}
   else if((m=d.match(/^(NEFT|RTGS|IMPS)\s+([A-Z]{4}[A-Z0-9]+)\s+(.+?)\s+([A-Z]{4}0[A-Z0-9]{6})\b\s*(.*)$/))){p.mode=m[1];p.utr=m[2];p.name=m[3].trim();p.ifsc=m[4];p.remark=m[5]}
