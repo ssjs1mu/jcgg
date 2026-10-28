@@ -37,8 +37,8 @@ function parseCas(lines){const out={pan:"",name:"",email:"",period:"",folios:[]}
     if(/mutual fund\s*$/i.test(L)&&!/^folio/i.test(L)&&L.length<70){flush();amc=L;continue}
     if(m=/^Folio\s*No\s*:?\s*([0-9A-Za-z][0-9A-Za-z\/\- ]*?)\s*(?:PAN\b|KYC\b|$)/i.exec(L)){flush();cur={folio:m[1].trim(),amc,schemes:[]};out.folios.push(cur);
       const p=/PAN\s*:?\s*([A-Z]{5}\d{4}[A-Z])/.exec(L);if(p&&!out.pan)out.pan=p[1];continue}
-    if((m=/^(.*?)\s*-?\s*(?:\(?Advisor[^)]*\)?\s*)?ISIN\s*:?\s*(INF[0-9A-Z]{9})/i.exec(L))&&cur){flush();
-      const name=m[1].replace(/^[A-Z0-9]{3,12}\s*-\s*(?=[A-Za-z])/,"").replace(/\(Advisor.*$/i,"").replace(/\s*-\s*$/,"").trim();sch={name,isin:m[2],tx:[],open:0,close:null,regAdvisor:(/Advisor\s*:?\s*([A-Z0-9-]+)/i.exec(L)||[])[1]||""};continue}
+    if((m=/^(.*?)\s*-?\s*(?:\(?Advisor[^)]*\)?\s*)?ISIN\s*:?\s*(INF(?:\s*[0-9A-Z]){9})/i.exec(L))&&cur){flush();m[2]=m[2].replace(/\s+/g,"").toUpperCase();
+      const name=m[1].replace(/^(?:\d{1,3}\s*)?[A-Z0-9]{3,10}\s*-\s*(?=[A-Za-z])/,"").replace(/\(Advisor.*$/i,"").replace(/\(\s*(Non[- ]?)?Demat\s*\)/ig,"").replace(/\s+-\s+/g," - ").replace(/\s*-\s*$/,"").replace(/\s*-\s*$/,"").replace(/\s+/g," ").trim();sch={name,isin:m[2],tx:[],open:0,close:null,regAdvisor:(/Advisor\s*:?\s*([A-Z0-9-]+)/i.exec(L)||[])[1]||""};continue}
     if(!sch)continue;
     if(m=/Opening Unit Balance\s*:?\s*([\d,]*\.?\d+)/i.exec(L)){sch.open=num(m[1]);continue}
     if(m=/Closing Unit Balance\s*:?\s*([\d,]*\.?\d+)/i.exec(L)){const c=sch.close||(sch.close={});c.units=num(m[1]);
@@ -74,7 +74,7 @@ const isElss=n=>/elss|tax saver|tax relief|long term equity/i.test(n);
 function xirr(flows){const f=flows.filter(x=>x.a).sort((a,b)=>a.d<b.d?-1:1);if(f.length<2||!f.some(x=>x.a>0)||!f.some(x=>x.a<0))return null;const t0=f[0].d;const yrs=x=>dayDiff(t0,x.d)/365;const npv=r=>f.reduce((s,x)=>s+x.a/Math.pow(1+r,yrs(x)),0);let lo=-0.99,hi=10;let fl=npv(lo),fh=npv(hi);if(fl*fh>0)return null;for(let i=0;i<200;i++){const mid=(lo+hi)/2,fm=npv(mid);if(Math.abs(fm)<1e-6)return mid;if(fl*fm<0){hi=mid;fh=fm}else{lo=mid;fl=fm}}return (lo+hi)/2}
 function analyse(doc,asOf){asOf=asOf||today();const P=[];const closed=[];const flowsAll=[];const keyOf=(f,s)=>f.folio+"|"+(s.isin||s.name);
   for(const f of arr(doc.folios))for(const s of arr(f.schemes)){const key=keyOf(f,s);const ov=doc.over?.[key]||{};const tx=arr(s.tx).slice().sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:(a.t==="in"?-1:1));const lots=[];const cl=[];const flows=[];let inv=0,out=0,div=0,realised=0;
-    if(+s.open>0)lots.push({d:tx[0]?.d||"",u:+s.open,c:0,unk:true});
+    if(+s.open>0){const kc=!tx.length&&s.close?.cost&&Math.abs((+s.close.units||0)-(+s.open))<0.001?s.close.cost/(+s.open):0;lots.push({d:"",u:+s.open,c:kc,unk:!kc})}
     for(const x of tx){if(x.t==="in"){const c=x.u?x.a/x.u:x.n;lots.push({d:x.d,u:x.u,c});inv+=x.a;flows.push({d:x.d,a:-x.a})}
       else if(x.t==="out"){let left=x.u;const px=x.u?x.a/x.u:x.n;out+=x.a;flows.push({d:x.d,a:x.a});while(left>1e-6&&lots.length){const l=lots[0];const u=Math.min(l.u,left);const cost=u*l.c;const pr=u*px;cl.push({folio:f.folio,scheme:s.name,isin:s.isin,buy:l.d,sell:x.d,u,cost:l.unk?null:r2(cost),proceeds:r2(pr),gain:l.unk?null:r2(pr-cost),days:l.d?dayDiff(l.d,x.d):null,unk:!!l.unk});if(!l.unk)realised+=pr-cost;l.u-=u;left-=u;if(l.u<=1e-6)lots.shift()}
         if(left>1e-4)cl.push({folio:f.folio,scheme:s.name,isin:s.isin,buy:"",sell:x.d,u:left,cost:null,proceeds:r2(left*px),gain:null,days:null,unk:true})}
@@ -210,7 +210,7 @@ J.act("mfDel",el=>{const d=getDoc(el.dataset.x);J.drawer({title:"Delete investor
 // ---- loading ----
 async function ingest(d,st,label){if(st.pan&&st.pan!==d.pan)throw new Error("This statement is for PAN "+mask(st.pan)+", not "+mask(d.pan)+". Pick the matching investor.");
   const n=st.folios.reduce((a,f)=>a+f.schemes.reduce((b,s)=>b+s.tx.length,0),0);if(!n&&!st.folios.some(f=>f.schemes.some(s=>s.close||s.open)))throw new Error("No transactions found — is this a detailed CAS (with transaction rows)?");
-  const m=mergeStatement(d,st);const log=[new Date().toLocaleDateString("en-IN")+" · "+label+" · "+m.added+" new transaction"+(m.added===1?"":"s")+(m.dup?" ("+m.dup+" already present)":""),...arr(d.log)].slice(0,20);
+  const m=mergeStatement(d,st);const per=st.period?st.period.split("|"):[];if(per[0]&&dayDiff(per[0],per[1]||today())<800)setTimeout(()=>toast("This statement covers only "+fmtDate(per[0])+" – "+fmtDate(per[1])+". Request the CAS from an earlier start date to get the full history."),2500);const log=[new Date().toLocaleDateString("en-IN")+" · "+label+(per[0]?" ("+per[0]+" to "+per[1]+")":"")+" · "+m.added+" new transaction"+(m.added===1?"":"s")+(m.dup?" ("+m.dup+" already present)":""),...arr(d.log)].slice(0,20);
   await save({...m.doc,log,...(st.email&&!d.email?{email:st.email}:{})});return m}
 J.act("mfPdf",()=>{const pw=document.getElementById("mf-pw")?.value||"";const pan=ui().pan;const i=document.createElement("input");i.type="file";i.accept=".pdf";i.onchange=async()=>{const f=i.files[0];if(!f)return;J.busy.start("Reading statement");
   try{let lines;try{lines=await pdfLines(f,pw)}catch(e){if(/password/i.test(e.name+e.message))throw new Error(pw?"Wrong password for this PDF.":"This PDF is password-protected — type its password above, then upload again.");throw e}
