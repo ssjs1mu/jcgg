@@ -5,7 +5,7 @@
 (()=>{
 const J=window.J,{S,esc,inr,inr0,r2,money0,fmtDate,toast}=J;
 const arr=x=>Array.isArray(x)?x:[];
-const AGG={swiggy:"Swiggy",zomato:"Zomato",toing:"Swiggy Toing"};const FAM=a=>a==="toing"?"swiggy":a;const CK={swiggy:"sw",zomato:"zo",toing:"to"};
+const AGG={swiggy:"Swiggy",zomato:"Zomato",toing:"Swiggy Toing"};const FAMS={toing:"swiggy"};const FAM=a=>FAMS[a]||a;const CK={swiggy:"sw",zomato:"zo",toing:"to"};
 const nm=v=>{const n=typeof v==="number"?v:parseFloat(String(v??"").replace(/[₹,\s%]/g,""));return Number.isFinite(n)?n:0};
 const hn=s=>String(s??"").replace(/\[.*?\]/g,"").replace(/\s+/g," ").trim().toLowerCase();
 const hn1=s=>String(s??"").split("\n")[0].replace(/\s+/g," ").trim().toLowerCase();
@@ -28,6 +28,7 @@ const sheetRows=(X,ws)=>X.utils.sheet_to_json(ws,{header:1,raw:true,defval:""});
 function mapCols(hdr,spec,norm){const out={};const used=new Set();for(const [k,re] of spec){const i=hdr.findIndex((c,j)=>!used.has(j)&&re.test(norm(c)));if(i>=0){out[k]=i;used.add(i)}}return out}
 const SW=[["id",/^order id$/],["date",/^order date$/],["sdate",/order settlement date/],["status",/^order status$/],["pay",/order payment type/],["cby",/cancelled by/],["coupon",/coupon type/],["item",/^item('s)? total$/],["pack",/^(packaging|packing) charges$/],["disc",/^restaurant discount share/],["net",/^net bill value/],["gst",/^gst collected$/],["paid",/^total customer paid/],["commBase",/^commission charged on/],["pct",/^service fees %/],["comm",/^commission$/],["ld",/^long distance charges$/],["ldd",/^discount on long distance/],["pocket",/^pocket hero fees/],["nofee",/^no fees week/],["one",/^swiggy one fees/],["payf",/^payment collection/],["rcan",/^restaurant cancellation/],["call",/^call center/],["dsp",/^delivery fee sponsored/],["bolt",/^bolt fees/],["gstf",/^gst on service fee/],["ccan",/^customer cancellations/],["ccmp",/^customer complaints/],["gst95",/^gst deduction/],["tcs",/^tcs$/],["tds",/^tds$/],["payout",/^net payout/],["cat",/^order category/],["onec",/^swiggy one customer/],["camp",/^discount campaign id/]];
 const ZO=[["id",/^order id/],["date",/^order date/],["status",/^order status/],["pay",/^mode of payment/],["constr",/^discount construct/],["otype",/^order type/],["item",/^subtotal/],["pack",/^packaging charge/],["dself",/^delivery charge for restaurants/],["promo",/^restaurant discount \[promo\]/],["bogo",/^restaurant discount \[bogo/],["brand",/^brand pack subscription/],["ddisc",/^delivery charge discount/],["gst",/^total gst collected/],["net",/^net order value/],["commBase",/^commissionable value/],["pct",/^service fees %/],["comm",/^service fee$/],["payf",/^payment mechanism fee/],["gstf",/^taxes on service/],["tcsA",/^tax collected at source/],["tcsI",/^tcs igst/],["tds",/^tds 194o/],["gst95",/^gst paid by zomato/],["gstR",/^gst to be paid by restaurant/],["ccmp",/^customer compensation/],["drec",/^delivery charges recovery/],["cash",/^amount received in cash/],["cn",/^credit note/],["prec",/^promo recovery/],["ads",/^extra inventory ads/],["loy",/^brand loyalty/],["exp",/^express order fee/],["oded",/^other order-level/],["nded",/^net deductions/],["nadd",/^net additions/],["payout",/^order level payout/],["sst",/^settlement status/],["sdate",/^settlement date/],["utr",/^bank utr/],["unset",/^unsettled amount/],["cust",/^customer id/]];
+const sb=(g,r,ks)=>{const o={};for(const k of ks){const v=nm(g(r,k));if(v)o[k]=r2(v)}return o};
 const cancelled=s=>/cancel|reject/i.test(String(s||""));
 function parseSwiggy(X,wb){const sh=wb.SheetNames.find(n=>/^order level/i.test(n));if(!sh)throw new Error("Order Level sheet not found.");const rows=sheetRows(X,wb.Sheets[sh]);
   const hi=rows.findIndex(r=>r.some(c=>hn(c)==="order id")&&r.some(c=>hn(c)==="order date"));if(hi<0)throw new Error("Could not find the Order Level header row.");
@@ -37,7 +38,7 @@ function parseSwiggy(X,wb){const sh=wb.SheetNames.find(n=>/^order level/i.test(n
     const date=pd(g(r,"date"));const st=String(g(r,"status")||"").toLowerCase();const paid=nm(g(r,"paid"));const payout=nm(g(r,"payout"));
     const o={agg:"swiggy",id,date,time:ptime(g(r,"date")),st:st,can:cancelled(st),item:nm(g(r,"item")),pack:nm(g(r,"pack")),disc:nm(g(r,"disc")),gst:nm(g(r,"gst")),paid,commBase:nm(g(r,"commBase")),pct:nm(g(r,"pct")),
       comm:nm(g(r,"comm")),payf:nm(g(r,"payf")),plat:nm(g(r,"one"))+nm(g(r,"pocket"))+nm(g(r,"bolt"))-nm(g(r,"nofee")),dist:nm(g(r,"ld"))-nm(g(r,"ldd"))+nm(g(r,"dsp")),canc:nm(g(r,"rcan"))+nm(g(r,"call")),comp:nm(g(r,"ccmp"))+nm(g(r,"ccan")),ads:0,
-      gstf:nm(g(r,"gstf")),gst95:nm(g(r,"gst95")),tds:nm(g(r,"tds")),tcs:nm(g(r,"tcs")),payout,sdate:pd(g(r,"sdate")),one:/^y/i.test(String(g(r,"onec"))),cat:String(g(r,"cat")||""),camp:String(g(r,"camp")||""),coupon:String(g(r,"coupon")||""),pay:String(g(r,"pay")||""),cby:String(g(r,"cby")||"")};
+      gstf:nm(g(r,"gstf")),gst95:nm(g(r,"gst95")),tds:nm(g(r,"tds")),tcs:nm(g(r,"tcs")),payout,sdate:pd(g(r,"sdate")),one:/^y/i.test(String(g(r,"onec"))),cat:String(g(r,"cat")||""),camp:String(g(r,"camp")||""),coupon:String(g(r,"coupon")||""),pay:String(g(r,"pay")||""),cby:String(g(r,"cby")||""),sub:sb(g,r,["one","pocket","bolt","nofee","ld","ldd","dsp","rcan","call","ccmp","ccan"])};
     recs.push(o)}
   const yr=(recs[0]?.date||"").slice(0,4);const pm=String(meta.period||"").split(/\s*[-–]\s*/);meta.from=pd(pm[0],yr);meta.to=pd(pm[1],yr);meta.sdate=pd(meta.sdateTxt,(meta.to||"").slice(0,4));
   for(const o of recs){o.utr=meta.utr||"";o.pfrom=meta.from;o.pto=meta.to;if(!o.sdate||o.sdate<(meta.to||""))o.sdate=meta.sdate||o.sdate;o.settled=true}
@@ -50,7 +51,7 @@ function parseZomato(X,wb){const sh=wb.SheetNames.find(n=>/^order level/i.test(n
     const o={agg:"zomato",id,date:pd(g(r,"date")),time:ptime(g(r,"date")),st,can:cancelled(st),item:nm(g(r,"item")),pack:nm(g(r,"pack")),disc:nm(g(r,"promo"))+nm(g(r,"bogo")),gst:nm(g(r,"gst")),paid:nm(g(r,"net")),commBase:nm(g(r,"commBase")),pct:nm(g(r,"pct")),
       comm:nm(g(r,"comm")),payf:nm(g(r,"payf")),plat:nm(g(r,"brand"))+nm(g(r,"exp"))+nm(g(r,"loy")),dist:nm(g(r,"drec")),canc:0,comp:nm(g(r,"ccmp")),ads:nm(g(r,"ads"))+nm(g(r,"prec"))+nm(g(r,"cn")),
       gstf:nm(g(r,"gstf")),gst95:nm(g(r,"gst95")),tds:nm(g(r,"tds")),tcs:nm(g(r,"tcsA"))+nm(g(r,"tcsI")),payout:nm(g(r,"payout")),sdate:pd(g(r,"sdate")),utr:String(g(r,"utr")||""),settled:/settled/i.test(String(g(r,"sst")||""))&&!/un/i.test(String(g(r,"sst")||"")),unset:nm(g(r,"unset")),
-      cust:String(g(r,"cust")||""),coupon:String(g(r,"constr")||""),pay:String(g(r,"pay")||""),oth0:nm(g(r,"oded"))+nm(g(r,"cash"))};
+      cust:String(g(r,"cust")||""),coupon:String(g(r,"constr")||""),pay:String(g(r,"pay")||""),oth0:nm(g(r,"oded"))+nm(g(r,"cash")),sub:sb(g,r,["brand","exp","loy","drec","dself","ddisc","cn","prec","ads","oded","cash","gstR","ccmp"])};
     recs.push(o)}
   const pm=String(meta.period||"").split(/\s*[-–]\s*/);const yr=(recs[0]?.date||"").slice(0,4);meta.from=pd(pm[0],yr);meta.to=pd(pm[1],yr);for(const o of recs){o.pfrom=meta.from;o.pto=meta.to}
   return {meta,recs}}
@@ -201,7 +202,7 @@ function view(){const U=ui();const all=unify();let rows=filtered(U,all);
   const head=`<div class="filters" style="gap:10px;flex-wrap:wrap"><button class="btn primary w" data-a="aggUpload">Upload settlement report(s)</button>
    ${segSel("aggr.agg",U.agg,[["all","Together"],["swiggy","Swiggy"],["toing","Toing"],["zomato","Zomato"]])}${segSel("aggr.g",U.g,[["day","Daily"],["week","Weekly"],["month","Monthly"],["year","Yearly"]])}
    <span class="row" style="gap:6px;align-items:center"><span class="hint">From</span><input type="date" data-ui="aggr.from" value="${esc(U.from)}"><span class="hint">to</span><input type="date" data-ui="aggr.to" value="${esc(U.to)}">${U.from||U.to?`<button class="btn small" data-a="aggClear">All dates</button>`:""}</span></div>
-   <div class="seg" role="tablist" style="margin:6px 0">${[["sum","Summary & charts"],["ded","Deductions"],["per","By period"],["rec","Receivables & bank"],["ord","Orders"],["ret","Retention"]].map(([k,l])=>`<button data-set="aggr.tab=${k}" aria-pressed="${U.tab===k}">${l}</button>`).join("")}</div>`;
+   <div class="seg" role="tablist" style="margin:6px 0">${[["sum","Summary & charts"],["ded","Deductions"],["per","By period"],["cmp","Compare & print"],["rec","Receivables & bank"],["ord","Orders"],["ret","Retention"]].map(([k,l])=>`<button data-set="aggr.tab=${k}" aria-pressed="${U.tab===k}">${l}</button>`).join("")}</div>`;
   const nf=allRecs().length;
   const note=!nf?`<div class="panel pb"><b>No settlement reports uploaded yet.</b> Download the weekly payout report (Excel) from the Swiggy and Zomato partner portals and upload them here. Until then, receivables below are estimates from Petpooja bills.</div>`:"";
   let body="";const T=U.tab;
@@ -213,13 +214,14 @@ function view(){const U=ui();const all=unify();let rows=filtered(U,all);
     <section class="panel pb"><h3 style="margin-top:0">Growth</h3>${per.html}</section>`}
   else if(T==="ded")body=`<section class="panel pb">${dedTable(rows)}</section>`;
   else if(T==="per")body=`<section class="panel pb">${periodTable(rows,U.g).html}</section>`;
+  else if(T==="cmp")body=J.aggCmpView?J.aggCmpView(U,all,rows):"";
   else if(T==="rec")body=receivables(all,rows);
   else if(T==="ord")body=`<section class="panel pb">${orderTable(rows)}</section>`;
   else body=retentionHtml(rows,U);
   const files=fileLog();
   const log=files.length?`<details class="panel pb"><summary>Uploaded reports (${files.length})</summary><div class="tbl-wrap"><table class="t"><thead><tr><th>Uploaded</th><th>File</th><th>Aggregator</th><th>Period</th><th>UTR</th><th class="num">Orders</th><th class="num">Payout</th></tr></thead><tbody>${files.slice(0,60).map(f=>`<tr><td>${new Date(f.at).toLocaleDateString("en-IN")}</td><td>${esc(f.name)}</td><td>${esc(AGG[f.agg]||f.agg)}</td><td>${f.from?fmtDate(f.from)+" – "+fmtDate(f.to):"–"}</td><td class="mono">${esc(f.utr||"")}</td><td class="num">${f.orders} <span class="hint">(${f.fresh} new)</span></td><td class="num">${inr.format(f.payout)}</td></tr>`).join("")}</tbody></table></div></details>`:"";
   return CSS+`<div class="agg-root">${head}${note}${body}${log}</div>`}
-J.aggrView=view;J._aggParse={parseSwiggy,parseZomato,finish};J.aggSave=saveRecs;
+J.aggrView=view;J._agg={AGG,CK,FAMS,FAM,unify,deductions,filtered,ui,barChart,legend,pct,pf,sum,r2,inr,inr0,money0,fmtDate,esc,allRecs};J._aggParse={parseSwiggy,parseZomato,finish};J.aggSave=saveRecs;
 // compact strip for the daily sales tab: what is expected from each aggregator
 J.aggStrip=()=>{try{const all=unify();if(!all.rows.length)return "";const parts=Object.keys(AGG).map(a=>{const R=all.rows.filter(r=>r.agg===a);const p=R.filter(r=>r.state==="pending"||r.state==="reported"),o=R.filter(r=>r.state==="overdue");if(!R.length)return "";return `<span><b>${AGG[a]}</b> to receive ${money0(sum(p.concat(o),r=>r.exp))} (${p.length+o.length} orders)${o.length?` · <span style="color:var(--bad)">${money0(sum(o,r=>r.exp))} overdue</span>`:""}</span>`}).filter(Boolean);
   return parts.length?`<div class="strip hint" style="margin:6px 0">${parts.join(" · ")} <button class="linkbtn" data-go="sales" data-tab="aggr">Open aggregator analysis →</button></div>`:""}catch(e){return ""}};
