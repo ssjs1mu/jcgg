@@ -44,7 +44,7 @@ const fld=(label,inner,cls="")=>`<label class="f ${cls}">${label}${inner}</label
 const txt=(n,v,ph="",extra="")=>`<input name="${n}" id="f-${n}" value="${esc(v??"")}" placeholder="${esc(ph)}" ${extra}>`;
 const num=(n,v,ph="0.00",extra="")=>`<input name="${n}" id="f-${n}" type="number" inputmode="decimal" step="any" value="${esc(v??"")}" placeholder="${esc(ph)}" ${extra}>`;
 const dateI=(n,v)=>`<input type="date" name="${n}" id="f-${n}" value="${esc(v??"")}">`;
-const selO=(n,opts,v,blank)=>`<select name="${n}" id="f-${n}">${blank!=null?`<option value="">${esc(blank)}</option>`:""}${opts.map(o=>{const [val,lab]=Array.isArray(o)?o:[o,o];return `<option value="${esc(val)}" ${String(val)===String(v??"")?"selected":""}>${esc(lab)}</option>`}).join("")}</select>`;
+const selO=(n,opts,v,blank)=>`<select name="${n}" id="f-${n}">${blank!=null?`<option value="">${esc(blank)}</option>`:""}${opts.map(o=>{const [val,lab]=Array.isArray(o)?o:[o,o];return `<option value="${esc(val)}" ${String(val)===String(v??"")?"selected":""}>${esc(lab)}</option>`}).join("")}${window.J?.pickExtra?window.J.pickExtra(opts):""}</select>`;
 const area=(n,v,rows=2,ph="")=>`<textarea name="${n}" id="f-${n}" rows="${rows}" placeholder="${esc(ph)}">${esc(v??"")}</textarea>`;
 function formData(form){const f={};for(const el of form.elements){if(!el.name)continue;if(el.type==="checkbox")f[el.name]=el.checked;else if(el.type==="radio"){if(el.checked)f[el.name]=el.value}else if(el.type==="file")continue;else f[el.name]=el.value}return f}
 Object.assign(J,{fld,txt,num,dateI,selO,area,formData});

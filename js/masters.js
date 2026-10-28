@@ -98,4 +98,52 @@ J.microReport=U=>{const {months,M}=crunch();const kinds=[["expense","Expenses",J
 J.act("microCsv",()=>{const {months,M}=crunch();const rows=[["Type","Category","Sub-category","Micro-category",...months,"FY total","Monthly budget"]];
   for(const a of J.all("accounts").filter(a=>a.kind==="expense"||a.kind==="income")){const X=M[a.id];if(!X)continue;const catOf=a.kind==="expense"?J.expCatOf:J.incCatOf;for(const [k,o] of Object.entries(X)){const m=arr(a.svc).find(c=>c.id===k);rows.push([a.kind,catOf(a),a.name,m?m.name:"(not tagged)",...months.map(x=>o[x]||0),tot(o),m?.budget||""])}}
   J.saveFile("micro-categories-"+today()+".csv",J.toCSV(rows))});
+
+// ---------- editable pick-lists (inventory categories, units) — add / rename / delete from the dropdown itself ----------
+const REG=[{key:"invcat",one:"category",all:"Inventory categories",get arr(){return J.INV?.CATS},use:v=>J.all("items").filter(i=>(i.cat||"Other")===v).length,move:async(o,n)=>{for(const i of J.all("items"))if((i.cat||"Other")===o)await J.store.patch("items",i.id,{cat:n})},keep:"Other"},
+  {key:"unit",one:"unit",all:"Units of measure",get arr(){return J.INV?.UNITS},use:v=>J.all("items").filter(i=>i.unit===v).length,move:async(o,n)=>{for(const i of J.all("items"))if(i.unit===o)await J.store.patch("items",i.id,{unit:n})}}];
+const regOf=a=>REG.find(r=>r.arr&&r.arr===a);
+J.pickExtra=opts=>{const r=regOf(opts);if(!r||J.readOnly?.())return "";return `<optgroup label="──────────"><option value="__lnew__" data-lk="${r.key}">＋ Add new ${r.one}…</option><option value="__ledit__" data-lk="${r.key}">✎ Rename / delete selected…</option></optgroup>`};
+async function saveList(r,list){const cur=J.get("meta","lists");const doc={...(cur||{}),id:"lists",[r.key]:list};r.arr.splice(0,r.arr.length,...list);await J.store.put("meta",doc);try{S.c.meta.set("lists",doc)}catch(e){}}
+const applyLists=()=>{const L=J.get("meta","lists");if(!L)return;for(const r of REG){const a=r.arr;const l=L[r.key];if(a&&Array.isArray(l)&&l.length&&JSON.stringify(a)!==JSON.stringify(l))a.splice(0,a.length,...l)}};
+J.onDerive?.(applyLists);setTimeout(applyLists,1500);
+function listDialog(r,cur,sel){closeOv();const arrv=r.arr;const used=cur?r.use(cur):0;const ov=document.createElement("div");ov.id="mc-ov";ov.className="qa-ov";
+  ov.innerHTML=`<div class="qa-box" role="dialog" aria-modal="true"><h3>${cur?"Rename / delete":"Add"} ${r.one}</h3><label class="f">${cur?"Name":"New "+r.one+" name"}<input id="ls-name" value="${esc(cur||"")}"></label>
+   ${cur?`<p class="hint" style="margin:6px 0 0">${used?`${used} item${used===1?"":"s"} use it — renaming updates them all; to delete it, first move them to another ${r.one}.`:"Not used by any item — it can be deleted."}</p>`:""}
+   <div class="row" style="justify-content:space-between;margin-top:12px">${cur&&cur!==r.keep?`<button type="button" class="btn small danger" id="ls-del" ${used?"disabled":""}>Delete</button>`:"<span></span>"}<span class="row" style="gap:8px"><button type="button" class="btn w" id="ls-x">Cancel</button><button type="button" class="btn primary" id="ls-ok">${cur?"Save":"Add"}</button></span></div></div>`;
+  document.body.appendChild(ov);setTimeout(()=>ov.querySelector("#ls-name").focus(),30);ov.addEventListener("click",e=>{if(e.target===ov)closeOv()});ov.querySelector("#ls-x").onclick=closeOv;
+  ov.addEventListener("keydown",e=>{if(e.key==="Escape")closeOv();if(e.key==="Enter"&&e.target.tagName==="INPUT"){e.preventDefault();ov.querySelector("#ls-ok").click()}});
+  const refresh=pick=>{for(const s of document.querySelectorAll("select")){if(!s.querySelector(`option[data-lk="${r.key}"]`))continue;const keep=s===sel?pick:s.value;const extra=s.querySelector('optgroup:last-child');const ex=extra?extra.outerHTML:"";const blank=s.querySelector('option[value=""]');
+      s.innerHTML=(blank?blank.outerHTML:"")+r.arr.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("")+ex;s.value=keep||"";s.dataset.prev=s.value}};
+  ov.querySelector("#ls-ok").onclick=async()=>{const n=ov.querySelector("#ls-name").value.trim();if(!n)return toast("Enter a name.");if(arrv.some(x=>x.toLowerCase()===n.toLowerCase()&&x!==cur))return toast("That "+r.one+" already exists.");
+    if(!cur){await J.safe(()=>saveList(r,[...arrv,n]));closeOv();refresh(n);toast("Added “"+n+"”");return}
+    if(n===cur){closeOv();return}await J.safe(async()=>{await r.move(cur,n);await saveList(r,arrv.map(x=>x===cur?n:x))});closeOv();refresh(n);toast("Renamed to “"+n+"”")};
+  ov.querySelector("#ls-del")?.addEventListener("click",async()=>{await J.safe(()=>saveList(r,arrv.filter(x=>x!==cur)));closeOv();refresh("");toast("Deleted “"+cur+"”")})}
+document.addEventListener("focusin",e=>{const s=e.target;if(s?.tagName==="SELECT"&&s.querySelector('option[value="__lnew__"]'))s.dataset.prev=s.value},true);
+document.addEventListener("change",e=>{const s=e.target;if(s?.tagName!=="SELECT")return;const v=s.value;if(v!=="__lnew__"&&v!=="__ledit__")return;e.stopImmediatePropagation();const r=REG.find(x=>x.key===s.selectedOptions[0].dataset.lk);const prev=s.dataset.prev||"";s.value=prev;
+  if(v==="__ledit__"&&!prev){toast("Choose one first, then pick ✎ Rename / delete.");return}listDialog(r,v==="__ledit__"?prev:null,s)},true);
+
+// ---------- Settings → Masters & lists: every list in one place ----------
+const derived=(label,get,rename,fix)=>({label,get,rename,fix});
+function vMasters(){const A=!J.readOnly?.();
+  const cnt=(arr2,f)=>{const m={};for(const x of arr2){const k=f(x);if(k)m[k]=(m[k]||0)+1}return m};
+  const menuC=cnt(J.all("menu").filter(m=>m.active!==false),m=>m.cat||"Other");const desigC=cnt(J.all("staff"),s=>s.desig);
+  const sec=(title,hint,rows,add)=>`<section class="panel"><div class="row" style="justify-content:space-between;padding:10px 12px;flex-wrap:wrap;gap:6px"><h2 style="padding:0">${title}</h2>${add||""}</div><p class="hint" style="margin:0 12px 6px">${hint}</p><div class="tbl-wrap"><table><tbody>${rows||`<tr><td class="muted">None yet.</td></tr>`}</tbody></table></div></section>`;
+  const row=(kind,v,n)=>`<tr><td>${esc(v)}</td><td class="num muted">${n||0} in use</td><td style="text-align:right;white-space:nowrap">${A?`<button class="btn small" data-a="mstRen" data-k="${kind}" data-x="${esc(v)}">Rename</button> <button class="btn small danger" data-a="mstDel" data-k="${kind}" data-x="${esc(v)}">Delete</button>`:""}</td></tr>`;
+  const ptr=(t,d,tab,mod)=>`<tr><td><b>${t}</b><div class="hint">${d}</div></td><td style="text-align:right"><button class="btn small" data-a="mstGo" data-m="${mod}" data-t="${tab}">Open</button></td></tr>`;
+  return `<p class="hint" style="margin-top:0">One place to add, rename and delete every list used in dropdowns. Renaming updates everything that uses the name; a name that is still in use can't be deleted — move its items first.</p>
+  ${sec("Expense &amp; income categories · sub-categories · micro-categories","Category › sub-category (ledger) › micro-category, for expenses and income, with budgets.",ptr("Categories","Expense and income categories, sub-categories and micro-categories","cats","accounts")+ptr("Micro-categories &amp; budget report","Month-by-month actual vs budget for every level","reports","accounts"))}
+  ${sec("Menu categories","From the kitchen menu — rename or delete a category for all its dishes.",Object.entries(menuC).sort().map(([k,n])=>row("menu",k,n)).join(""))}
+  ${sec(REG[0].all,"Used by stock items.",REG[0].arr.map(v=>row("invcat",v,REG[0].use(v))).join(""),A?`<button class="btn primary w" data-a="mstAdd" data-k="invcat">+ New category</button>`:"")}
+  ${sec(REG[1].all,"Used by stock items.",REG[1].arr.map(v=>row("unit",v,REG[1].use(v))).join(""),A?`<button class="btn primary w" data-a="mstAdd" data-k="unit">+ New unit</button>`:"")}
+  ${sec("Staff designations","From staff profiles — rename to tidy duplicates.",Object.entries(desigC).sort().map(([k,n])=>row("desig",k,n)).join(""))}`}
+const bulk={menu:{col:"menu",f:"cat",all:()=>J.all("menu"),def:"Other"},desig:{col:"staff",f:"desig",all:()=>J.all("staff"),def:""}};
+J.act("mstGo",el=>J.go(el.dataset.m,el.dataset.t));
+J.act("mstAdd",el=>{const r=REG.find(x=>x.key===el.dataset.k);listDialog(r,null,null);const ok=document.getElementById("ls-ok");if(ok){const o=ok.onclick;ok.onclick=async()=>{await o();J.render()}}});
+J.act("mstRen",el=>{const k=el.dataset.k,v=el.dataset.x;const r=REG.find(x=>x.key===k);if(r){listDialog(r,v,null);const ok=document.getElementById("ls-ok");if(ok){const o=ok.onclick;ok.onclick=async()=>{await o();J.render()}}return}
+  const b=bulk[k];J.drawer({title:"Rename “"+v+"”",submit:"Rename",body:J.fld("New name",J.txt("name",v)),onSubmit:async fd=>{const n=fd.name.trim();if(!n)return "Give it a name.";for(const d of b.all())if((d[b.f]||b.def)===v)await J.store.patch(b.col,d.id,{[b.f]:n});toast("Renamed")}})});
+J.act("mstDel",el=>{const k=el.dataset.k,v=el.dataset.x;const r=REG.find(x=>x.key===k);if(r){const n=r.use(v);if(n)return toast(n+" item"+(n===1?"":"s")+" still use “"+v+"” — move them first, or rename it.");if(v===r.keep)return toast("“"+v+"” is the fallback and stays.");J.safe(async()=>{await saveList(r,r.arr.filter(x=>x!==v))}).then(()=>J.render());return}
+  const b=bulk[k];const used=b.all().filter(d=>(d[b.f]||b.def)===v);const others=[...new Set(b.all().map(d=>d[b.f]||b.def).filter(x=>x&&x!==v))];
+  J.drawer({title:"Delete “"+v+"”",submit:"Delete",body:used.length?`<p>${used.length} record${used.length===1?"":"s"} use it. Move them to:</p>${J.fld("Move to",J.selO("to",others.map(x=>[x,x]),others[0]||"",b.def?undefined:"— none —"))}`:`<p>Not used.</p>`,onSubmit:async fd=>{for(const d of used)await J.store.patch(b.col,d.id,{[b.f]:fd.to||b.def});toast("Deleted “"+v+"”")}})});
+{const st=J.MODS.find(m=>m.id==="settings");if(st&&!st.tabs.some(t=>t[0]==="masters"))st.tabs.splice(1,0,["masters","Masters & lists",vMasters])}
 })();
