@@ -145,5 +145,5 @@ J.act("mstRen",el=>{const k=el.dataset.k,v=el.dataset.x;const r=REG.find(x=>x.ke
 J.act("mstDel",el=>{const k=el.dataset.k,v=el.dataset.x;const r=REG.find(x=>x.key===k);if(r){const n=r.use(v);if(n)return toast(n+" item"+(n===1?"":"s")+" still use “"+v+"” — move them first, or rename it.");if(v===r.keep)return toast("“"+v+"” is the fallback and stays.");J.safe(async()=>{await saveList(r,r.arr.filter(x=>x!==v))}).then(()=>J.render());return}
   const b=bulk[k];const used=b.all().filter(d=>(d[b.f]||b.def)===v);const others=[...new Set(b.all().map(d=>d[b.f]||b.def).filter(x=>x&&x!==v))];
   J.drawer({title:"Delete “"+v+"”",submit:"Delete",body:used.length?`<p>${used.length} record${used.length===1?"":"s"} use it. Move them to:</p>${J.fld("Move to",J.selO("to",others.map(x=>[x,x]),others[0]||"",b.def?undefined:"— none —"))}`:`<p>Not used.</p>`,onSubmit:async fd=>{for(const d of used)await J.store.patch(b.col,d.id,{[b.f]:fd.to||b.def});toast("Deleted “"+v+"”")}})});
-{const st=J.MODS.find(m=>m.id==="settings");if(st&&!st.tabs.some(t=>t[0]==="masters"))st.tabs.splice(1,0,["masters","Masters & lists",vMasters])}
+{let n=0;const add=()=>{const st=J.MODS.find(m=>m.id==="settings");if(st){if(!st.tabs.some(t=>t[0]==="masters"))st.tabs.splice(1,0,["masters","Masters & lists",vMasters]);return}if(++n<40)setTimeout(add,250)};add()}
 })();
