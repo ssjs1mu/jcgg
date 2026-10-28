@@ -36,12 +36,14 @@ function open(type,key,id,origin){close();const isItem=type==="item";const rec=i
     :`<label class="f">Name<input id="qa-name" value="${esc(rec?.name||"")}" placeholder="e.g. HDFC Bank — Current a/c, SBI Card 1234, Paytm wallet, Sharma Traders"></label>
       <div class="form"><label class="f">Type<select id="qa-kind" ${sys?"disabled":""}>${[...new Set([...(rec?[rec.kind]:[]),...kinds.filter(k=>QK.includes(k))])].map(k=>`<option value="${k}" ${(rec?.kind||kinds.find(x=>QK.includes(x)))===k?"selected":""}>${esc(J.KINDS[k]?.l||k)}</option>`).join("")}</select></label>
       ${rec?"":`<label class="f">Opening balance ₹ (optional)<input id="qa-open" type="number" step="any" placeholder="0"></label>`}
-      <label class="f">Phone / account no. / card last 4 (optional)<input id="qa-ref" value="${esc(rec?.ref||rec?.phone||"")}"></label></div>`;
+      <label class="f">Phone / account no. / card last 4 (optional)<input id="qa-ref" value="${esc(rec?.ref||rec?.phone||"")}"></label></div>
+      <div id="qa-catbox" style="${["expense","income"].includes(rec?.kind||kinds.find(x=>QK.includes(x)))?"":"display:none"}"><label class="f">Category — pick or type a new one<input id="qa-cat2" list="qa-cat-dl" value="${esc(rec?.cat||"")}" placeholder="e.g. Dineout"><datalist id="qa-cat-dl">${((rec?.kind||kinds.find(x=>QK.includes(x)))==="income"?J.incCats?.():J.expCats?.()||[]).map(c=>`<option value="${esc(c)}">`).join("")}</datalist></label></div>`;
   const ov=document.createElement("div");ov.id="qa-ov";ov.className="qa-ov";
   ov.innerHTML=`<div class="qa-box" role="dialog" aria-modal="true" aria-label="${rec?"Edit":"Add"}"><h3>${rec?"Edit":"Add new"} ${isItem?"item":"ledger"}</h3>${body}
     ${rec?`<p class="hint" style="margin:6px 0 0">${used?`This ${isItem?"item":"ledger"} is used in saved entries, so it can be hidden from lists but not deleted.`:"Not used anywhere yet — it can be deleted."}${sys?" System ledger: only the name can be changed.":""}</p>`:""}
     <div class="row" style="justify-content:space-between;margin-top:12px">${rec&&!sys?`<button type="button" class="btn small danger" id="qa-del">${used?"Hide from lists":"Delete"}</button>`:"<span></span>"}<span class="row" style="gap:8px"><button type="button" class="btn w" id="qa-x">Cancel</button><button type="button" class="btn primary" id="qa-ok">${rec?"Save":"Add"}</button></span></div></div>`;
   document.body.appendChild(ov);setTimeout(()=>ov.querySelector("#qa-name")?.focus(),30);
+  ov.querySelector("#qa-kind")?.addEventListener("change",e=>{const k=e.target.value;const b=ov.querySelector("#qa-catbox");if(b)b.style.display=["expense","income"].includes(k)?"":"none";const dl=ov.querySelector("#qa-cat-dl");if(dl)dl.innerHTML=(k==="income"?J.incCats?.():J.expCats?.()||[]).map(c=>`<option value="${esc(c)}">`).join("")});
   ov.addEventListener("click",e=>{if(e.target===ov)close()});ov.querySelector("#qa-x").onclick=close;
   ov.addEventListener("keydown",e=>{if(e.key==="Escape")close();if(e.key==="Enter"&&e.target.tagName==="INPUT"){e.preventDefault();ov.querySelector("#qa-ok").click()}});
   const col=isItem?"items":"accounts";
@@ -49,7 +51,7 @@ function open(type,key,id,origin){close();const isItem=type==="item";const rec=i
   ov.querySelector("#qa-ok").onclick=async()=>{const name=ov.querySelector("#qa-name").value.trim();if(!name){toast("Enter a name.");return}
     const dup=J.all(col).find(x=>x.name.toLowerCase()===name.toLowerCase()&&x.id!==id);if(dup&&!rec){refreshPickers(type,key,dup.id,origin);close();toast("“"+dup.name+"” already exists — selected it.");return}
     let d;if(isItem){d={...(rec||{id:uid(),active:true,reorder:0}),name,unit:ov.querySelector("#qa-unit").value,cat:ov.querySelector("#qa-cat").value,gst:+ov.querySelector("#qa-gst").value}}
-    else{const kind=sys?rec.kind:ov.querySelector("#qa-kind").value;const ref=ov.querySelector("#qa-ref").value.trim();d={...(rec||{id:kind+"-"+uid(),opening:+(ov.querySelector("#qa-open")?.value)||0,active:true}),name,kind,...(ref?{ref}:{})}}
+    else{const kind=sys?rec.kind:ov.querySelector("#qa-kind").value;const ref=ov.querySelector("#qa-ref").value.trim();const cat=["expense","income"].includes(kind)?(ov.querySelector("#qa-cat2")?.value||"").trim():"";d={...(rec||{id:kind+"-"+uid(),opening:+(ov.querySelector("#qa-open")?.value)||0,active:true}),name,kind,...(ref?{ref}:{}),...(["expense","income"].includes(kind)?{cat}:{})};if(cat)await J.catEnsure?.(kind,cat)}
     const ok=await J.safe(()=>J.store.put(col,d));if(!ok)return;setCache(d);close();refreshPickers(type,key,d.id,origin);toast((rec?"Updated ":"Added ")+"“"+name+"”")};
   ov.querySelector("#qa-del")?.addEventListener("click",async()=>{if(used){const d={...rec,active:false};await J.safe(()=>J.store.put(col,d));setCache(d);toast("“"+rec.name+"” hidden from lists (history kept)")}
     else{await J.safe(()=>J.store.del(col,id));try{J.S.c[col].delete(id)}catch(e){}toast("Deleted “"+rec.name+"”")}
