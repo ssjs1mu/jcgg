@@ -127,7 +127,7 @@ document.addEventListener("change",e=>{const s=e.target;if(s?.tagName!=="SELECT"
 const derived=(label,get,rename,fix)=>({label,get,rename,fix});
 function vMasters(){const A=!J.readOnly?.();
   const cnt=(arr2,f)=>{const m={};for(const x of arr2){const k=f(x);if(k)m[k]=(m[k]||0)+1}return m};
-  const menuC=cnt(J.all("menu").filter(m=>m.active!==false),m=>m.cat||"Other");const desigC=cnt(J.all("staff"),s=>s.desig);
+  const menuC=cnt(J.all("menu").filter(m=>m.active!==false),m=>m.cat||"Other");const desigC=cnt(J.all("accounts").filter(a=>a.kind==="staff"),s=>s.desig);
   const sec=(title,hint,rows,add)=>`<section class="panel"><div class="row" style="justify-content:space-between;padding:10px 12px;flex-wrap:wrap;gap:6px"><h2 style="padding:0">${title}</h2>${add||""}</div><p class="hint" style="margin:0 12px 6px">${hint}</p><div class="tbl-wrap"><table><tbody>${rows||`<tr><td class="muted">None yet.</td></tr>`}</tbody></table></div></section>`;
   const row=(kind,v,n)=>`<tr><td>${esc(v)}</td><td class="num muted">${n||0} in use</td><td style="text-align:right;white-space:nowrap">${A?`<button class="btn small" data-a="mstRen" data-k="${kind}" data-x="${esc(v)}">Rename</button> <button class="btn small danger" data-a="mstDel" data-k="${kind}" data-x="${esc(v)}">Delete</button>`:""}</td></tr>`;
   const ptr=(t,d,tab,mod)=>`<tr><td><b>${t}</b><div class="hint">${d}</div></td><td style="text-align:right"><button class="btn small" data-a="mstGo" data-m="${mod}" data-t="${tab}">Open</button></td></tr>`;
@@ -137,7 +137,7 @@ function vMasters(){const A=!J.readOnly?.();
   ${sec(REG[0].all,"Used by stock items.",REG[0].arr.map(v=>row("invcat",v,REG[0].use(v))).join(""),A?`<button class="btn primary w" data-a="mstAdd" data-k="invcat">+ New category</button>`:"")}
   ${sec(REG[1].all,"Used by stock items.",REG[1].arr.map(v=>row("unit",v,REG[1].use(v))).join(""),A?`<button class="btn primary w" data-a="mstAdd" data-k="unit">+ New unit</button>`:"")}
   ${sec("Staff designations","From staff profiles — rename to tidy duplicates.",Object.entries(desigC).sort().map(([k,n])=>row("desig",k,n)).join(""))}`}
-const bulk={menu:{col:"menu",f:"cat",all:()=>J.all("menu"),def:"Other"},desig:{col:"staff",f:"desig",all:()=>J.all("staff"),def:""}};
+const bulk={menu:{col:"menu",f:"cat",all:()=>J.all("menu"),def:"Other"},desig:{col:"accounts",f:"desig",all:()=>J.all("accounts").filter(a=>a.kind==="staff"),def:""}};
 J.act("mstGo",el=>J.go(el.dataset.m,el.dataset.t));
 J.act("mstAdd",el=>{const r=REG.find(x=>x.key===el.dataset.k);listDialog(r,null,null);const ok=document.getElementById("ls-ok");if(ok){const o=ok.onclick;ok.onclick=async()=>{await o();J.render()}}});
 J.act("mstRen",el=>{const k=el.dataset.k,v=el.dataset.x;const r=REG.find(x=>x.key===k);if(r){listDialog(r,v,null);const ok=document.getElementById("ls-ok");if(ok){const o=ok.onclick;ok.onclick=async()=>{await o();J.render()}}return}
