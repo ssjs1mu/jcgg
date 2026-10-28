@@ -1,0 +1,213 @@
+/* Mutual-fund portfolios — one account per PAN (Investments → Mutual funds).
+   A PAN by itself cannot pull holdings: SEBI/AMC rules release them only through the registrars' Consolidated Account
+   Statement (CAS) — CAMS+KFintech (camsonline.com / kfintech.com) or MFCentral, sent to the e-mail registered against the PAN.
+   So the account is keyed by PAN and filled from that statement (PDF, with its password) or from a CSV / Excel of transactions.
+   From the transactions the app builds, per PAN: every folio and scheme for up to 15 years, FIFO lots, open and closed
+   positions, realised gains with holding period, current value (CAS closing NAV or latest NAV), XIRR, and a redemption sheet.
+   Stored as meta docs  mf-<PAN>  (no new collection needed). */
+(()=>{
+const J=window.J,{S,esc,inr,r2,money0,fmtDate,today,uid,fld,txt,toast}=J;
+const arr=x=>Array.isArray(x)?x:[];
+const PANRE=/^[A-Z]{5}[0-9]{4}[A-Z]$/;
+const ENT={P:"Individual",C:"Company",H:"HUF",F:"Firm / LLP",A:"AOP",T:"Trust",B:"BOI",L:"Local authority",J:"Juridical person",G:"Government"};
+const mask=p=>p?p.slice(0,5)+"••••"+p.slice(-1):"";
+const MON={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+const iso=(d,m,y)=>y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+const toISO=s=>{s=String(s||"").trim();let m;if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);if(m=/^(\d{1,2})[-\/ ]([A-Za-z]{3})[a-z]*[-\/ ,]*(\d{2,4})$/.exec(s))return iso(+m[1],MON[m[2].toLowerCase()],m[3].length===2?"20"+m[3]:m[3]);if(m=/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/.exec(s))return iso(+m[1],+m[2]-1,m[3].length===2?"20"+m[3]:m[3]);return ""};
+const num=t=>{if(t==null||t==="")return 0;let s=String(t).trim();const neg=/^\(.*\)$/.test(s)||/^-/.test(s);s=s.replace(/[()₹,\s-]/g,"");const v=parseFloat(s);return isNaN(v)?0:(neg?-v:v)};
+const NUM=/\(?-?\d[\d,]*\.\d+\)?/g;
+const addDays=(d,n)=>{const x=new Date(d+"T00:00:00Z");x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};
+const addYears=(d,n)=>{const x=new Date(d+"T00:00:00Z");x.setUTCFullYear(x.getUTCFullYear()+n);return x.toISOString().slice(0,10)};
+const dayDiff=(a,b)=>Math.round((new Date(b+"T00:00:00Z")-new Date(a+"T00:00:00Z"))/864e5);
+
+// ---------- CAS text → folios / schemes / transactions ----------
+const DATE_RE=/^(\d{1,2}-[A-Za-z]{3}-\d{4})\s+(.*)$/;
+function classify(desc,units,amount){const d=desc.toLowerCase();
+  if(/stamp duty|stt|tds|tax deducted|cess|\*\*\*|address|nominee|kyc|cheque|rejected|reversal.*stamp|transaction charge/.test(d)&&!units)return "skip";
+  if(/dividend|idcw/.test(d)&&!/reinvest/.test(d)&&!units)return "div";
+  if(units<0||/redemp|withdraw|switch\s*out|swp|sell|lateral shift out|transfer out/.test(d))return "out";
+  if(units>0)return "in";
+  return "skip"}
+function parseCas(lines){const out={pan:"",name:"",email:"",period:"",folios:[]};let cur=null,amc="",sch=null;
+  const flush=()=>{if(sch&&cur)cur.schemes.push(sch);sch=null};
+  for(let raw of lines){const L=raw.replace(/\s+/g," ").trim();if(!L)continue;let m;
+    if(!out.pan&&(m=/PAN\s*:?\s*([A-Z]{5}\d{4}[A-Z])/.exec(L)))out.pan=m[1];
+    if(!out.email&&(m=/Email\s*Id\s*:?\s*([\w.+-]+@[\w.-]+)/i.exec(L)))out.email=m[1];
+    if(!out.period&&(m=/(\d{2}-[A-Za-z]{3}-\d{4})\s+To\s+(\d{2}-[A-Za-z]{3}-\d{4})/i.exec(L)))out.period=toISO(m[1])+"|"+toISO(m[2]);
+    if(/mutual fund\s*$/i.test(L)&&!/^folio/i.test(L)&&L.length<70){flush();amc=L;continue}
+    if(m=/^Folio\s*No\s*:?\s*([0-9A-Za-z][0-9A-Za-z\/\- ]*?)\s*(?:PAN\b|KYC\b|$)/i.exec(L)){flush();cur={folio:m[1].trim(),amc,schemes:[]};out.folios.push(cur);
+      const p=/PAN\s*:?\s*([A-Z]{5}\d{4}[A-Z])/.exec(L);if(p&&!out.pan)out.pan=p[1];continue}
+    if((m=/^(.*?)\s*-?\s*(?:\(?Advisor[^)]*\)?\s*)?ISIN\s*:?\s*(INF[0-9A-Z]{9})/i.exec(L))&&cur){flush();
+      const name=m[1].replace(/^[A-Z0-9]{3,12}\s*-\s*(?=[A-Za-z])/,"").replace(/\(Advisor.*$/i,"").replace(/\s*-\s*$/,"").trim();sch={name,isin:m[2],tx:[],open:0,close:null,regAdvisor:(/Advisor\s*:?\s*([A-Z0-9-]+)/i.exec(L)||[])[1]||""};continue}
+    if(!sch)continue;
+    if(m=/Opening Unit Balance\s*:?\s*([\d,]*\.?\d+)/i.exec(L)){sch.open=num(m[1]);continue}
+    if(m=/Closing Unit Balance\s*:?\s*([\d,]*\.?\d+)/i.exec(L)){const c=sch.close||(sch.close={});c.units=num(m[1]);
+      const n=/NAV on\s*(\d{2}-[A-Za-z]{3}-\d{4})\s*:?\s*(?:INR|Rs\.?)?\s*([\d,]+\.?\d*)/i.exec(L);if(n){c.navDate=toISO(n[1]);c.nav=num(n[2])}
+      const cv=/Total Cost Value\s*:?\s*(?:INR|Rs\.?)?\s*([\d,]+\.?\d*)/i.exec(L);if(cv)c.cost=num(cv[1]);const mv=/Market Value[^:]*:?\s*(?:INR|Rs\.?)?\s*([\d,]+\.?\d*)/i.exec(L);if(mv)c.mv=num(mv[1]);continue}
+    if(sch.close&&!sch.close.nav&&(m=/NAV on\s*(\d{2}-[A-Za-z]{3}-\d{4})\s*:?\s*(?:INR|Rs\.?)?\s*([\d,]+\.?\d*)/i.exec(L))){sch.close.navDate=toISO(m[1]);sch.close.nav=num(m[2])}
+    if(sch.close&&(m=/Total Cost Value\s*:?\s*(?:INR|Rs\.?)?\s*([\d,]+\.?\d*)/i.exec(L)))sch.close.cost=num(m[1]);
+    if(sch.close&&(m=/Market Value[^:]*:?\s*(?:INR|Rs\.?)?\s*([\d,]+\.?\d*)/i.exec(L)))sch.close.mv=num(m[1]);
+    if(m=DATE_RE.exec(L)){const date=toISO(m[1]);let rest=m[2];const nums=rest.match(NUM)||[];const first=nums.length?rest.indexOf(nums[0]):rest.length;const desc=rest.slice(0,first).trim();
+      let amount=0,units=0,nav=0;if(nums.length>=4){amount=num(nums[0]);units=num(nums[1]);nav=num(nums[2])}else if(nums.length===1){amount=num(nums[0])}else if(nums.length>=2){amount=num(nums[0]);units=num(nums[1]);nav=nums[2]?num(nums[2]):0}
+      const ty=classify(desc,units,amount);if(ty==="skip")continue;if(!date)continue;
+      sch.tx.push({d:date,t:ty,a:r2(Math.abs(amount)),u:Math.abs(units),n:nav||(units?Math.abs(amount/units):0),s:desc.slice(0,60)})}}
+  flush();return out}
+// ---------- PDF → lines ----------
+async function pdfLines(file,password){const lib=await J.loadPdfJs();const pdf=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer()),password:password||undefined,isEvalSupported:false}).promise;const out=[];
+  for(let p=1;p<=pdf.numPages;p++){const pg=await pdf.getPage(p);const tc=await pg.getTextContent();const rows=[];for(const it of tc.items){if(!it.str||!it.str.trim())continue;const y=Math.round(it.transform[5]/2.5);let r=rows.find(r=>r.y===y);if(!r)rows.push(r={y,it:[]});r.it.push({x:it.transform[4],s:it.str,w:it.width})}
+    rows.sort((a,b)=>b.y-a.y);for(const r of rows){r.it.sort((a,b)=>a.x-b.x);let s="",px=null;for(const t of r.it){if(px!=null&&t.x-px>6)s+="  ";else if(px!=null)s+=" ";s+=t.s;px=t.x+t.w}out.push(s)}}
+  return out}
+// ---------- CSV / Excel of transactions ----------
+const HM={date:/^(date|txn date|transaction date|trade date|nav date)/i,sch:/^(scheme|fund|scheme name|fund name)/i,folio:/^folio/i,type:/^(type|txn type|transaction type|transaction|description|nature)/i,amount:/^(amount|value|amount \(?₹?\)?|txn amount)/i,units:/^(units|quantity|qty)/i,nav:/^(nav|price|rate|nav\/price)/i,isin:/^isin/i,amc:/^(amc|fund house)/i};
+function fromRows(rows){let hi=rows.findIndex(r=>r.filter(c=>c!=null&&c!=="").length>=3&&r.some(c=>HM.date.test(String(c||"").trim()))&&r.some(c=>HM.sch.test(String(c||"").trim())));if(hi<0)throw new Error("No header row with Date and Scheme columns found.");
+  const idx={};rows[hi].forEach((c,i)=>{const s=String(c||"").trim();for(const [k,re] of Object.entries(HM))if(idx[k]==null&&re.test(s))idx[k]=i});const g=(r,k)=>idx[k]==null?"":r[idx[k]];const F={};
+  for(const r of rows.slice(hi+1)){const d=toISO(g(r,"date"))||(typeof g(r,"date")==="number"?new Date(Math.round((g(r,"date")-25569)*864e5)).toISOString().slice(0,10):"");if(!d)continue;const scheme=String(g(r,"sch")||"").trim();if(!scheme)continue;
+    let units=num(g(r,"units")),amount=num(g(r,"amount")),nav=num(g(r,"nav"));const ty=String(g(r,"type")||"");let t=classify(ty,units,amount);if(t==="skip"&&units)t=units<0?"out":"in";if(t==="skip")continue;if(t==="in"&&/redemp|sell|out/i.test(ty))t="out";
+    units=Math.abs(units);amount=Math.abs(amount);if(!units&&nav&&amount)units=amount/nav;if(!amount&&nav&&units)amount=units*nav;if(!nav&&units)nav=amount/units;
+    const folio=String(g(r,"folio")||"—").trim();const key=folio+"|"+scheme;const f=F[key]??={folio,amc:String(g(r,"amc")||"").trim(),schemes:[{name:scheme,isin:String(g(r,"isin")||"").trim(),tx:[],open:0,close:null}]};f.schemes[0].tx.push({d,t,a:r2(amount),u:units,n:nav,s:ty.slice(0,60)})}
+  return {pan:"",folios:Object.values(F)}}
+// ---------- analytics ----------
+const EQ=/equity|large\s*cap|mid\s*cap|small\s*cap|flexi|multi\s*cap|elss|tax saver|focused|index|nifty|sensex|bluechip|value|contra|dividend yield|sectoral|thematic|infrastructure|pharma|banking|technology|etf|arbitrage|balanced advantage|aggressive hybrid|equity savings/i;
+const DEBT=/debt|liquid|gilt|bond|income|money market|overnight|ultra short|low duration|short duration|medium|long duration|credit risk|corporate|floater|psu|dynamic bond|savings fund/i;
+const catOf=(name,ov)=>ov||(EQ.test(name)&&!/\b(debt|liquid|gilt|bond|money market|overnight|corporate bond|credit risk|floater|ultra short|low duration)\b/i.test(name)?"equity":DEBT.test(name)?"debt":"equity");
+const isElss=n=>/elss|tax saver|tax relief|long term equity/i.test(n);
+function xirr(flows){const f=flows.filter(x=>x.a).sort((a,b)=>a.d<b.d?-1:1);if(f.length<2||!f.some(x=>x.a>0)||!f.some(x=>x.a<0))return null;const t0=f[0].d;const yrs=x=>dayDiff(t0,x.d)/365;const npv=r=>f.reduce((s,x)=>s+x.a/Math.pow(1+r,yrs(x)),0);let lo=-0.99,hi=10;let fl=npv(lo),fh=npv(hi);if(fl*fh>0)return null;for(let i=0;i<200;i++){const mid=(lo+hi)/2,fm=npv(mid);if(Math.abs(fm)<1e-6)return mid;if(fl*fm<0){hi=mid;fh=fm}else{lo=mid;fl=fm}}return (lo+hi)/2}
+function analyse(doc,asOf){asOf=asOf||today();const P=[];const closed=[];const flowsAll=[];const keyOf=(f,s)=>f.folio+"|"+(s.isin||s.name);
+  for(const f of arr(doc.folios))for(const s of arr(f.schemes)){const key=keyOf(f,s);const ov=doc.over?.[key]||{};const tx=arr(s.tx).slice().sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:(a.t==="in"?-1:1));const lots=[];const cl=[];const flows=[];let inv=0,out=0,div=0,realised=0;
+    if(+s.open>0)lots.push({d:tx[0]?.d||"",u:+s.open,c:0,unk:true});
+    for(const x of tx){if(x.t==="in"){const c=x.u?x.a/x.u:x.n;lots.push({d:x.d,u:x.u,c});inv+=x.a;flows.push({d:x.d,a:-x.a})}
+      else if(x.t==="out"){let left=x.u;const px=x.u?x.a/x.u:x.n;out+=x.a;flows.push({d:x.d,a:x.a});while(left>1e-6&&lots.length){const l=lots[0];const u=Math.min(l.u,left);const cost=u*l.c;const pr=u*px;cl.push({folio:f.folio,scheme:s.name,isin:s.isin,buy:l.d,sell:x.d,u,cost:l.unk?null:r2(cost),proceeds:r2(pr),gain:l.unk?null:r2(pr-cost),days:l.d?dayDiff(l.d,x.d):null,unk:!!l.unk});if(!l.unk)realised+=pr-cost;l.u-=u;left-=u;if(l.u<=1e-6)lots.shift()}
+        if(left>1e-4)cl.push({folio:f.folio,scheme:s.name,isin:s.isin,buy:"",sell:x.d,u:left,cost:null,proceeds:r2(left*px),gain:null,days:null,unk:true})}
+      else if(x.t==="div"){div+=x.a;flows.push({d:x.d,a:x.a})}}
+    const units=r2(lots.reduce((a,l)=>a+l.u,0)*1e4)/1e4;const nv=doc.nav?.[key]||(s.close?.nav?{nav:s.close.nav,date:s.close.navDate}:null)||{nav:0,date:""};const navv=+nv.nav||0;const value=r2(units*navv);const cost=r2(lots.reduce((a,l)=>a+(l.unk?0:l.u*l.c),0));const unkU=lots.filter(l=>l.unk).reduce((a,l)=>a+l.u,0);
+    const cat=catOf(s.name,ov.cat);const exitDays=ov.exitDays!=null?+ov.exitDays:(cat==="equity"?365:0);
+    const fl=flows.slice();if(units>0&&navv)fl.push({d:asOf,a:value});const x=xirr(fl);
+    const rec={key,folio:f.folio,amc:f.amc,scheme:s.name,isin:s.isin,cat,exitDays,units,nav:navv,navDate:nv.date,value,cost,gain:unkU?null:r2(value-cost),invested:r2(inv),redeemed:r2(out),div:r2(div),realised:r2(realised),xirr:x,lots,first:tx[0]?.d||"",last:tx.length?tx[tx.length-1].d:"",nTx:tx.length,unkU,elss:isElss(s.name)};
+    if(units>0.0001)P.push(rec);else closed.push(rec);for(const c of cl)closed.push({...c,row:true});for(const q of fl)flowsAll.push(q);void flowsAll}
+  const all=P.concat(closed.filter(c=>!c.row));const tot={invested:r2(all.reduce((a,x)=>a+x.invested,0)),redeemed:r2(all.reduce((a,x)=>a+x.redeemed,0)),value:r2(P.reduce((a,x)=>a+x.value,0)),cost:r2(P.reduce((a,x)=>a+x.cost,0)),realised:r2(all.reduce((a,x)=>a+x.realised,0)),div:r2(all.reduce((a,x)=>a+x.div,0))};
+  const fl=[];for(const f of arr(doc.folios))for(const s of arr(f.schemes))for(const x of arr(s.tx)){if(x.t==="in")fl.push({d:x.d,a:-x.a});else if(x.t==="out"||x.t==="div")fl.push({d:x.d,a:x.a})}if(tot.value)fl.push({d:asOf,a:tot.value});tot.xirr=xirr(fl);
+  return {open:P.sort((a,b)=>b.value-a.value),closedSch:closed.filter(c=>!c.row),closedRows:closed.filter(c=>c.row).sort((a,b)=>a.sell<b.sell?1:-1),tot,asOf}}
+J._mf={parseCas,fromRows,analyse,xirr,toISO,classify,catOf};
+
+// ---------- storage ----------
+const docs=()=>J.all("meta").filter(m=>m.kind==="mf"&&m.pan).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+const getDoc=pan=>J.get("meta","mf-"+pan);
+const save=async d=>{const n={...d,id:"mf-"+d.pan,kind:"mf",at:Date.now()};await J.store.put("meta",n);try{S.c.meta.set(n.id,n)}catch(e){}return n};
+function mergeStatement(d,st){const fo=d.folios?JSON.parse(JSON.stringify(d.folios)):[];let added=0,dup=0;
+  for(const f of st.folios){let F=fo.find(x=>x.folio===f.folio);if(!F)fo.push(F={folio:f.folio,amc:f.amc,schemes:[]});if(!F.amc&&f.amc)F.amc=f.amc;
+    for(const s of f.schemes){let S2=F.schemes.find(x=>(s.isin&&x.isin===s.isin)||x.name===s.name);if(!S2)F.schemes.push(S2={name:s.name,isin:s.isin,tx:[],open:s.open||0,close:null});if(s.close&&(!S2.close||(s.close.navDate||"")>=(S2.close.navDate||"")))S2.close=s.close;
+      if(!S2.tx.length&&s.open)S2.open=s.open;const seen=new Set(S2.tx.map(x=>[x.d,x.t,x.a,x.u].join("|")));
+      for(const x of s.tx){const k=[x.d,x.t,x.a,x.u].join("|");if(seen.has(k)&&!x.s?.match(/sip|instal/i)){dup++;continue}seen.add(k);S2.tx.push(x);added++}}}
+  return {doc:{...d,folios:fo},added,dup}}
+const sinceYears=15;
+
+// ---------- screens ----------
+const ui=()=>J.ui("mf",{pan:"",tab:"open",showTx:""});
+const pc=x=>x==null?"—":(x*100).toFixed(1)+"%";
+const gcls=v=>v==null?"":v>=0?"color:var(--ok)":"color:var(--bad)";
+const sg=v=>v==null?"—":(v<0?"−":"+")+inr.format(Math.abs(r2(v)));
+function vMf(){const U=ui();const L=docs();const A=!J.readOnly?.();
+  const head=`<div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h2 class="ph" style="padding:6px 0">Mutual-fund portfolios — one account per PAN</h2>${A?`<button class="btn primary w" data-a="mfAdd">+ Add investor (PAN)</button>`:""}</div>`;
+  if(!L.length)return head+`<div class="panel pb"><p style="margin:0">No investor yet. Press <b>+ Add investor (PAN)</b>, enter the PAN, then load that person's Consolidated Account Statement — the app builds every folio, open and closed position for up to ${sinceYears} years and a redemption sheet.</p>${how()}</div>`;
+  if(!U.pan||!getDoc(U.pan))U.pan=L[0].pan;const d=getDoc(U.pan);const an=analyse(d);
+  const cards=L.map(x=>{const a=analyse(x);return `<button class="card ${x.pan===U.pan?"sel":""}" data-a="mfPick" data-x="${x.pan}" style="text-align:left;min-width:230px;${x.pan===U.pan?"outline:2px solid var(--bahi)":""}"><b>${esc(x.name||"Investor")}</b><div class="hint">${mask(x.pan)} · ${ENT[x.pan[3]]||""}</div><div style="margin-top:6px">${money0(a.tot.value)} <span class="hint">now</span></div><div class="hint">${a.open.length} open · ${a.closedSch.length} closed · XIRR ${pc(a.tot.xirr)}</div></button>`}).join("");
+  const tabs=[["open","Open positions"],["closed","Closed positions"],["tx","All transactions"],["red","Redemption sheet"],["src","Load / refresh"]];
+  const T=U.tab;let body="";
+  if(T==="open")body=openTbl(an,d);else if(T==="closed")body=closedTbl(an);else if(T==="tx")body=txTbl(d);else if(T==="red")body=redTbl(an,d);else body=srcPanel(d);
+  const g=an.tot.value-an.tot.cost;
+  return head+`<div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:10px">${cards}</div>
+  <section class="panel"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 12px"><h2 style="padding:0">${esc(d.name||"")} <span class="muted" style="font-weight:400">· PAN ${mask(d.pan)} · ${ENT[d.pan[3]]||""}</span></h2>${A?`<span class="row" style="gap:6px"><button class="btn small" data-a="mfEdit" data-x="${d.pan}">Edit details</button><button class="btn small danger" data-a="mfDel" data-x="${d.pan}">Delete investor</button></span>`:""}</div>
+   <div class="kpis" style="display:flex;gap:18px;flex-wrap:wrap;padding:0 12px 12px">${[["Current value",money0(an.tot.value)],["Cost of open units",money0(an.tot.cost)],["Unrealised gain",`<span style="${gcls(g)}">${sg(g)}</span>`],["Invested (all purchases)",money0(an.tot.invested)],["Redeemed / paid out",money0(an.tot.redeemed+an.tot.div)],["Realised gain",`<span style="${gcls(an.tot.realised)}">${sg(an.tot.realised)}</span>`],["XIRR (all history)",pc(an.tot.xirr)]].map(([l,v])=>`<div><div class="hint">${l}</div><b style="font-size:1.1em">${v}</b></div>`).join("")}</div></section>
+  <div class="tabs" style="margin:10px 0;display:flex;gap:6px;flex-wrap:wrap">${tabs.map(([k,l])=>`<button class="btn ${T===k?"primary":""} small" data-a="mfTab" data-x="${k}">${l}</button>`).join("")}</div>${body}`}
+const how=()=>`<ol class="hint" style="margin:10px 0 0 18px"><li>Request the <b>detailed</b> CAS, “from the first transaction / last ${sinceYears} years to today”, at <a href="https://www.camsonline.com/Investors/Statements/Consolidated-Account-Statement" target="_blank" rel="noopener">CAMS</a> / <a href="https://mfs.kfintech.com/investor/General/ConsolidatedAccountStatement" target="_blank" rel="noopener">KFintech</a> or <a href="https://www.mfcentral.com/" target="_blank" rel="noopener">MFCentral</a>, using the investor's PAN and registered e-mail.</li><li>The registrar e-mails a password-protected PDF (the password is the one chosen on the request form).</li><li>Upload it under <b>Load / refresh</b> with that password — nothing leaves your browser except the saved result.</li></ol>`;
+const ex=(v,k)=>v==null?"—":inr.format(v);
+function openTbl(an,d){if(!an.open.length)return `<div class="panel pb"><p style="margin:0">No open positions. ${d.folios?.length?"All units are redeemed.":"Load a statement first (Load / refresh tab)."}</p></div>`;
+  const rows=an.open.map(p=>`<tr><td><b>${esc(p.scheme)}</b><div class="hint">${esc(p.amc||"")} · folio ${esc(p.folio)}${p.elss?" · ELSS lock-in":""}</div></td><td class="num">${p.units.toFixed(3)}</td><td class="num">${ex(p.cost)}${p.unkU?`<div class="hint">+${p.unkU.toFixed(3)} units cost n/a</div>`:""}</td><td class="num">${p.nav?p.nav.toFixed(4):"—"}<div class="hint">${p.navDate?fmtDate(p.navDate):""}</div></td><td class="num"><b>${ex(p.value)}</b></td><td class="num" style="${gcls(p.gain)}">${sg(p.gain)}</td><td class="num">${pc(p.xirr)}</td><td class="num hint">${p.first?fmtDate(p.first):""}</td></tr>`).join("");
+  return `<section class="panel"><div class="tbl-wrap"><table class="t"><thead><tr><th>Scheme</th><th class="num">Units</th><th class="num">Cost ₹</th><th class="num">NAV</th><th class="num">Value ₹</th><th class="num">Gain ₹</th><th class="num">XIRR</th><th>Since</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td><b>Total</b></td><td></td><td class="num"><b>${ex(an.tot.cost)}</b></td><td></td><td class="num"><b>${ex(an.tot.value)}</b></td><td class="num" style="${gcls(an.tot.value-an.tot.cost)}"><b>${sg(an.tot.value-an.tot.cost)}</b></td><td class="num">${pc(an.tot.xirr)}</td><td></td></tr></tfoot></table></div><p class="hint" style="margin:6px 12px">Value uses the latest NAV loaded (closing NAV in the statement, or “Refresh NAV”). Cost is FIFO cost of the units still held.</p></section>`}
+function closedTbl(an){const sc=an.closedSch.map(c=>`<tr><td><b>${esc(c.scheme)}</b><div class="hint">${esc(c.amc||"")} · folio ${esc(c.folio)}</div></td><td>${c.first?fmtDate(c.first):""}</td><td>${c.last?fmtDate(c.last):""}</td><td class="num">${ex(c.invested)}</td><td class="num">${ex(c.redeemed+c.div)}</td><td class="num" style="${gcls(c.realised)}">${sg(c.realised)}</td><td class="num">${pc(c.xirr)}</td></tr>`).join("");
+  const rows=an.closedRows.slice(0,400).map(c=>`<tr><td>${esc(c.scheme)}<div class="hint">folio ${esc(c.folio)}</div></td><td>${c.buy?fmtDate(c.buy):"before statement"}</td><td>${fmtDate(c.sell)}</td><td class="num">${c.u.toFixed(3)}</td><td class="num">${ex(c.cost)}</td><td class="num">${ex(c.proceeds)}</td><td class="num" style="${gcls(c.gain)}">${sg(c.gain)}</td><td class="num">${c.days==null?"—":c.days}</td></tr>`).join("");
+  return `<section class="panel"><h2 style="padding:10px 12px">Fully closed schemes</h2><div class="tbl-wrap"><table class="t"><thead><tr><th>Scheme</th><th>First buy</th><th>Last txn</th><th class="num">Invested</th><th class="num">Received</th><th class="num">Realised gain</th><th class="num">XIRR</th></tr></thead><tbody>${sc||`<tr><td colspan="7" class="muted">None.</td></tr>`}</tbody></table></div></section>
+  <section class="panel"><h2 style="padding:10px 12px">Every redemption, matched to its purchase (FIFO) <span class="muted" style="font-weight:400">${an.closedRows.length} lots</span></h2><div class="tbl-wrap"><table class="t"><thead><tr><th>Scheme</th><th>Bought</th><th>Sold</th><th class="num">Units</th><th class="num">Cost</th><th class="num">Proceeds</th><th class="num">Gain</th><th class="num">Days held</th></tr></thead><tbody>${rows||`<tr><td colspan="8" class="muted">No redemptions yet.</td></tr>`}</tbody></table></div></section>`}
+const TYL={in:"Purchase / SIP / switch-in",out:"Redemption / switch-out",div:"Dividend payout"};
+function txTbl(d){const rows=[];for(const f of arr(d.folios))for(const s of arr(f.schemes))for(const x of arr(s.tx))rows.push({...x,folio:f.folio,scheme:s.name});rows.sort((a,b)=>a.d<b.d?1:-1);
+  return `<section class="panel"><div class="row" style="justify-content:space-between;padding:10px 12px"><h2 style="padding:0">All transactions <span class="muted" style="font-weight:400">${rows.length}</span></h2>${J.readOnly?.()?"":`<span class="row" style="gap:6px"><button class="btn small" data-a="mfTxAdd">+ Add transaction</button><button class="btn small" data-a="mfTxCsv">Export CSV</button></span>`}</div><div class="tbl-wrap"><table class="t"><thead><tr><th>Date</th><th>Scheme / folio</th><th>Type</th><th class="num">Amount</th><th class="num">Units</th><th class="num">NAV</th></tr></thead><tbody>${rows.slice(0,800).map(x=>`<tr><td>${fmtDate(x.d)}</td><td>${esc(x.scheme)}<div class="hint">folio ${esc(x.folio)} · ${esc(x.s||"")}</div></td><td>${x.t==="in"?"Buy":x.t==="out"?"Sell":"Dividend"}</td><td class="num">${inr.format(x.a)}</td><td class="num">${x.u?x.u.toFixed(3):""}</td><td class="num">${x.n?(+x.n).toFixed(4):""}</td></tr>`).join("")||`<tr><td colspan="6" class="muted">None.</td></tr>`}</tbody></table></div></section>`}
+// ---- redemption sheet ----
+const RED=()=>J.ui("mfred",{sel:{}});
+function lotSplit(p,asOf){let st=0,lt=0,stg=0,ltg=0,locked=0,exitU=0,free=0;const LT=p.cat==="equity"?365:730;for(const l of p.lots){const days=l.d?dayDiff(l.d,asOf):9999;const g=l.unk?0:(p.nav-l.c)*l.u;if(days>LT){lt+=l.u;ltg+=g}else{st+=l.u;stg+=g}
+    if(p.elss&&l.d&&addYears(l.d,3)>asOf)locked+=l.u;if(p.exitDays&&days<p.exitDays)exitU+=l.u;else free+=l.u}return {st,lt,stg:r2(stg),ltg:r2(ltg),locked,exitU,free}}
+function redTbl(an,d){const R=RED();const A=an.asOf;const miss=[];if(!d.bankAc)miss.push("Bank account to receive money (bank a/c + IFSC) — must match the bank mapped to the folio");if(!d.email)miss.push("Registered e-mail (OTP / confirmation)");if(!d.mobile)miss.push("Registered mobile (OTP)");if(!d.kyc)miss.push("KYC status (confirm KYC is verified)");
+  if(!an.open.length)return `<div class="panel pb">No open positions to redeem.</div>`;
+  const rows=an.open.map(p=>{const s=R.sel[p.key]||{};const ls=lotSplit(p,A);const on=!!s.on;const mode=s.mode||"all";const q=mode==="all"?p.units:mode==="units"?Math.min(+s.v||0,p.units):(p.nav?Math.min((+s.v||0)/p.nav,p.units):0);
+    return `<tr><td style="white-space:nowrap"><input type="checkbox" data-ach="mfRedOn" data-x="${esc(p.key)}" ${on?"checked":""} aria-label="Select"></td><td><b>${esc(p.scheme)}</b><div class="hint">${esc(p.amc||"")} · folio ${esc(p.folio)} · ${p.cat}${p.elss?" · ELSS":""}</div>${ls.locked?`<div class="hint" style="color:var(--bad)">${ls.locked.toFixed(3)} units locked (ELSS 3-yr)</div>`:""}</td><td class="num">${p.units.toFixed(3)}<div class="hint">${ls.free.toFixed(3)} free of exit load</div></td><td class="num">${p.nav.toFixed(4)}</td><td class="num">${inr.format(p.value)}</td>
+    <td><select data-ach="mfRedMode" data-x="${esc(p.key)}"><option value="all" ${mode==="all"?"selected":""}>All units</option><option value="units" ${mode==="units"?"selected":""}>Units</option><option value="amt" ${mode==="amt"?"selected":""}>Amount ₹</option></select> ${mode==="all"?"":`<input type="number" step="any" style="width:100px" data-ach="mfRedVal" data-x="${esc(p.key)}" value="${s.v||""}">`}</td><td class="num">${on?q.toFixed(3):""}</td><td class="num">${on?inr.format(r2(q*p.nav)):""}</td></tr>`}).join("");
+  const sel=an.open.filter(p=>R.sel[p.key]?.on);
+  return `<section class="panel pb"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><h2 style="padding:0">Redemption sheet</h2><button class="btn primary" data-a="mfRedPrint" ${sel.length?"":"disabled"}>Print / save as PDF (${sel.length} selected)</button></div>
+   <p class="hint">Tick the schemes to redeem and choose all units, a number of units or an amount. This prepares the request with everything the AMC / registrar / platform asks for; the redemption itself is placed by the investor on the AMC site, CAMS/KFintech, MFCentral or their broker with OTP.</p>
+   ${miss.length?`<div class="warn" style="padding:8px 10px;border:1px solid var(--bad);border-radius:8px;margin:8px 0"><b>Missing before redeeming</b><ul style="margin:4px 0 0 18px">${miss.map(m=>`<li>${esc(m)}</li>`).join("")}</ul><button class="btn small" data-a="mfEdit" data-x="${d.pan}" style="margin-top:6px">Fill investor details</button></div>`:""}
+   <div class="tbl-wrap"><table class="t"><thead><tr><th></th><th>Scheme</th><th class="num">Units held</th><th class="num">NAV</th><th class="num">Value ₹</th><th>Redeem</th><th class="num">Units</th><th class="num">≈ ₹</th></tr></thead><tbody>${rows}</tbody></table></div></section>`}
+J.act("mfRedOn",el=>{const R=RED();(R.sel[el.dataset.x]??={}).on=el.checked;J.render()});
+J.act("mfRedMode",el=>{const R=RED();(R.sel[el.dataset.x]??={}).mode=el.value;J.render()});
+J.act("mfRedVal",el=>{const R=RED();(R.sel[el.dataset.x]??={}).v=el.value;J.render()});
+J.act("mfRedPrint",()=>{const d=getDoc(ui().pan);const an=analyse(d);const R=RED();const A=an.asOf;const sel=an.open.filter(p=>R.sel[p.key]?.on);let totV=0,totS=0,totL=0,rowsH="";
+  for(const p of sel){const s=R.sel[p.key];const mode=s.mode||"all";const q=mode==="all"?p.units:mode==="units"?Math.min(+s.v||0,p.units):(p.nav?Math.min((+s.v||0)/p.nav,p.units):0);const val=r2(q*p.nav);totV+=val;const ls=lotSplit(p,A);const fr=p.units?q/p.units:0;
+    totS+=ls.stg*fr;totL+=ls.ltg*fr;
+    rowsH+=`<tr><td><b>${esc(p.scheme)}</b><br><small>${esc(p.amc||"")} · ISIN ${esc(p.isin||"—")}</small></td><td>${esc(p.folio)}</td><td style="text-align:right">${p.units.toFixed(3)}</td><td style="text-align:right">${p.nav.toFixed(4)}<br><small>${p.navDate?fmtDate(p.navDate):""}</small></td><td>${mode==="all"?"ALL units":mode==="units"?q.toFixed(3)+" units":"₹"+inr.format(+s.v||0)}</td><td style="text-align:right"><b>${inr.format(val)}</b></td><td style="text-align:right">${ls.locked?ls.locked.toFixed(3)+" locked":"—"}<br><small>exit-load window: ${p.exitDays||0} days · ${ls.exitU.toFixed(3)} units inside</small></td></tr>`}
+  const taxEq=sel.filter(p=>p.cat==="equity");const html=`<style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #bbb;padding:5px 7px;font-size:11px;vertical-align:top}th{background:#f1f1f1}.k td{border:none;padding:2px 6px}</style>
+   <h1>Mutual-fund redemption request sheet</h1><p>Prepared on ${fmtDate(A)} · values at the latest NAV loaded — final value is the NAV of the day the AMC accepts the request.</p>
+   <h2>Investor</h2><table class="k"><tr><td>Name</td><td><b>${esc(d.name||"")}</b></td><td>PAN</td><td><b>${esc(d.pan)}</b> (${ENT[d.pan[3]]||""})</td></tr><tr><td>Registered e-mail</td><td>${esc(d.email||"—")}</td><td>Registered mobile</td><td>${esc(d.mobile||"—")}</td></tr><tr><td>Bank for credit</td><td>${esc(d.bankName||"—")} · A/c ${esc(d.bankAc||"—")} · IFSC ${esc(d.ifsc||"—")}</td><td>KYC</td><td>${d.kyc?"Verified":"To confirm"}</td></tr><tr><td>Nominee</td><td>${esc(d.nominee||"—")}</td><td>Holding</td><td>${esc(d.holding||"Single")}</td></tr></table>
+   <h2>Schemes to redeem</h2><table><thead><tr><th>Scheme</th><th>Folio</th><th>Units held</th><th>NAV</th><th>Redeem</th><th>≈ Value ₹</th><th>Lock-in / exit load</th></tr></thead><tbody>${rowsH}</tbody><tfoot><tr><td colspan="5"><b>Total estimated proceeds</b></td><td style="text-align:right"><b>${inr.format(r2(totV))}</b></td><td></td></tr></tfoot></table>
+   <h2>Indicative tax on this redemption (equity-oriented schemes only)</h2><p>Short-term gain ₹${inr.format(r2(taxEq.reduce((a,p)=>{const s=R.sel[p.key];const mode=s.mode||"all";const q=mode==="all"?p.units:mode==="units"?Math.min(+s.v||0,p.units):Math.min((+s.v||0)/p.nav,p.units);return a+lotSplit(p,A).stg*(q/p.units)},0)))} · Long-term gain ₹${inr.format(r2(taxEq.reduce((a,p)=>{const s=R.sel[p.key];const mode=s.mode||"all";const q=mode==="all"?p.units:mode==="units"?Math.min(+s.v||0,p.units):Math.min((+s.v||0)/p.nav,p.units);return a+lotSplit(p,A).ltg*(q/p.units)},0)))}. Equity: short-term (held ≤ 12 months) 20%, long-term 12.5% above ₹1.25 lakh of long-term gain a year (current law as known — confirm with your CA). Debt / other schemes are taxed differently (often at slab rate); not computed here.</p>
+   <h2>Checklist before placing the request</h2><ul><li>Redeem only from the folio's registered holder, with OTP to the registered mobile / e-mail.</li><li>The bank account must be one registered against the folio.</li><li>Check exit load and ELSS lock-in above; redemption is priced at the NAV of the cut-off day (3 pm for most schemes).</li><li>Switch or redeem in part if you want to stay under the ₹1.25 lakh long-term gain exemption this year.</li></ul>`;
+  J.printDoc("Redemption sheet — "+(d.name||d.pan),html,true)});
+// ---- load / refresh ----
+function srcPanel(d){const A=!J.readOnly?.();const last=d.at?new Date(d.at).toLocaleString("en-IN"):"never";
+  return `<section class="panel pb"><h2 style="padding:0 0 6px">Load statement · ${esc(d.name||"")}</h2><p class="hint" style="margin-top:0">A PAN alone cannot pull holdings — AMCs release them only through the registrar statement. Get the <b>detailed Consolidated Account Statement</b> for this PAN (last ${sinceYears} years to today) and load it here.</p>${how()}
+   ${A?`<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:12px;align-items:flex-end"><label class="f">CAS PDF password<input id="mf-pw" type="password" autocomplete="off" placeholder="as set on the request form"></label><button class="btn primary w" data-a="mfPdf">Upload CAS PDF…</button><button class="btn w" data-a="mfSheet">Upload CSV / Excel of transactions…</button><button class="btn w" data-a="mfNav">Refresh NAV online</button></div>`:""}
+   <p class="hint">Last updated ${esc(last)}. Loading again adds only new transactions. Columns for CSV / Excel: Date, Scheme, Folio, Type, Amount, Units, NAV (ISIN, AMC optional).</p>
+   ${arr(d.log).length?`<h3>Load history</h3><ul class="hint">${d.log.slice(0,8).map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:""}
+   <h3>Scheme settings</h3>${schemeSet(d)}</section>`}
+function schemeSet(d){const rows=[];for(const f of arr(d.folios))for(const s of arr(f.schemes)){const key=f.folio+"|"+(s.isin||s.name);const o=d.over?.[key]||{};const nv=d.nav?.[key]||(s.close?.nav?{nav:s.close.nav,date:s.close.navDate}:{});const cat=catOf(s.name,o.cat);
+  rows.push(`<tr><td>${esc(s.name)}<div class="hint">folio ${esc(f.folio)}${s.isin?" · "+esc(s.isin):""}</div></td><td><select data-ach="mfCat" data-x="${esc(key)}"><option value="equity" ${cat==="equity"?"selected":""}>Equity-oriented</option><option value="debt" ${cat==="debt"?"selected":""}>Debt / other</option></select></td><td><input type="number" style="width:80px" data-ach="mfExit" data-x="${esc(key)}" value="${o.exitDays!=null?o.exitDays:(cat==="equity"?365:0)}" aria-label="Exit load days"></td><td><input type="number" step="any" style="width:110px" data-ach="mfNavSet" data-x="${esc(key)}" value="${nv.nav||""}" placeholder="NAV"> <span class="hint">${nv.date?fmtDate(nv.date):""}</span></td></tr>`)}
+  return rows.length?`<div class="tbl-wrap"><table class="t"><thead><tr><th>Scheme</th><th>Tax class</th><th>Exit-load days</th><th>Current NAV (editable)</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`:`<p class="hint">No schemes loaded yet.</p>`}
+const patchOver=async(pan,key,p)=>{const d=getDoc(pan);await save({...d,over:{...(d.over||{}),[key]:{...(d.over?.[key]||{}),...p}}})};
+J.act("mfCat",el=>patchOver(ui().pan,el.dataset.x,{cat:el.value}).then(()=>J.render()));
+J.act("mfExit",el=>patchOver(ui().pan,el.dataset.x,{exitDays:+el.value||0}).then(()=>J.render()));
+J.act("mfNavSet",async el=>{const d=getDoc(ui().pan);await save({...d,nav:{...(d.nav||{}),[el.dataset.x]:{nav:+el.value||0,date:today(),manual:true}}});J.render()});
+J.act("mfTab",el=>{ui().tab=el.dataset.x;J.render()});J.act("mfPick",el=>{ui().pan=el.dataset.x;J.render()});
+// ---- investor form ----
+function investorForm(d){const e=d||{};return `${fld("PAN",`<input name="pan" id="f-pan" value="${esc(e.pan||"")}" maxlength="10" style="text-transform:uppercase" placeholder="ABCDE1234F" ${d?"readonly":""}>`)}${fld("Name (as on PAN)",txt("name",e.name||"","","required"))}
+   <div class="form">${fld("Registered e-mail",txt("email",e.email||""))}${fld("Registered mobile",txt("mobile",e.mobile||""))}${fld("Bank name",txt("bankName",e.bankName||""))}${fld("Bank a/c no. (mapped to folios)",txt("bankAc",e.bankAc||""))}${fld("IFSC",txt("ifsc",e.ifsc||""))}${fld("Nominee",txt("nominee",e.nominee||""))}${fld("Mode of holding",J.selO("holding",["Single","Joint","Either or survivor","Anyone or survivor"],e.holding||"Single"))}${fld("KYC verified?",J.selO("kyc",[["","To confirm"],["1","Yes — KYC verified"]],e.kyc?"1":""))}</div>`}
+const readInv=(fd,old)=>{const pan=String(fd.pan||"").trim().toUpperCase();return {pan,name:fd.name.trim(),email:fd.email.trim(),mobile:fd.mobile.trim(),bankName:fd.bankName.trim(),bankAc:fd.bankAc.trim(),ifsc:fd.ifsc.trim().toUpperCase(),nominee:fd.nominee.trim(),holding:fd.holding,kyc:!!fd.kyc,...(old?{folios:old.folios,nav:old.nav,over:old.over,log:old.log}:{folios:[],nav:{},over:{},log:[]})}};
+J.act("mfAdd",()=>J.drawer({title:"Add investor (one account per PAN)",submit:"Create",body:investorForm(null)+`<p class="hint">PAN format ABCDE1234F. The 4th letter shows the holder type (P = individual, H = HUF, C = company…). One account is kept per PAN; add each family member / entity separately.</p>`,
+  onSubmit:async fd=>{const v=readInv(fd);if(!PANRE.test(v.pan))return "That is not a valid PAN (5 letters, 4 digits, 1 letter).";if(!v.name)return "Enter the name.";if(getDoc(v.pan))return "That PAN already has an account.";await save(v);ui().pan=v.pan;ui().tab="src";toast("Investor created — now load the statement")}}));
+J.act("mfEdit",el=>{const d=getDoc(el.dataset.x);J.drawer({title:"Edit investor",submit:"Save",body:investorForm(d),onSubmit:async fd=>{await save({...d,...readInv({...fd,pan:d.pan},d)});toast("Saved")}})});
+J.act("mfDel",el=>{const d=getDoc(el.dataset.x);J.drawer({title:"Delete investor "+(d.name||""),submit:"Delete everything for this PAN",body:`<p>This removes the PAN account with all folios and transactions loaded in the app. Your statement files and the fund houses' records are not affected.</p>`,onSubmit:async()=>{await J.store.del("meta","mf-"+d.pan);try{S.c.meta.delete("mf-"+d.pan)}catch(e){}ui().pan="";toast("Deleted")}})});
+// ---- loading ----
+async function ingest(d,st,label){if(st.pan&&st.pan!==d.pan)throw new Error("This statement is for PAN "+mask(st.pan)+", not "+mask(d.pan)+". Pick the matching investor.");
+  const n=st.folios.reduce((a,f)=>a+f.schemes.reduce((b,s)=>b+s.tx.length,0),0);if(!n&&!st.folios.some(f=>f.schemes.some(s=>s.close||s.open)))throw new Error("No transactions found — is this a detailed CAS (with transaction rows)?");
+  const m=mergeStatement(d,st);const log=[new Date().toLocaleDateString("en-IN")+" · "+label+" · "+m.added+" new transaction"+(m.added===1?"":"s")+(m.dup?" ("+m.dup+" already present)":""),...arr(d.log)].slice(0,20);
+  await save({...m.doc,log,...(st.email&&!d.email?{email:st.email}:{})});return m}
+J.act("mfPdf",()=>{const pw=document.getElementById("mf-pw")?.value||"";const pan=ui().pan;const i=document.createElement("input");i.type="file";i.accept=".pdf";i.onchange=async()=>{const f=i.files[0];if(!f)return;J.busy.start("Reading statement");
+  try{let lines;try{lines=await pdfLines(f,pw)}catch(e){if(/password/i.test(e.name+e.message))throw new Error(pw?"Wrong password for this PDF.":"This PDF is password-protected — type its password above, then upload again.");throw e}
+    const st=parseCas(lines);if(!st.folios.length)throw new Error("Could not find folios in this PDF. Use the detailed CAS from CAMS / KFintech / MFCentral (not the summary).");const m=await ingest(getDoc(pan),st,f.name);try{await J.fileSave?.(f,"files")}catch(e){}toast(m.added+" transactions loaded from "+f.name)}catch(e){toast(e.message||"Could not read the statement")}finally{J.busy.end();J.render()}};i.click()});
+J.act("mfSheet",()=>{const pan=ui().pan;const i=document.createElement("input");i.type="file";i.accept=".csv,.xlsx,.xls";i.onchange=async()=>{const f=i.files[0];if(!f)return;J.busy.start("Reading transactions");
+  try{let rows;if(/\.csv$/i.test(f.name)){rows=(await f.text()).split(/\r?\n/).filter(Boolean).map(l=>{const o=[];let c="",q=false;for(const ch of l){if(ch=='"')q=!q;else if(ch==","&&!q){o.push(c);c=""}else c+=ch}o.push(c);return o})}
+    else{const X=await J.loadXLSX();const wb=X.read(await f.arrayBuffer(),{type:"array",cellDates:false});rows=X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:""})}
+    const m=await ingest(getDoc(pan),fromRows(rows),f.name);toast(m.added+" transactions loaded")}catch(e){toast(e.message||"Could not read the file")}finally{J.busy.end();J.render()}};i.click()});
+J.act("mfTxAdd",()=>{const d=getDoc(ui().pan);const sch=[];for(const f of arr(d.folios))for(const s of arr(f.schemes))sch.push([f.folio+"|"+(s.isin||s.name),s.name+" · "+f.folio]);
+  J.drawer({title:"Add a transaction",submit:"Save",body:`${fld("Scheme",J.selO("sch",sch,"","— new scheme —"))}<div class="form">${fld("New scheme name",txt("name",""))}${fld("Folio",txt("folio",""))}${fld("ISIN (optional)",txt("isin",""))}</div>
+   <div class="form">${fld("Date",`<input type="date" name="date" value="${today()}">`)}${fld("Type",J.selO("t",[["in","Purchase / SIP / switch-in"],["out","Redemption / switch-out"],["div","Dividend payout"]],"in"))}${fld("Amount ₹",txt("a",""))}${fld("Units",txt("u",""))}${fld("NAV",txt("n",""))}</div>`,
+   onSubmit:async fd=>{const a=num(fd.a),u=num(fd.u),n=num(fd.n);if(!fd.date)return "Pick the date.";let folio,name,isin="";if(fd.sch){const f=d.folios.find(f=>f.schemes.some(s=>f.folio+"|"+(s.isin||s.name)===fd.sch));const s=f.schemes.find(s=>f.folio+"|"+(s.isin||s.name)===fd.sch);folio=f.folio;name=s.name;isin=s.isin||""}else{folio=fd.folio.trim();name=fd.name.trim();isin=fd.isin.trim();if(!folio||!name)return "Enter the scheme name and folio."}
+     const U2=u||(n?a/n:0),A2=a||U2*n;if(!A2)return "Enter amount (and units or NAV).";const st={pan:d.pan,folios:[{folio,amc:"",schemes:[{name,isin,tx:[{d:fd.date,t:fd.t,a:r2(A2),u:fd.t==="div"?0:U2,n:n||(U2?A2/U2:0),s:"Manual"}],open:0,close:null}]}]};await ingest(d,st,"manual entry");toast("Transaction added")}})});
+J.act("mfTxCsv",()=>{const d=getDoc(ui().pan);const rows=[["Date","Scheme","Folio","Type","Amount","Units","NAV","Note"]];for(const f of arr(d.folios))for(const s of arr(f.schemes))for(const x of arr(s.tx))rows.push([x.d,s.name,f.folio,x.t==="in"?"Purchase":x.t==="out"?"Redemption":"Dividend",x.a,x.u,x.n,x.s||""]);J.saveFile("mf-"+mask(d.pan).replace(/•/g,"x")+"-"+today()+".csv",J.toCSV(rows))});
+// ---- NAV refresh (mfapi.in; falls back to the CAS closing NAV / manual NAV) ----
+J.act("mfNav",async()=>{const pan=ui().pan;let d=getDoc(pan);J.busy.start("Refreshing NAVs");let ok=0,bad=0;
+  try{const nav={...(d.nav||{})},codes={...(d.codes||{})};for(const f of arr(d.folios))for(const s of arr(f.schemes)){const key=f.folio+"|"+(s.isin||s.name);try{let code=codes[key];
+      if(!code){const q=s.name.replace(/\b(direct|regular|plan|growth|option|idcw|dividend|payout|reinvestment)\b/gi," ").replace(/[^A-Za-z0-9 ]/g," ").replace(/\s+/g," ").trim();const r=await (await fetch("https://api.mfapi.in/mf/search?q="+encodeURIComponent(q))).json();
+        const dir=/direct/i.test(s.name),grw=!/idcw|dividend/i.test(s.name);const score=x=>(/direct/i.test(x.schemeName)===dir?2:0)+((/idcw|dividend/i.test(x.schemeName)?0:1)===(grw?1:0)?2:0)+(x.schemeName.toLowerCase().includes(q.toLowerCase().slice(0,18))?1:0);const best=arr(r).sort((a,b)=>score(b)-score(a))[0];if(best)codes[key]=code=best.schemeCode}
+      if(!code){bad++;continue}const j=await (await fetch("https://api.mfapi.in/mf/"+code+"/latest")).json();const row=arr(j.data)[0];if(row){nav[key]={nav:+row.nav,date:toISO(row.date),code,auto:true};ok++}else bad++}catch(e){bad++}}
+    d=getDoc(pan);await save({...d,nav,codes});toast(ok?ok+" NAV"+(ok===1?"":"s")+" updated"+(bad?" · "+bad+" not found":""):"Could not reach the NAV service — using the statement's closing NAV; you can type NAVs under Scheme settings.")}
+  finally{J.busy.end();J.render()}});
+// ---------- register the tab in Investments ----------
+{let n=0;const add=()=>{const m=J.MODS.find(x=>x.id==="invest");if(m){if(!m.tabs.some(t=>t[0]==="mf"))m.tabs.splice(1,0,["mf","Mutual funds",vMf]);return}if(++n<40)setTimeout(add,250)};add()}
+})();
