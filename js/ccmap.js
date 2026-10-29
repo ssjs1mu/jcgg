@@ -50,10 +50,10 @@ J._ccRowExtra=(c,s,t,i)=>{const P=J._ccPlanCache?.[c.id]||(J._ccPlanCache={...(J
 J.act("ccMap",el=>{const c=C.getDoc(C.ui().id);const [per,ix]=el.dataset.x.split("|");const t=c.stmts[per].tx[+ix];const key=C.mkey(t.desc);const r=t.map||rules()[key]||{};
   J.drawer({title:"Map “"+t.desc.slice(0,40)+"”",submit:"Save & push",body:`<p class="hint" style="margin-top:0">Spend ${money(t.amt)} · merchant key “${esc(key)}”. Every similar spend on every card is posted to the chosen ledger automatically.</p>
   <div class="form">${fld("Belongs to",`<select name="own"><option value="biz" ${r.own!=="per"?"selected":""}>Business</option><option value="per" ${r.own==="per"?"selected":""}>Personal (amount only, not in business expenses)</option></select>`)}
-  ${fld("Expense ledger (category › sub-category)",J.selA("a",["expense"],r.a||"","— choose —"))}${J.svcField?J.svcField(r.s||"",r.a||""):""}
+  ${fld("Expense ledger (category › sub-category)",J.selA("head",["expense"],r.a||"","— choose —"))}${J.svcField?J.svcField(r.s||"",r.a||""):""}
   ${fld("Apply to",`<select name="scope"><option value="all">All similar spends (this merchant)</option><option value="one">Only this spend</option></select>`)}</div>
   <p class="hint">Not in the list? Choose “＋ Add new” in the ledger list to create the expense ledger and its category, then add micro-categories (restaurant, meter, branch…) from Accounts.</p>`,
-  onSubmit:async fd=>{if(fd.own!=="per"&&!fd.a)return "Choose the expense ledger (or Personal).";const rule={a:fd.own==="per"?"":fd.a,s:fd.own==="per"?"":(fd.svc||""),own:fd.own,label:t.desc.slice(0,50),at:Date.now()};
+  onSubmit:async fd=>{if(fd.own!=="per"&&!fd.head)return "Choose the expense ledger (or Personal).";const rule={a:fd.own==="per"?"":fd.head,s:fd.own==="per"?"":(fd.svc||""),own:fd.own,label:t.desc.slice(0,50),at:Date.now()};
     if(fd.scope==="one"){const tx=c.stmts[per].tx.slice();tx[+ix]={...t,map:rule,own:fd.own};await C.save({...c,stmts:{...c.stmts,[per]:{...c.stmts[per],tx}}})}
     else{const R={...rules(),[key]:rule};await saveRules(R);
       for(const cc of cards()){const st={...cc.stmts};let ch=false;for(const p of Object.keys(st)){const tx=st[p].tx.map(x=>!x.cr&&C.mkey(x.desc)===key&&x.own!==rule.own?(ch=true,{...x,own:rule.own}):x);st[p]={...st[p],tx}}if(ch)await C.save({...cc,stmts:st})}
