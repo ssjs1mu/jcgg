@@ -128,5 +128,5 @@ J.act("promoLogoDel",async()=>{await save({brand:{...(doc().brand||{}),logo:""}}
 J.act("promoOpen",el=>{J.setUI("promo.edit",el.dataset.x);J.go("promo","studio")});
 J.promoAlerts=()=>posts().filter(p=>p.status==="review").map(p=>({lvl:"warn",text:"Promotion waiting for approval: "+p.title,go:"promo",tab:"studio"}));
 J.mod({id:"promo",label:"Promotions",group:"Operations",icon:'<path d="M3 11v2a2 2 0 0 0 2 2h1l4 4V5L6 9H5a2 2 0 0 0-2 2z"/><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/>',sub:"Posters, banners and reels from your brand kit and dish pictures — approve, share to Instagram, Facebook and YouTube, and track the results.",
-  badge:()=>posts().filter(p=>p.status==="review").length,tabs:[["studio","Studio",vStudio],["fam","Parents' week",()=>J.vFamConcept?J.vFamConcept():""],["track","Tracking",vTrack],["brand","Brand kit",vBrand]]});
+  badge:()=>posts().filter(p=>p.status==="review").length,tabs:[["studio","Studio",vStudio],["kits","Concept kits",()=>J.vKits?J.vKits():""],["track","Tracking",vTrack],["brand","Brand kit",vBrand]]});
 })();
