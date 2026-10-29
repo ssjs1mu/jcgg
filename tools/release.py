@@ -15,7 +15,7 @@ FILES = {
   "care": ["js/care.js", "docs/customer-care.md"],
   "directory": ["js/mod-directory.js", "js/mod-clients.js"],
   "accounts": ["js/mod-accounts.js", "js/lock.js", "js/gstpaid.js", "js/bankmatch.js", "js/expcat.js", "js/connections.js", "js/movepick.js", "js/personal.js", "js/masters.js", "js/bankpdf.js", "js/loans.js"],
-  "invest": ["js/mod-invest.js", "js/mf.js"], "dues": ["js/dues.js", "js/ebill.js"], "assets": ["js/mod-assets.js", "js/upkeep.js"], "insurance": ["js/mod-assets.js"],
+  "invest": ["js/mod-invest.js", "js/mf.js"], "dues": ["js/dues.js", "js/ebill.js", "js/ccard.js"], "assets": ["js/mod-assets.js", "js/upkeep.js"], "insurance": ["js/mod-assets.js"],
   "settings": ["js/mod-settings.js", "js/access.js"], "import": ["js/mod-import.js", "js/bankpdf.js"],
   "manual": ["js/manual.js"], "mkjacc": ["js/mkj.js"], "mkjinv": ["js/mkj.js"], "mkjassets": ["js/mkj.js"], "sales": ["js/mod-sales.js", "js/aggr.js", "js/aggcmp.js", "js/gpay.js", "js/ppedit.js"],
 }
