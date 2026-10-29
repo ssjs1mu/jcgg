@@ -251,5 +251,5 @@ J.orderHabits=c=>{const e=arr(c.pts).filter(p=>p.type==="earn"&&arr(p.items).len
   <p class="hint" style="margin:6px 0 0">Sits at <b>${esc(md(p=>p.ch==="dine"?[p.table,p.area].filter(Boolean).join(" · "):p.agg||p.ch))}</b> · pays by <b>${esc(md(p=>(MODE_L[String(p.mode||"").split("+")[0]]||"")))}</b> · ${(e.reduce((s,p)=>s+p.items.length,0)/e.length).toFixed(1)} items a bill.</p></div>`};
 // ---------- module ----------
 J.mod({id:"sales",label:"Sales & Cash",group:"Finance",icon:'<path d="M3 7h18v10H3z"/><circle cx="12" cy="12" r="2.5"/><path d="M6 10v4M18 10v4"/>',sub:"Petpooja orders, daily sales posting, UPI and aggregator reconciliation, and the cash counter.",
-  tabs:[["daily","Daily sales",vDaily],["log","Bill changes & uploads",()=>J.ppLogView?J.ppLogView():""],["upi","Google Pay & UPI",()=>J.gpay&&J.gpay.txns().length?J.gpayView():vUpi()],["agg","Swiggy / Zomato",vAgg],["cash","Cash counter",vCash],["items","Items & habits",vItems]]});
+  tabs:[["daily","Daily sales",vDaily],["log","Bill changes & uploads",()=>J.ppLogView?J.ppLogView():""],["upi","Google Pay & UPI",()=>J.gpay&&J.gpay.txns().length?J.gpayView():vUpi()],["agg","Swiggy / Zomato",vAgg],["cash","Cash counter",vCash],["fam","Parents' week",()=>J.vFamWeek?J.vFamWeek():""],["items","Items & habits",vItems]]});
 })();
