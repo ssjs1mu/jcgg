@@ -99,12 +99,14 @@ J.derive=derive;
 // while a dropdown is open, a field is being typed in, or a press is in progress, the redraw waits until they finish
 let ptrDown=0,pend=false;
 const busyUI=()=>{if(ptrDown&&Date.now()-ptrDown<4000)return true;const a=document.activeElement;if(!a||a===document.body)return false;if(!a.closest?.("#view,#nav,#mnav,.drawer"))return false;return a.tagName==="SELECT"||a.tagName==="TEXTAREA"||(a.tagName==="INPUT"&&!["checkbox","radio","button","submit","file"].includes(a.type))};
-const flush=()=>{if(!pend)return;if(busyUI()){return}pend=false;requestAnimationFrame(()=>J.render())};
+const flush=()=>{if(!pend)return;if(busyUI()){return}pend=false;requestAnimationFrame(()=>{J._soft=true;J.render()})};
 document.addEventListener("pointerdown",()=>{ptrDown=Date.now()},true);
 document.addEventListener("pointerup",()=>{ptrDown=0;setTimeout(flush,250)},true);document.addEventListener("pointercancel",()=>{ptrDown=0;setTimeout(flush,250)},true);
 document.addEventListener("focusout",()=>setTimeout(flush,200),true);document.addEventListener("change",()=>setTimeout(flush,300),true);
-J.softRender=()=>{if(busyUI()){pend=true;return}pend=false;J.render()};
-J.refresh=()=>{derive();if(renderQ)return;renderQ=true;requestAnimationFrame(()=>{renderQ=false;J.softRender()})};
+J.softRender=()=>{if(busyUI()){pend=true;return}pend=false;J._soft=true;J.render()};
+// while the app is opening, many collections arrive one after another (cache, then server): redraw at most every ~0.3 s instead of every frame
+const BOOT0=Date.now();
+J.refresh=()=>{derive();if(renderQ)return;renderQ=true;const go=()=>{renderQ=false;J.softRender()};if(Date.now()-BOOT0<9000)setTimeout(go,300);else requestAnimationFrame(go)};
 let unsubs=[],mUnsubs=[];
 function subscribe(){
   const got=new Set();
@@ -236,18 +238,21 @@ function renderRail(){
   setHTML($("#mnav"),[["jdash","Dashboard"],["home","Home"],["accounts","Accounts"],["inventory","Stock"],["kot","Staff KOT"]].filter(([k])=>J.canSee(k)).map(([k,l])=>{const m=MODS.find(x=>x.id===k);return `<button data-go="${k}" ${S.route.mod===k?'aria-current="page"':""}>${ICON(m.icon)}<span>${l}</span></button>`}).join("")+`<button data-a="modmenu">${ICON('<path d="M4 6h16M4 12h16M4 18h16"/>')}<span>More</span></button>`);
 }
 J.render=()=>{
+  const soft=J._soft;J._soft=false;
   document.documentElement.classList.toggle("ro",J.readOnly());
   renderRail();
   const v=$("#view");
   if(S.hold&&document.getElementById(S.hold)){J.holdRefresh?.forEach(f=>f());return}
-  if(!S.ready){v.innerHTML=`<div class="empty" style="padding:80px 16px"><strong>Opening the books…</strong><span>Loading ledgers, stock, staff and records.</span></div>`;return}
+  if(!S.ready){if(v._h!=="boot"){v.innerHTML=`<div class="empty" style="padding:80px 16px"><strong>Opening the books…</strong><span>Loading ledgers, stock, staff and records.</span></div>`;v._h="boot"}return}
   let m=MODS.find(x=>x.id===S.route.mod);if(!m||!J.canSee(m.id)){m=MODS.find(x=>J.canSee(x.id))||MODS[0];S.route={mod:m.id,tab:m.tabs[0][0]}}
   const TABS=m.tabs.filter(t=>!t[4]||t[4]());let tab=TABS.find(t=>t[0]===S.route.tab)||TABS[0];S.route.tab=tab[0];document.documentElement.dataset.mod=m.id;
   const vis=MODS.filter(x=>J.canSee(x.id));
   const mtop=`<div class="mtop"><select id="m-switch" aria-label="Module" data-a="switchmod">${vis.map(x=>`<option value="${x.id}" ${x.id===m.id?"selected":""}>${esc(x.label)}</option>`).join("")}</select></div>`;
   const bar=TABS.length>1?`<nav class="modbar" aria-label="${esc(m.label)} sections">${TABS.map(t=>`<button data-go="${m.id}" data-tab="${t[0]}" ${t[0]===tab[0]?'aria-current="page"':""}>${esc(t[1])}</button>`).join("")}</nav>`:"";
   let body;try{body=tab[2]()}catch(e){console.error(e);body=`<div class="err">This screen hit a problem: ${esc(e.message)}. Your data is safe; try another section or reload.</div>`}
-  v.innerHTML=mtop+(m.id!=="home"?`<div class="head"><div><h1>${esc(m.label)}</h1>${m.sub?`<p>${esc(typeof m.sub==="function"?m.sub():m.sub)}</p>`:""}</div><div class="row">${J.verBtn?.(m.id)||""}${J.manualBtn?.(m.id,tab[0])||""}${m.headBtns?.()||""}</div></div>`:`<div class="row" style="justify-content:flex-end;margin-bottom:6px">${J.verBtn?.(m.id)||""}${J.manualBtn?.(m.id,tab[0])||""}</div>`)+bar+body;
+  const html=mtop+(m.id!=="home"?`<div class="head"><div><h1>${esc(m.label)}</h1>${m.sub?`<p>${esc(typeof m.sub==="function"?m.sub():m.sub)}</p>`:""}</div><div class="row">${J.verBtn?.(m.id)||""}${J.manualBtn?.(m.id,tab[0])||""}${m.headBtns?.()||""}</div></div>`:`<div class="row" style="justify-content:flex-end;margin-bottom:6px">${J.verBtn?.(m.id)||""}${J.manualBtn?.(m.id,tab[0])||""}</div>`)+bar+body;
+  // data arriving in the background often changes nothing on screen: keep the existing screen (no flash, no lost scroll or typing)
+  const key=m.id+"|"+tab[0];if(soft&&v._h===html&&v._k===key)return;v._h=html;v._k=key;v.innerHTML=html;
   tab[3]?.();J.afterRender.forEach(f=>{try{f(m.id)}catch(e){console.error(e)}});
 };
 J.afterRender=[];
