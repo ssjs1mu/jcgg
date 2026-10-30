@@ -5,7 +5,7 @@
 const J=window.J,{S,esc,fmtDate,today,toast}=J;
 const arr=x=>Array.isArray(x)?x:[];
 const SRC="https://ssjs1mu.github.io/jc-stock-analyst/";
-const EDS={morning:{id:"morning-pulse",dir:"morning/",name:"Morning Breeze",tag:"What to expect at the open, key levels, an insurance plan of the day and a restaurant offer."},evening:{id:"evening-breeze",dir:"evening/",name:"Evening Breeze",tag:"Today's close, movers and shakers, levels for tomorrow, an insurance plan of the day and a restaurant offer."}};
+const EDS={morning:{id:"morning-pulse",dir:"morning/",name:"Morning Sunrise",tag:"What to expect at the open, key levels, an insurance plan of the day and a restaurant offer."},evening:{id:"evening-breeze",dir:"evening/",name:"Evening Breeze",tag:"Today's close, movers and shakers, levels for tomorrow, an insurance plan of the day and a restaurant offer."}};
 const ED=()=>EDS[ui().ed]||EDS.morning;
 const BOOK0=()=>SRC+ED().dir;
 const ui=()=>J.ui("snap",{cat:"",q:"",loading:false,err:"",run:null,caption:null,only:false,ed:"morning",bs:50,bl:1,bulk:false});
@@ -53,7 +53,7 @@ function vSnap(){
   const prev=U.loading?`<div class="empty"><strong>Loading today's snapshot…</strong></div>`:U.err?`<div class="empty"><strong>${esc(U.err)}</strong><button class="btn small w" data-a="snapReload">Try again</button></div>`:
     U.run?`<iframe src="${BOOK0()}${esc(U.run.date)}/" title="${ED().name} booklet" style="width:min(100%,360px);height:520px;border:1px solid #0002;border-radius:12px;background:#0d0a18"></iframe>
       <p class="hint" style="margin:6px 0 0">${stale?`<b style="color:#B45309">This is the ${fmtDate(U.run.date)} booklet — today's has not been published yet.</b> `:""}Published ${esc(String(U.run.at||"").replace("T"," ").slice(0,16))} IST · ${U.run.imgs.length} pages — tap the page to turn it, like a book.</p>`:"";
-  return `<div class="panel pb"><h3 style="margin-top:0">${ED().name} — phone version</h3><div class="seg" style="margin-bottom:8px"><button data-a="snapEd" data-x="morning" aria-pressed="${U.ed!=="evening"}">Morning Breeze</button><button data-a="snapEd" data-x="evening" aria-pressed="${U.ed==="evening"}">Evening Breeze</button></div>${prev}
+  return `<div class="panel pb"><h3 style="margin-top:0">${ED().name} — phone version</h3><div class="seg" style="margin-bottom:8px"><button data-a="snapEd" data-x="morning" aria-pressed="${U.ed!=="evening"}">Morning Sunrise</button><button data-a="snapEd" data-x="evening" aria-pressed="${U.ed==="evening"}">Evening Breeze</button></div>${prev}
     <div class="form" style="margin-top:10px">${J.fld?J.fld("Caption (used for WhatsApp messages and posts)",`<textarea id="snap-cap" data-ui="snap.caption" rows="4">${esc(U.caption||"")}</textarea>`,"wide"):""}</div>
     <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">
       <button class="btn primary w" data-a="snapShareBook" ${U.run?"":"disabled"}>Share booklet — WhatsApp / Facebook / Instagram</button>
@@ -83,7 +83,7 @@ function bulkHtml(chosen,sent,U){
       <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn w" data-a="snapVcf" data-x="${bl}">1 · Save List ${bl} contacts (.vcf, ${part.length})</button>
       <button class="btn w" data-a="snapCsv" data-x="${bl}">Numbers list (.csv)</button>
       <button class="btn primary w" data-a="snapShareBook" ${U.run?"":"disabled"}>3 · Send to broadcast list</button></div>
-      <p class="hint" style="margin:6px 0 0">Step 2, once: open the saved .vcf to import it into the phone, then in WhatsApp → Chats → ⋮ → New broadcast → search "JC BC${bl}" and select everyone → name it "Morning Breeze ${bl}". Contacts are saved as "JC BC${bl} · name".</p></div>
+      <p class="hint" style="margin:6px 0 0">Step 2, once: open the saved .vcf to import it into the phone, then in WhatsApp → Chats → ⋮ → New broadcast → search "JC BC${bl}" and select everyone → name it "Morning Sunrise ${bl}". Contacts are saved as "JC BC${bl} · name".</p></div>
     <div class="row" style="gap:8px;flex-wrap:wrap">
       <button class="btn primary w" data-a="snapBulk" ${U.run&&left?"":"disabled"}>${U.bulk?"Bulk push running…":"Auto-open chats one by one, List "+bl+" ("+left+" left)"}</button>
       <button class="btn small" data-a="snapStop" ${U.bulk?"":"disabled"}>Stop</button>

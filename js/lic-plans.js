@@ -1,5 +1,5 @@
 /* Insurance → "LIC plans": plan tiles with a picture timeline, full plan explanation, and a "find my plan" suggester
-   (age, optional monthly premium capacity, goal). Data: data/lic/plans.json (also feeds the Morning Breeze "plan of the day" page).
+   (age, optional monthly premium capacity, goal). Data: data/lic/plans.json (also feeds the Morning Sunrise "plan of the day" page).
    General information only; check the current brochure before buying. */
 (()=>{
 const J=window.J,{esc}=J;
@@ -55,7 +55,7 @@ function vLic(){const U=ui();load();
   const q=(U.q||"").toLowerCase();const cats=[...new Set(U.plans.map(p=>p.cat))];
   const list=U.plans.filter(p=>(!U.cat||p.cat===U.cat)&&(!q||(p.name+" "+p.cat+" "+p.line).toLowerCase().includes(q)));
   return finder(U)+`<div class="panel pb"><h3 style="margin-top:0">LIC plans <span class="chip plain">${U.plans.length} plans</span></h3>
-    <p class="hint" style="margin:0 0 8px">Tap a plan for its full explanation: features, advantages, drawbacks, warnings, age group and outlook. One plan is featured each day in the Morning Breeze booklet.</p>
+    <p class="hint" style="margin:0 0 8px">Tap a plan for its full explanation: features, advantages, drawbacks, warnings, age group and outlook. One plan is featured each day in the Morning Sunrise booklet.</p>
     <div class="filters"><div class="seg" style="flex-wrap:wrap"><button data-set="lic.cat=" aria-pressed="${!U.cat}">All</button>${cats.map(c=>`<button data-set="lic.cat=${esc(c)}" aria-pressed="${U.cat===c}">${esc(c)}</button>`).join("")}</div>
       <input data-ui="lic.q" value="${esc(U.q||"")}" placeholder="Search a plan" style="min-width:200px"></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:10px">${list.map(p=>`<button data-set="lic.sel=${esc(p.id)}" style="text-align:left;cursor:pointer;border:1.5px solid var(--line,#d6d6d6);border-radius:14px;padding:0;background:var(--panel,#fff);color:inherit;overflow:hidden">${banner(p)}
