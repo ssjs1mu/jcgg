@@ -6,7 +6,7 @@ const J=window.J,{S,esc,fmtDate,today,toast}=J;
 const arr=x=>Array.isArray(x)?x:[];
 const SRC="https://ssjs1mu.github.io/jc-stock-analyst/";
 const BOOK=SRC+"morning/";
-const ui=()=>J.ui("snap",{cat:"",q:"",loading:false,err:"",run:null,caption:null,only:false});
+const ui=()=>J.ui("snap",{cat:"",q:"",loading:false,err:"",run:null,caption:null,only:false,bs:50,bl:1,bulk:false});
 const digits=p=>{let d=String(p||"").replace(/\D/g,"");if(d.length===10)d="91"+d;return d.length>=11?d:""};
 const cfgDoc=()=>J.get("meta","snapBcast")||{id:"snapBcast",ids:[]};
 const sentDoc=()=>{const d=J.get("meta","snapSent")||{id:"snapSent",date:"",ids:[]};return d.date===today()?d:{id:"snapSent",date:today(),ids:[]}};
@@ -67,9 +67,23 @@ function vSnap(){
     <div class="row" style="gap:8px;flex-wrap:wrap;margin:6px 0"><button class="btn small w" data-a="snapAll" data-x="1">Select all shown (${list.length})</button><button class="btn small" data-a="snapAll" data-x="0">Clear shown</button><button class="btn small" data-a="snapCopyNums">Copy selected numbers</button></div>
     <div class="tbl-wrap" style="max-height:340px;overflow:auto"><table><thead><tr><th></th><th>Name</th><th>Category</th><th>WhatsApp</th></tr></thead><tbody>${list.map(p=>`<tr><td><input type="checkbox" data-a="snapTick" data-x="${esc(p.id)}" ${sel.has(p.id)?"checked":""}></td><td>${esc(p.name)} ${p.sub?`<small>${esc(p.sub)}</small>`:""}</td><td>${esc(p.cat)}</td><td class="mono">${esc(p.num)}</td></tr>`).join("")||`<tr><td colspan="4"><div class="empty">No people with a mobile number here.</div></td></tr>`}</tbody></table></div></div>
   <div class="panel pb"><h3 style="margin-top:0">Send to the broadcast list <span class="chip ${chosen.length&&chosen.every(p=>sent.has(p.id))?"ok":"plain"}">${chosen.filter(p=>sent.has(p.id)).length} / ${chosen.length} sent today</span></h3>
-    ${chosen.length?`<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn primary w" data-a="snapNext" ${U.run?"":"disabled"}>Send next → ${esc((chosen.find(p=>!sent.has(p.id))||{name:"all done"}).name)}</button><button class="btn small" data-a="snapResetSent">Start again</button></div>
-    <div class="tbl-wrap" style="margin-top:8px"><table><tbody>${chosen.map(p=>`<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.num)}</td><td style="text-align:right">${sent.has(p.id)?`<span class="chip ok">Sent</span> `:""}<a class="btn small ${sent.has(p.id)?"":"w"}" target="_blank" rel="noopener" href="${esc(waHref(p))}" data-a="snapMark" data-x="${esc(p.id)}">${sent.has(p.id)?"Resend":"WhatsApp"}</a></td></tr>`).join("")}</tbody></table></div>
-    <p class="hint" style="margin:8px 0 0">WhatsApp can't attach images from a link, so each message carries the caption plus the booklet card. To send the actual images to everyone at once, create a WhatsApp <b>Broadcast list</b> once with "Copy selected numbers", then use the share button above and choose that list.</p>`:`<div class="empty"><strong>No one selected yet</strong><span>Tick people above to build the list.</span></div>`}</div>`;
+    ${chosen.length?bulkHtml(chosen,sent,U):`<div class="empty"><strong>No one selected yet</strong><span>Tick people above to build the list.</span></div>`}</div>`;
+}
+function bulkHtml(chosen,sent,U){
+  const bs=Number(U.bs)||50,n=Math.max(1,Math.ceil(chosen.length/bs)),bl=Math.min(Math.max(1,Number(U.bl)||1),n);
+  const part=chosen.slice((bl-1)*bs,bl*bs),left=part.filter(p=>!sent.has(p.id)).length;
+  const nums=Array.from({length:n},(_,i)=>{const c=chosen.slice(i*bs,(i+1)*bs);const d=c.filter(p=>sent.has(p.id)).length;return `<button data-set="snap.bl=${i+1}" aria-pressed="${bl===i+1}">List ${i+1} <small>${d}/${c.length}</small></button>`}).join("");
+  return `<div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><label class="hint" style="margin:0">People per list</label>
+      <select data-ui="snap.bs">${[20,25,50,100,200,256].map(v=>`<option value="${v}" ${bs===v?"selected":""}>${v}</option>`).join("")}</select></div>
+    <div class="seg" style="flex-wrap:wrap;margin:8px 0">${nums}</div>
+    <div class="row" style="gap:8px;flex-wrap:wrap">
+      <button class="btn primary w" data-a="snapBulk" ${U.run&&left?"":"disabled"}>${U.bulk?"Bulk push running…":"Bulk push List "+bl+" ("+left+" left)"}</button>
+      <button class="btn small" data-a="snapStop" ${U.bulk?"":"disabled"}>Stop</button>
+      <button class="btn small" data-a="snapNext" ${U.run?"":"disabled"}>Send next one</button>
+      <button class="btn small" data-a="snapResetSent">Start again</button></div>
+    <p class="hint" style="margin:8px 0">One tap starts the push: the first chat opens with the message ready. Press Send in WhatsApp and come back — the next chat opens by itself after a 2-second countdown, and so on to the end of the list. If your phone blocks the automatic open, a big “Send next” button appears instead. WhatsApp itself will not let any app press Send for you, and this stays free (no business API).</p>
+    <div class="tbl-wrap" style="margin-top:8px;max-height:320px;overflow:auto"><table><tbody>${part.map((p,i)=>`<tr><td class="mono">${(bl-1)*bs+i+1}</td><td>${esc(p.name)}</td><td class="mono">${esc(p.num)}</td><td style="text-align:right">${sent.has(p.id)?`<span class="chip ok">Sent</span> `:""}<a class="btn small ${sent.has(p.id)?"":"w"}" target="_blank" rel="noopener" href="${esc(waHref(p))}" data-a="snapMark" data-x="${esc(p.id)}">${sent.has(p.id)?"Resend":"WhatsApp"}</a></td></tr>`).join("")}</tbody></table></div>
+    <p class="hint" style="margin:8px 0 0">To send the actual picture pages instead of the link, create a WhatsApp Broadcast list (max 256 people each — use the same numbered lists) with “Copy selected numbers”, then use Share as pictures above.</p>`;
 }
 const msg=()=>{const U=ui();return (U.caption||"")+"\n\n"+links()};
 const waHref=p=>"https://wa.me/"+p.num+"?text="+encodeURIComponent(msg());
@@ -94,5 +108,23 @@ J.act("snapMark",async el=>{await mark(el.dataset.x);J.render()});
 J.act("snapNext",async()=>{const s=new Set(arr(cfgDoc().ids)),sent=new Set(sentDoc().ids);const p=people().find(x=>s.has(x.id)&&!sent.has(x.id));if(!p)return toast("Everyone on the list has been sent today");
   window.open(waHref(p),"_blank");await mark(p.id);J.render()});
 J.act("snapResetSent",async()=>{await J.safe(()=>save({id:"snapSent",date:today(),ids:[]}));J.render()});
+let bt=null,cd=0;
+const part=()=>{const U=ui(),bs=Number(U.bs)||50,s=new Set(arr(cfgDoc().ids)),sent=new Set(sentDoc().ids);const ch=people().filter(p=>s.has(p.id));const bl=Math.max(1,Number(U.bl)||1);return ch.slice((bl-1)*bs,bl*bs).filter(p=>!sent.has(p.id))};
+function bar(html){let b=document.getElementById("snapbar");if(!html){b&&b.remove();return}
+  if(!b){b=document.createElement("div");b.id="snapbar";b.style.cssText="position:fixed;left:8px;right:8px;bottom:10px;z-index:99999;background:#111827;color:#fff;border:2px solid #25D366;border-radius:14px;padding:10px 12px;display:flex;gap:8px;align-items:center;justify-content:space-between;box-shadow:0 8px 30px #0008";document.body.appendChild(b)}b.innerHTML=html}
+async function openNext(manual){const U=ui();const p=part()[0];
+  if(!p){U.bulk=false;bar("");toast("List finished — everyone sent");J.render();return}
+  const w=window.open(waHref(p),"_blank");await mark(p.id);
+  if(!w&&!manual){bar('<span><b>'+esc(p.name)+'</b> — tap to open WhatsApp</span><button class="btn primary" id="snapGo">Send next ('+part().length+' left)</button><button class="btn small" id="snapX">Stop</button>');
+    document.getElementById("snapGo").onclick=()=>{bar("");window.open(waHref(p),"_blank")};document.getElementById("snapX").onclick=stop;return}
+  if(U.bulk)bar('<span>Sent to <b>'+esc(p.name)+'</b>. Come back here for the next one.</span><button class="btn small" id="snapX">Stop</button>');
+  const x=document.getElementById("snapX");if(x)x.onclick=stop;J.render()}
+function stop(){const U=ui();U.bulk=false;clearInterval(bt);bar("");J.render()}
+document.addEventListener("visibilitychange",()=>{const U=ui();if(!U.bulk||document.hidden)return;
+  if(!part().length){stop();toast("List finished — everyone sent");return}
+  cd=2;clearInterval(bt);bar('<span>Next chat opens in <b id="snapcd">2</b>s…</span><button class="btn small" id="snapX">Stop</button>');document.getElementById("snapX").onclick=stop;
+  bt=setInterval(()=>{cd--;const e=document.getElementById("snapcd");if(e)e.textContent=cd;if(cd<=0){clearInterval(bt);openNext(false)}},1000)});
+J.act("snapBulk",async()=>{const U=ui();if(!part().length)return toast("This list is already sent");U.bulk=true;await openNext(true)});
+J.act("snapStop",stop);
 J.vSnap=vSnap;
 })();
