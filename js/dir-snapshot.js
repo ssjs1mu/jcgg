@@ -5,8 +5,10 @@
 const J=window.J,{S,esc,fmtDate,today,toast}=J;
 const arr=x=>Array.isArray(x)?x:[];
 const SRC="https://ssjs1mu.github.io/jc-stock-analyst/";
-const BOOK=SRC+"morning/";
-const ui=()=>J.ui("snap",{cat:"",q:"",loading:false,err:"",run:null,caption:null,only:false,bs:50,bl:1,bulk:false});
+const EDS={morning:{id:"morning-pulse",dir:"morning/",name:"Morning Breeze",tag:"What to expect at the open, key levels, an insurance plan of the day and a restaurant offer."},evening:{id:"evening-breeze",dir:"evening/",name:"Evening Breeze",tag:"Today's close, movers and shakers, levels for tomorrow, an insurance plan of the day and a restaurant offer."}};
+const ED=()=>EDS[ui().ed]||EDS.morning;
+const BOOK0=()=>SRC+ED().dir;
+const ui=()=>J.ui("snap",{cat:"",q:"",loading:false,err:"",run:null,caption:null,only:false,ed:"morning",bs:50,bl:1,bulk:false});
 const digits=p=>{let d=String(p||"").replace(/\D/g,"");if(d.length===10)d="91"+d;return d.length>=11?d:""};
 const cfgDoc=()=>J.get("meta","snapBcast")||{id:"snapBcast",ids:[]};
 const sentDoc=()=>{const d=J.get("meta","snapSent")||{id:"snapSent",date:"",ids:[]};return d.date===today()?d:{id:"snapSent",date:today(),ids:[]}};
@@ -26,19 +28,19 @@ function people(){
 async function load(force){
   const U=ui();if(U.loading||(U.run&&!force))return;U.loading=true;U.err="";
   try{
-    const r=await fetch(SRC+"reports/morning-pulse/index.json?t="+Date.now(),{cache:"no-store"});
+    const r=await fetch(SRC+"reports/"+ED().id+"/index.json?t="+Date.now(),{cache:"no-store"});
     if(!r.ok)throw new Error("HTTP "+r.status);
     const j=await r.json();
     const run=(j.runs||[]).find(x=>x.status==="ok"&&arr(x.files).some(f=>/Mobile_.*_\d\.png$/.test(f.name)));
-    if(!run)throw new Error("No phone-size Morning Pulse has been published yet.");
+    if(!run)throw new Error("No "+ED().name+" has been published yet.");
     const imgs=run.files.filter(f=>/Mobile_.*_\d\.png$/.test(f.name)).sort((a,b)=>a.name.localeCompare(b.name)).map(f=>({name:f.name,url:SRC+f.path}));
     U.run={date:run.date,at:run.generated_at,imgs};
     if(U.caption===null)U.caption=defCaption(run);
   }catch(e){U.err="Could not load the snapshot ("+(e.message||e)+"). Check the internet connection and try again."}
   U.loading=false;J.render();
 }
-const defCaption=run=>"Joshi's Corner - Morning Breeze for "+fmtDate(run.date)+"\nWhat to expect at the open, key levels, an insurance plan of the day and a restaurant offer.\nFor information only. Not investment advice. Markets carry risk.";
-const links=()=>BOOK+(ui().run?ui().run.date+"/":"");
+const defCaption=run=>"Joshi's Corner - "+ED().name+" for "+fmtDate(run.date)+"\n"+ED().tag+"\nFor information only. Not investment advice. Markets carry risk.";
+const links=()=>BOOK0()+(ui().run?ui().run.date+"/":"");
 
 function vSnap(){
   const U=ui();if(!U.run&&!U.loading&&!U.err)setTimeout(()=>load(),0);
@@ -49,9 +51,9 @@ function vSnap(){
   const chosen=all.filter(p=>sel.has(p.id));
   const stale=U.run&&U.run.date!==today();
   const prev=U.loading?`<div class="empty"><strong>Loading today's snapshot…</strong></div>`:U.err?`<div class="empty"><strong>${esc(U.err)}</strong><button class="btn small w" data-a="snapReload">Try again</button></div>`:
-    U.run?`<iframe src="${BOOK}${esc(U.run.date)}/" title="Morning Pulse booklet" style="width:min(100%,360px);height:520px;border:1px solid #0002;border-radius:12px;background:#0d0a18"></iframe>
+    U.run?`<iframe src="${BOOK0()}${esc(U.run.date)}/" title="${ED().name} booklet" style="width:min(100%,360px);height:520px;border:1px solid #0002;border-radius:12px;background:#0d0a18"></iframe>
       <p class="hint" style="margin:6px 0 0">${stale?`<b style="color:#B45309">This is the ${fmtDate(U.run.date)} booklet — today's has not been published yet.</b> `:""}Published ${esc(String(U.run.at||"").replace("T"," ").slice(0,16))} IST · ${U.run.imgs.length} pages — tap the page to turn it, like a book.</p>`:"";
-  return `<div class="panel pb"><h3 style="margin-top:0">Morning snapshot — phone version</h3>${prev}
+  return `<div class="panel pb"><h3 style="margin-top:0">${ED().name} — phone version</h3><div class="seg" style="margin-bottom:8px"><button data-a="snapEd" data-x="morning" aria-pressed="${U.ed!=="evening"}">Morning Breeze</button><button data-a="snapEd" data-x="evening" aria-pressed="${U.ed==="evening"}">Evening Breeze</button></div>${prev}
     <div class="form" style="margin-top:10px">${J.fld?J.fld("Caption (used for WhatsApp messages and posts)",`<textarea id="snap-cap" data-ui="snap.caption" rows="4">${esc(U.caption||"")}</textarea>`,"wide"):""}</div>
     <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">
       <button class="btn primary w" data-a="snapShareBook" ${U.run?"":"disabled"}>Share booklet — WhatsApp / Facebook / Instagram</button>
@@ -95,11 +97,12 @@ const msg=()=>{const U=ui();return (U.caption||"")+"\n\n"+links()};
 const waHref=p=>"https://wa.me/"+p.num+"?text="+encodeURIComponent(msg());
 
 async function files(){const U=ui();return Promise.all(U.run.imgs.map(async i=>{const b=await (await fetch(i.url,{cache:"no-store"})).blob();return new File([b],i.name,{type:"image/png"})}))}
+J.act("snapEd",el=>{const U=ui();U.ed=el.dataset.x;U.run=null;U.caption=null;U.err="";load(true)});
 J.act("snapReload",()=>load(true));
 J.act("snapCopyCap",async()=>{try{await navigator.clipboard.writeText(ui().caption||"");toast("Caption copied")}catch(e){toast("Copy not allowed here")}});
-J.act("snapShareBook",async()=>{const d={title:"Joshi's Corner - Morning Breeze",text:ui().caption||"",url:links()};try{if(navigator.share)await navigator.share(d);else{await navigator.clipboard.writeText((ui().caption||"")+"\n"+links());toast("Caption and booklet link copied")}}catch(e){if(e&&e.name!=="AbortError")toast("Could not share: "+(e.message||e))}});
+J.act("snapShareBook",async()=>{const d={title:"Joshi's Corner - "+ED().name,text:ui().caption||"",url:links()};try{if(navigator.share)await navigator.share(d);else{await navigator.clipboard.writeText((ui().caption||"")+"\n"+links());toast("Caption and booklet link copied")}}catch(e){if(e&&e.name!=="AbortError")toast("Could not share: "+(e.message||e))}});
 J.act("snapShare",async()=>{
-  try{const f=await files();const data={files:f,text:ui().caption||"",title:"Morning Breeze"};
+  try{const f=await files();const data={files:f,text:ui().caption||"",title:ED().name};
     if(navigator.canShare&&navigator.canShare({files:f})){await navigator.share(data)}
     else{toast("This browser can't share pictures directly — downloading them instead");f.forEach(download)}}
   catch(e){if(e&&e.name!=="AbortError")toast("Could not share: "+(e.message||e))}});
