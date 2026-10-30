@@ -9,7 +9,7 @@ FILES = {
   "platform": ["index.html", "css/app.css", "js/core.js", "js/files.js", "js/firebase-config.js", "js/entries.js", "firestore.rules", "sw.js", "manifest.webmanifest"],
   "home": ["js/mod-home.js", "js/panchang.js", "js/home-plus.js", "js/home-tabs.js", "js/mismatch.js", "js/astro.js", "js/kundali.js", "js/jyotish-deep.js", "js/jyotish2.js"], "jdash": ["js/mod-jdash.js"], "promo": ["js/promo.js"],
   "inventory": ["js/mod-inventory.js", "js/bills.js", "js/picpick.js"],
-  "kitchen": ["js/mod-kitchen.js", "js/kitchen-plus.js", "js/recipe-lib.js", "js/picpick.js"],
+  "kitchen": ["js/mod-kitchen.js", "js/kitchen-plus.js", "js/masala.js", "js/recipe-lib.js", "js/picpick.js"],
   "kot": ["js/mod-staffkot.js", "js/mod-kot.js", "js/skpay.js"],
   "staff": ["js/mod-staff.js", "js/escrow.js", "js/mod-people.js", "js/mod-rules.js", "js/access.js"],
   "care": ["js/care.js", "docs/customer-care.md"],
