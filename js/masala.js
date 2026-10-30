@@ -4,7 +4,7 @@
    videos are public YouTube recipes plus a YouTube search link.  Static reference – nothing is stored. */
 (()=>{
 const J=window.J,{esc}=J;
-const W=(p,f)=>"https://upload.wikimedia.org/wikipedia/commons/thumb/"+p+"/500px-"+f;
+const W=(p,f)=>"https://upload.wikimedia.org/wikipedia/commons/thumb/"+p+"/"+f+"/500px-"+f;
 const IM={
 garam:["Garam_masala",W("5/58","Garammasalaphoto.jpg")],chaat:["Chaat_masala",W("e/e5","Chaatmasala.jpg")],sambar:["Sambar_(dish)",W("b/bb","Pumpkin_sambar.JPG")],
 pav:["Pav_bhaji",W("4/4a","Bambayya_Pav_bhaji.jpg")],chole:["Chana_masala",W("8/8e","Chana_masala.jpg")],biryani:["Biryani",W("5/5a","%22Hyderabadi_Dum_Biryani%22.jpg")],
