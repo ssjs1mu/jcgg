@@ -129,5 +129,5 @@ J.mod({id:"assets",label:"Fixed Assets",group:"Governance",icon:'<rect x="3" y="
   tabs:[["register","Asset register",vRegister],["schedule","Depreciation",vSchedule]]});
 J.mod({id:"insurance",label:"Insurance",group:"MKJ",icon:'<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',sub:"Policies, renewals, premiums and claims.",
   badge:()=>pols().filter(p=>p.status!=="quote"&&renew(p)&&renew(p)[2]<=15).length,
-  tabs:[["policies","Policies",vPolicies],["radar","Renewal radar",vRadarIns],["compare","Compare",vCompare]]});
+  tabs:[["policies","Policies",vPolicies],["radar","Renewal radar",vRadarIns],["compare","Compare",vCompare],["lic","LIC plans",()=>J.vLic?J.vLic():""]]});
 })();
