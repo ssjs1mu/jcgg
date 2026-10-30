@@ -76,12 +76,18 @@ function bulkHtml(chosen,sent,U){
   return `<div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><label class="hint" style="margin:0">People per list</label>
       <select data-ui="snap.bs">${[20,25,50,100,200,256].map(v=>`<option value="${v}" ${bs===v?"selected":""}>${v}</option>`).join("")}</select></div>
     <div class="seg" style="flex-wrap:wrap;margin:8px 0">${nums}</div>
+    <div class="panel" style="border:2px solid #25D366;border-radius:12px;padding:10px 12px;margin:0 0 10px"><b>True one-send broadcast (recommended)</b>
+      <p class="hint" style="margin:4px 0 8px">WhatsApp lets only its own Broadcast list send one message to many people (up to 256 per list, and they must have your number saved). Do this once per numbered list: 1) Save the contacts, 2) make a Broadcast list in WhatsApp, 3) every day tap <b>Send to broadcast list</b> and pick that list. Free, no business API.</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn w" data-a="snapVcf" data-x="${bl}">1 · Save List ${bl} contacts (.vcf, ${part.length})</button>
+      <button class="btn w" data-a="snapCsv" data-x="${bl}">Numbers list (.csv)</button>
+      <button class="btn primary w" data-a="snapShareBook" ${U.run?"":"disabled"}>3 · Send to broadcast list</button></div>
+      <p class="hint" style="margin:6px 0 0">Step 2, once: open the saved .vcf to import it into the phone, then in WhatsApp → Chats → ⋮ → New broadcast → search "JC BC${bl}" and select everyone → name it "Morning Breeze ${bl}". Contacts are saved as "JC BC${bl} · name".</p></div>
     <div class="row" style="gap:8px;flex-wrap:wrap">
-      <button class="btn primary w" data-a="snapBulk" ${U.run&&left?"":"disabled"}>${U.bulk?"Bulk push running…":"Bulk push List "+bl+" ("+left+" left)"}</button>
+      <button class="btn primary w" data-a="snapBulk" ${U.run&&left?"":"disabled"}>${U.bulk?"Bulk push running…":"Auto-open chats one by one, List "+bl+" ("+left+" left)"}</button>
       <button class="btn small" data-a="snapStop" ${U.bulk?"":"disabled"}>Stop</button>
       <button class="btn small" data-a="snapNext" ${U.run?"":"disabled"}>Send next one</button>
       <button class="btn small" data-a="snapResetSent">Start again</button></div>
-    <p class="hint" style="margin:8px 0">One tap starts the push: the first chat opens with the message ready. Press Send in WhatsApp and come back — the next chat opens by itself after a 2-second countdown, and so on to the end of the list. If your phone blocks the automatic open, a big “Send next” button appears instead. WhatsApp itself will not let any app press Send for you, and this stays free (no business API).</p>
+    <p class="hint" style="margin:8px 0">Not bulk, but quicker than tapping each name: one tap starts it: the first chat opens with the message ready. Press Send in WhatsApp and come back — the next chat opens by itself after a 2-second countdown, and so on to the end of the list. If your phone blocks the automatic open, a big “Send next” button appears instead. WhatsApp itself will not let any app press Send for you, and this stays free (no business API).</p>
     <div class="tbl-wrap" style="margin-top:8px;max-height:320px;overflow:auto"><table><tbody>${part.map((p,i)=>`<tr><td class="mono">${(bl-1)*bs+i+1}</td><td>${esc(p.name)}</td><td class="mono">${esc(p.num)}</td><td style="text-align:right">${sent.has(p.id)?`<span class="chip ok">Sent</span> `:""}<a class="btn small ${sent.has(p.id)?"":"w"}" target="_blank" rel="noopener" href="${esc(waHref(p))}" data-a="snapMark" data-x="${esc(p.id)}">${sent.has(p.id)?"Resend":"WhatsApp"}</a></td></tr>`).join("")}</tbody></table></div>
     <p class="hint" style="margin:8px 0 0">To send the actual picture pages instead of the link, create a WhatsApp Broadcast list (max 256 people each — use the same numbered lists) with “Copy selected numbers”, then use Share as pictures above.</p>`;
 }
@@ -108,6 +114,11 @@ J.act("snapMark",async el=>{await mark(el.dataset.x);J.render()});
 J.act("snapNext",async()=>{const s=new Set(arr(cfgDoc().ids)),sent=new Set(sentDoc().ids);const p=people().find(x=>s.has(x.id)&&!sent.has(x.id));if(!p)return toast("Everyone on the list has been sent today");
   window.open(waHref(p),"_blank");await mark(p.id);J.render()});
 J.act("snapResetSent",async()=>{await J.safe(()=>save({id:"snapSent",date:today(),ids:[]}));J.render()});
+const chunk=bl=>{const U=ui(),bs=Number(U.bs)||50,s=new Set(arr(cfgDoc().ids));return people().filter(p=>s.has(p.id)).slice((bl-1)*bs,bl*bs)};
+const dl=(name,mime,txt)=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:mime}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)};
+J.act("snapVcf",el=>{const bl=+el.dataset.x||1,L=chunk(bl);if(!L.length)return toast("Nothing in this list");
+  dl("JC_BC"+bl+".vcf","text/vcard",L.map(p=>"BEGIN:VCARD\r\nVERSION:3.0\r\nFN:JC BC"+bl+" · "+String(p.name).replace(/[\r\n,;]/g," ")+"\r\nTEL;TYPE=CELL:+"+p.num+"\r\nEND:VCARD").join("\r\n")+"\r\n");toast("Contacts file downloaded — open it to save them to the phone")});
+J.act("snapCsv",el=>{const bl=+el.dataset.x||1,L=chunk(bl);dl("JC_BC"+bl+".csv","text/csv","No,Name,Number\r\n"+L.map((p,i)=>(i+1)+',"'+String(p.name).replace(/"/g,"'")+'",+'+p.num).join("\r\n"))});
 let bt=null,cd=0;
 const part=()=>{const U=ui(),bs=Number(U.bs)||50,s=new Set(arr(cfgDoc().ids)),sent=new Set(sentDoc().ids);const ch=people().filter(p=>s.has(p.id));const bl=Math.max(1,Number(U.bl)||1);return ch.slice((bl-1)*bs,bl*bs).filter(p=>!sent.has(p.id))};
 function bar(html){let b=document.getElementById("snapbar");if(!html){b&&b.remove();return}
