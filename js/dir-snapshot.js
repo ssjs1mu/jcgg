@@ -37,7 +37,7 @@ async function load(force){
   }catch(e){U.err="Could not load the snapshot ("+(e.message||e)+"). Check the internet connection and try again."}
   U.loading=false;J.render();
 }
-const defCaption=run=>"Joshi's Corner - Morning Market Pulse, "+fmtDate(run.date)+"\nWhat to expect at the open, key levels and stocks to watch.\nFor information only. Not investment advice. Markets carry risk.";
+const defCaption=run=>"Joshi's Corner - Morning Breeze for "+fmtDate(run.date)+"\nWhat to expect at the open, key levels, an insurance plan of the day and a restaurant offer.\nFor information only. Not investment advice. Markets carry risk.";
 const links=()=>BOOK+(ui().run?ui().run.date+"/":"");
 
 function vSnap(){
@@ -91,9 +91,9 @@ const waHref=p=>"https://wa.me/"+p.num+"?text="+encodeURIComponent(msg());
 async function files(){const U=ui();return Promise.all(U.run.imgs.map(async i=>{const b=await (await fetch(i.url,{cache:"no-store"})).blob();return new File([b],i.name,{type:"image/png"})}))}
 J.act("snapReload",()=>load(true));
 J.act("snapCopyCap",async()=>{try{await navigator.clipboard.writeText(ui().caption||"");toast("Caption copied")}catch(e){toast("Copy not allowed here")}});
-J.act("snapShareBook",async()=>{const d={title:"Joshi's Corner - Morning Market Pulse",text:ui().caption||"",url:links()};try{if(navigator.share)await navigator.share(d);else{await navigator.clipboard.writeText((ui().caption||"")+"\n"+links());toast("Caption and booklet link copied")}}catch(e){if(e&&e.name!=="AbortError")toast("Could not share: "+(e.message||e))}});
+J.act("snapShareBook",async()=>{const d={title:"Joshi's Corner - Morning Breeze",text:ui().caption||"",url:links()};try{if(navigator.share)await navigator.share(d);else{await navigator.clipboard.writeText((ui().caption||"")+"\n"+links());toast("Caption and booklet link copied")}}catch(e){if(e&&e.name!=="AbortError")toast("Could not share: "+(e.message||e))}});
 J.act("snapShare",async()=>{
-  try{const f=await files();const data={files:f,text:ui().caption||"",title:"Morning Market Pulse"};
+  try{const f=await files();const data={files:f,text:ui().caption||"",title:"Morning Breeze"};
     if(navigator.canShare&&navigator.canShare({files:f})){await navigator.share(data)}
     else{toast("This browser can't share pictures directly — downloading them instead");f.forEach(download)}}
   catch(e){if(e&&e.name!=="AbortError")toast("Could not share: "+(e.message||e))}});
