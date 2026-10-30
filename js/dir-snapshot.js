@@ -5,6 +5,7 @@
 const J=window.J,{S,esc,fmtDate,today,toast}=J;
 const arr=x=>Array.isArray(x)?x:[];
 const SRC="https://ssjs1mu.github.io/jc-stock-analyst/";
+const BOOK=SRC+"morning/";
 const ui=()=>J.ui("snap",{cat:"",q:"",loading:false,err:"",run:null,caption:null,only:false});
 const digits=p=>{let d=String(p||"").replace(/\D/g,"");if(d.length===10)d="91"+d;return d.length>=11?d:""};
 const cfgDoc=()=>J.get("meta","snapBcast")||{id:"snapBcast",ids:[]};
@@ -37,7 +38,7 @@ async function load(force){
   U.loading=false;J.render();
 }
 const defCaption=run=>"Joshi's Corner - Morning Market Pulse, "+fmtDate(run.date)+"\nWhat to expect at the open, key levels and stocks to watch.\nFor information only. Not investment advice. Markets carry risk.";
-const links=()=>{const U=ui();return U.run?U.run.imgs.map((i,k)=>"Page "+(k+1)+": "+i.url).join("\n"):""};
+const links=()=>BOOK+(ui().run?ui().run.date+"/":"");
 
 function vSnap(){
   const U=ui();if(!U.run&&!U.loading&&!U.err)setTimeout(()=>load(),0);
@@ -48,16 +49,17 @@ function vSnap(){
   const chosen=all.filter(p=>sel.has(p.id));
   const stale=U.run&&U.run.date!==today();
   const prev=U.loading?`<div class="empty"><strong>Loading today's snapshot…</strong></div>`:U.err?`<div class="empty"><strong>${esc(U.err)}</strong><button class="btn small w" data-a="snapReload">Try again</button></div>`:
-    U.run?`<div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-start">${U.run.imgs.map(i=>`<a href="${esc(i.url)}" target="_blank" rel="noopener"><img src="${esc(i.url)}" alt="${esc(i.name)}" style="width:210px;max-width:44vw;border-radius:10px;border:1px solid #0002"></a>`).join("")}</div>
-      <p class="hint" style="margin:6px 0 0">${stale?`<b style="color:#B45309">This is the ${fmtDate(U.run.date)} snapshot — today's has not been published yet.</b> `:""}Published ${esc(String(U.run.at||"").replace("T"," ").slice(0,16))} IST · 2 phone pages (1080×1350).</p>`:"";
+    U.run?`<iframe src="${BOOK}${esc(U.run.date)}/" title="Morning Pulse booklet" style="width:min(100%,360px);height:520px;border:1px solid #0002;border-radius:12px;background:#0d0a18"></iframe>
+      <p class="hint" style="margin:6px 0 0">${stale?`<b style="color:#B45309">This is the ${fmtDate(U.run.date)} booklet — today's has not been published yet.</b> `:""}Published ${esc(String(U.run.at||"").replace("T"," ").slice(0,16))} IST · ${U.run.imgs.length} pages — tap the page to turn it, like a book.</p>`:"";
   return `<div class="panel pb"><h3 style="margin-top:0">Morning snapshot — phone version</h3>${prev}
     <div class="form" style="margin-top:10px">${J.fld?J.fld("Caption (used for WhatsApp messages and posts)",`<textarea id="snap-cap" data-ui="snap.caption" rows="4">${esc(U.caption||"")}</textarea>`,"wide"):""}</div>
     <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">
-      <button class="btn primary w" data-a="snapShare" ${U.run?"":"disabled"}>Share images — WhatsApp / Instagram / Facebook</button>
+      <button class="btn primary w" data-a="snapShareBook" ${U.run?"":"disabled"}>Share booklet — WhatsApp / Facebook / Instagram</button>
+      <button class="btn w" data-a="snapShare" ${U.run?"":"disabled"}>Share as pictures</button>
       <button class="btn w" data-a="snapDownload" ${U.run?"":"disabled"}>Download images</button>
       <button class="btn w" data-a="snapCopyCap">Copy caption</button>
       <button class="btn w" data-a="snapReload">Refresh</button></div>
-    <p class="hint" style="margin:8px 0 0">The share button opens your phone's own share sheet with both pages attached: pick <b>WhatsApp</b> (choose a chat, group, Status or your <b>Broadcast list</b>), <b>Instagram</b> or <b>Facebook</b>. Posting straight into those apps without a tap needs Meta's paid business API, so this stays free and one-tap.</p></div>
+    <p class="hint" style="margin:8px 0 0"><b>Share booklet</b> sends one picture card (cover + title) that opens as a page-turning booklet — new pages added later appear in the same booklet. <b>Share as pictures</b> attaches the pages themselves, for Status, Instagram or Facebook posts. Posting into those apps with no tap at all needs Meta's paid business API, so this stays free and one-tap.</p></div>
   <div class="panel pb"><h3 style="margin-top:0">Broadcast list <span class="chip plain">${chosen.length} selected</span></h3>
     <p class="hint" style="margin:0 0 8px">Tick the people from your Directory (clients, suppliers, staff with a WhatsApp or mobile number). The list is saved. Then send one by one with the button below — the message is ready, you only press Send in WhatsApp.</p>
     <div class="filters"><div class="seg" style="flex-wrap:wrap"><button data-set="snap.cat=" aria-pressed="${!U.cat}">All</button>${cats.map(c=>`<button data-set="snap.cat=${esc(c)}" aria-pressed="${U.cat===c}">${esc(c)}</button>`).join("")}</div>
@@ -67,7 +69,7 @@ function vSnap(){
   <div class="panel pb"><h3 style="margin-top:0">Send to the broadcast list <span class="chip ${chosen.length&&chosen.every(p=>sent.has(p.id))?"ok":"plain"}">${chosen.filter(p=>sent.has(p.id)).length} / ${chosen.length} sent today</span></h3>
     ${chosen.length?`<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn primary w" data-a="snapNext" ${U.run?"":"disabled"}>Send next → ${esc((chosen.find(p=>!sent.has(p.id))||{name:"all done"}).name)}</button><button class="btn small" data-a="snapResetSent">Start again</button></div>
     <div class="tbl-wrap" style="margin-top:8px"><table><tbody>${chosen.map(p=>`<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.num)}</td><td style="text-align:right">${sent.has(p.id)?`<span class="chip ok">Sent</span> `:""}<a class="btn small ${sent.has(p.id)?"":"w"}" target="_blank" rel="noopener" href="${esc(waHref(p))}" data-a="snapMark" data-x="${esc(p.id)}">${sent.has(p.id)?"Resend":"WhatsApp"}</a></td></tr>`).join("")}</tbody></table></div>
-    <p class="hint" style="margin:8px 0 0">WhatsApp can't attach images from a link, so each message carries the caption plus the two page links (they open as pictures). To send the actual images to everyone at once, create a WhatsApp <b>Broadcast list</b> once with "Copy selected numbers", then use the share button above and choose that list.</p>`:`<div class="empty"><strong>No one selected yet</strong><span>Tick people above to build the list.</span></div>`}</div>`;
+    <p class="hint" style="margin:8px 0 0">WhatsApp can't attach images from a link, so each message carries the caption plus the booklet card. To send the actual images to everyone at once, create a WhatsApp <b>Broadcast list</b> once with "Copy selected numbers", then use the share button above and choose that list.</p>`:`<div class="empty"><strong>No one selected yet</strong><span>Tick people above to build the list.</span></div>`}</div>`;
 }
 const msg=()=>{const U=ui();return (U.caption||"")+"\n\n"+links()};
 const waHref=p=>"https://wa.me/"+p.num+"?text="+encodeURIComponent(msg());
@@ -75,6 +77,7 @@ const waHref=p=>"https://wa.me/"+p.num+"?text="+encodeURIComponent(msg());
 async function files(){const U=ui();return Promise.all(U.run.imgs.map(async i=>{const b=await (await fetch(i.url,{cache:"no-store"})).blob();return new File([b],i.name,{type:"image/png"})}))}
 J.act("snapReload",()=>load(true));
 J.act("snapCopyCap",async()=>{try{await navigator.clipboard.writeText(ui().caption||"");toast("Caption copied")}catch(e){toast("Copy not allowed here")}});
+J.act("snapShareBook",async()=>{const d={title:"Joshi's Corner - Morning Market Pulse",text:ui().caption||"",url:links()};try{if(navigator.share)await navigator.share(d);else{await navigator.clipboard.writeText((ui().caption||"")+"\n"+links());toast("Caption and booklet link copied")}}catch(e){if(e&&e.name!=="AbortError")toast("Could not share: "+(e.message||e))}});
 J.act("snapShare",async()=>{
   try{const f=await files();const data={files:f,text:ui().caption||"",title:"Morning Market Pulse"};
     if(navigator.canShare&&navigator.canShare({files:f})){await navigator.share(data)}
