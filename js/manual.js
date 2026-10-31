@@ -165,6 +165,50 @@ J.freePanel=()=>{if(!(S.me.owner||["Super Admin","Admin"].includes(J.myRole?.())
   ${row("Video titles (noembed), maps, YouTube","Free public services","as needed",true)}
   </tbody></table></div>
   <p class="hint">Don't: add a billing account to the Firebase project, switch on paid Firebase Storage / Functions, or use a paid WhatsApp Business API — none are needed.</p></div></section>`};
+
+// ---------- How the books connect (module → Accounts → checks). Edit LINKS when a module's posting or checks change; the counts below are live. ----------
+const LINKS={
+ sales:["One sale voucher per Petpooja day; Swiggy / Zomato settlements and fee journals; Google Pay and cash receipts","Sales, GST payable, cash, UPI, card, aggregator, due ledgers","Petpooja day total; aggregator report vs bank payout (UTR / amount); cash counter vs drawer; Mismatch finder"],
+ inventory:["Purchase vouchers, debit notes for returns, bill-vs-payment journals, stock journals","Stock / expense head, input GST, vendor","Vendor ledger in Accounts → Reconcile; payment from bank; expiry audit"],
+ staff:["Salary paid, advances, loans, salary held (escrow)","Staff, staff advance, staff loan, salary held","Each person's ledger in Reconcile; attendance feeds the payroll amount"],
+ kot:["Staff food charges and the receipts when staff pay","Staff ledger, food income","Mismatch finder against Petpooja staff food; staff ledger in Reconcile"],
+ assets:["Asset purchase, repair expense, disposal journals","Asset, depreciation, repairs","Depreciation schedule"],
+ insurance:["Premium payments and renewals","Expense heads, deposits","Renewal radar"],
+ invest:["Buy / sell trade vouchers","Investment ledgers","Holdings vs ledger cost"],
+ accounts:["Day book, manual entries, loans interest, card statements, GST paid","All ledgers","Reconcile, Bank check, Suspense, Reports, Freeze & checks"],
+ import:["Bank statement lines and old records as vouchers","Bank / card, with unknowns in Suspense","Bank check removes doubles against hand entries"],
+ directory:["Does not post. Vendors, customers and staff are the parties ledgers belong to","—","—"],
+ kitchen:["Does not post. Recipe costing reads Inventory item rates","—","—"],
+ clients:["Does not post. Credit customers use customer ledgers","—","—"],
+ dues:["Payments of rent, electricity, taxes, licences, EMIs and card bills; monthly fixed-bill journals","Expense heads, tax, loan, card, bank","Due list by month (due, part paid, paid); Reconcile for loan and card ledgers"],
+ mkjacc:["Personal instruments, capital and settlement of business spends (MKJ settlement journals)","Owner / personal ledgers, capital","Owner ledger balance in Reconcile"],
+ mkjinv:["Personal purchases marked in stock entries; posted as MKJ settlements","Owner / personal ledgers","Owner ledger balance in Reconcile"],
+ mkjassets:["Personal equipment and assets","Asset, owner ledgers","Asset register"],
+ care:["Does not post. Feedback, reviews and thank-you messages only","—","—"],
+ promo:["Does not post. Posters, banners and campaigns only","—","—"]};
+const SRC={ppday:"Sales & Cash · Petpooja day",bills:"Inventory · Supplier bills",moves:"Inventory · stock movements",payroll:"Staff & Payroll",kots:"Staff KOT",kotday:"Staff KOT",assets:"Fixed Assets",dues:"Dues & commitments",loans:"Loans & interest",escrow:"Salary held",trades:"Investments",mkjset:"MKJ settlement",policies:"Insurance",cashday:"Cash counter"};
+function booksMap(){const V=J.all("vouchers");const by={};for(const v of V){const k=v.src?.col||"x:"+(v.type||"entry");(by[k]=by[k]||{n:0,d:""}).n++;if((v.date||"")>by[k].d)by[k].d=v.date}
+  const rows=Object.entries(by).sort((a,b)=>b[1].n-a[1].n).map(([k,x])=>`<tr><td>${esc(SRC[k]||(k.startsWith("x:")?"Accounts · "+k.slice(2)+" entries":k))}</td><td class="num">${x.n.toLocaleString("en-IN")}</td><td>${x.d?J.fmtDate(x.d):""}</td></tr>`).join("");
+  const kinds={};for(const a of J.all("accounts"))kinds[a.kind]=(kinds[a.kind]||0)+1;
+  let mm=[];try{mm=J.mismatches?.()||[]}catch(e){}const sc={daily:0,monthly:0,yearly:0};mm.forEach(m=>sc[m.scope]=(sc[m.scope]||0)+1);
+  const mods=J.MODS.filter(m=>J.canSee(m.id)&&!["home","manual","settings","jdash"].includes(m.id));
+  const mrows=mods.map(m=>{const l=LINKS[m.id];return `<tr><td><b>${esc(m.label)}</b></td>${l?`<td>${esc(l[0])}</td><td>${esc(l[1])}</td><td>${esc(l[2])}</td>`:`<td colspan="3"><span class="chip warn">Not mapped yet</span> add this module to LINKS in js/manual.js</td>`}</tr>`}).join("");
+  return `<section class="panel" id="man-books"><h2>How the books connect</h2><div class="pb">
+  <p><b>Every module posts vouchers into Accounts; Accounts holds the ledger balances; the checks compare those balances with outside proof</b> (bank statement, Petpooja, aggregator report, vendor bill, cash drawer).</p>
+  <pre class="hint" style="white-space:pre-wrap">Modules  →  Accounts (vouchers → ledgers)  →  Reconcile · Bank check · Aggregator reconciliation · Mismatch finder · Suspense · Freeze &amp; checks</pre>
+  <div class="tbl-wrap"><table><thead><tr><th>Module</th><th>Posts</th><th>Ledgers touched</th><th>Tallied against</th></tr></thead><tbody>${mrows}</tbody></table></div>
+  <h3>Figures that must agree</h3><ul>
+   <li>Petpooja day total = Sales + GST payable = cash + UPI + card + aggregator + due ledgers.</li>
+   <li>UPI, card and aggregator ledgers clear when the bank credit arrives (Reconcile on that ledger).</li>
+   <li>Aggregator net payout = bank credit + commission, fees and GST journal.</li>
+   <li>Purchase or bill = vendor ledger credit, cleared by the bank payment.</li>
+   <li>Payroll amount = salary ledger, cleared by salary paid. Staff food + advances − recoveries = staff ledger.</li>
+   <li>Ledger balance − uncleared debits + uncleared credits = statement closing balance.</li></ul>
+  <h3>Live now</h3>
+  <p class="hint">${V.length.toLocaleString("en-IN")} vouchers across ${J.all("accounts").length.toLocaleString("en-IN")} ledgers · open reminders from Mismatch finder: daily ${sc.daily}, monthly ${sc.monthly}, yearly ${sc.yearly}.</p>
+  <div class="tbl-wrap"><table><thead><tr><th>Posted from</th><th>Vouchers</th><th>Latest</th></tr></thead><tbody>${rows||'<tr><td colspan="3" class="muted">No vouchers yet.</td></tr>'}</tbody></table></div>
+  <h3>Reconcile in this order</h3><ol><li>Sales &amp; Cash → post every Petpooja day.</li><li>Import the bank statement once; Accounts → Bank check.</li><li>Upload Swiggy / Zomato settlement reports.</li><li>Accounts → Reconcile each bank, card, wallet, aggregator, vendor and staff ledger until the difference is zero.</li><li>Clear Suspense.</li><li>Clear Home → Reminders (Mismatch finder).</li><li>Review Reports and GST paid, then freeze the month.</li></ol>
+  </div></section>`}
 // ---------- the Manual module ----------
 function vManual(){const q=(J.ui("man",{q:""}).q||"").toLowerCase();const vis=J.MODS.filter(m=>J.canSee(m.id)&&M[m.id]);
   const hit=x=>!q||JSON.stringify(x).toLowerCase().includes(q);
@@ -176,9 +220,10 @@ function vManual(){const q=(J.ui("man",{q:""}).q||"").toLowerCase();const vis=J.
    <li>Upload supplier bills; don't type them again.</li>
    <li>Book spending to a sub-category; vendors are tracked inside it.</li>
    <li>Fix mistakes with Edit in the module that made the entry; delete only true duplicates.</li></ol></div></section>
+  ${(!S.me.kitchen&&!S.me.cc&&(!q||"books connect reconcile ledger tally voucher".includes(q)||q.length<3))?booksMap():""}
   ${mods.map(m=>`<section class="panel" id="man-${m.id}"><h2>${esc(M[m.id].t)} <button class="linkbtn" data-go="${m.id}">open →</button></h2><div class="pb">${m.id==="inventory"?block(M.inventory)+`<h3>Supplier bills</h3>`+block(M.bills):block(M[m.id])}</div></section>`).join("")}
   ${accs.length?`<section class="panel" id="man-ledgers"><h2>Ledgers and accounts</h2><div class="pb">${accs.map(([,v])=>`<details><summary><b>${esc(v.t)}</b></summary>${block(v)}</details>`).join("")}</div></section>`:""}
   ${!mods.length&&!accs.length?`<div class="panel pb muted">Nothing matches “${esc(q)}”.</div>`:""}`}
-J.act("manPrint",()=>{const vis=J.MODS.filter(m=>J.canSee(m.id)&&M[m.id]);J.printDoc("Operating manual",`<h1>${esc(J.settings().business)} — Operating manual</h1>${vis.map(m=>`<h2>${esc(M[m.id].t)}</h2>${block(M[m.id])}${m.id==="inventory"?"<h3>Supplier bills</h3>"+block(M.bills):""}`).join("")}<h2>Ledgers and accounts</h2>${Object.values(A).map(v=>`<h3>${esc(v.t)}</h3>${block(v)}`).join("")}`)});
+J.act("manPrint",()=>{const vis=J.MODS.filter(m=>J.canSee(m.id)&&M[m.id]);J.printDoc("Operating manual",`<h1>${esc(J.settings().business)} — Operating manual</h1>${booksMap()}${vis.map(m=>`<h2>${esc(M[m.id].t)}</h2>${block(M[m.id])}${m.id==="inventory"?"<h3>Supplier bills</h3>"+block(M.bills):""}`).join("")}<h2>Ledgers and accounts</h2>${Object.values(A).map(v=>`<h3>${esc(v.t)}</h3>${block(v)}`).join("")}`)});
 J.mod({id:"manual",label:"Manual",group:"Governance",icon:'<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h7M8 11h7"/>',sub:"How to use every screen and ledger — what it does, its impact on the books, and what to do and not do.",tabs:[["manual","Manual",vManual]]});
 })();
