@@ -239,7 +239,7 @@ function gApply(){const w=document.getElementById("bm-wrap");if(!w)return;const 
   const n=gBy[gSel],g=c=>[...on].filter(x=>gBy[x][1]===c&&x!==gSel);const ch=(t,c)=>g(c).length?`<div class="hint">${t}</div><div class="bm-cn">${g(c).map(x=>`<button class="btn sm" data-a="bmPick" data-x="${x}">${esc(gBy[x][2])}</button>`).join("")}</div>`:"";
   d.innerHTML=`<b>${esc(n[2])}</b><div>${esc(n[4])}</div>${ch("Modules that feed it",0)}${ch("Ledgers involved",1)}${ch("Checks that tally it",2)}`}
 J.act("bmPick",el=>{const id=el.dataset.x||el.dataset.id;gSel=gSel===id?null:id;gApply()});
-function booksGraph(){gSel=null;setTimeout(gDraw,60);setTimeout(gDraw,400);
+function booksGraph(){setTimeout(gDraw,60);setTimeout(gDraw,400);
   return `<style>#bm-wrap{position:relative;display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 48px;border:1px solid var(--line,#ddd);border-radius:10px;padding:12px 14px}#bm-wrap .bm-col{display:flex;flex-direction:column;gap:6px;position:relative;z-index:2;min-width:0}#bm-svg{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
   .bm-nd{text-align:left;cursor:pointer;border:1px solid var(--line,#ccc);border-radius:8px;padding:6px 10px;background:#e4eef2;color:#14232c;font:inherit;transition:opacity .15s}.bm-nd.k1{background:#0f4c5c;color:#fff}.bm-nd.k2{background:#e7f3ea;border-color:#9cc7a7}.bm-nd small{display:block;opacity:.75;font-size:11px}
   #bm-wrap.sel .bm-nd{opacity:.28}#bm-wrap.sel .bm-nd.on{opacity:1;box-shadow:0 0 0 2px #b45309}.bm-ln{fill:none;stroke:#889;stroke-width:1.2;opacity:.25}#bm-wrap.sel .bm-ln{opacity:.05}#bm-wrap.sel .bm-ln.on{stroke:#b45309;stroke-width:2.2;opacity:.95}
