@@ -187,6 +187,65 @@ const LINKS={
  care:["Does not post. Feedback, reviews and thank-you messages only","—","—"],
  promo:["Does not post. Posters, banners and campaigns only","—","—"]};
 const SRC={ppday:"Sales & Cash · Petpooja day",bills:"Inventory · Supplier bills",moves:"Inventory · stock movements",payroll:"Staff & Payroll",kots:"Staff KOT",kotday:"Staff KOT",assets:"Fixed Assets",dues:"Dues & commitments",loans:"Loans & interest",escrow:"Salary held",trades:"Investments",mkjset:"MKJ settlement",policies:"Insurance",cashday:"Cash counter"};
+const GN=[ // id, column, label, sub, detail
+["sales",0,"Sales & Cash","Petpooja, UPI, Swiggy / Zomato, cash counter","Posts one sale voucher per Petpooja day, settlement receipts, and a journal for commission, fees and GST deducted by Swiggy / Zomato."],
+["inv",0,"Inventory","Purchases, returns, consumption, Bills","Posts purchase vouchers, debit notes for returns, bill-vs-payment difference journals and stock journals."],
+["staff",0,"Staff & Payroll","Attendance, payroll, advances, loans","Posts salary earned and paid, advances, loans and salary held (escrow). Attendance sets the payroll amount."],
+["kot",0,"Staff KOT","Staff food tickets","Posts staff food charges to the person's ledger, and receipts when staff pay by cash or Google Pay."],
+["assets",0,"Fixed Assets","Register, repairs, depreciation","Posts asset purchases, repair expense and disposal journals."],
+["dues",0,"Dues, insurance, cards","Rent, taxes, EMIs, premiums, card bills","Posts payments and renewals, monthly fixed-bill journals and credit card statement spend."],
+["inv2",0,"Investments (MKJ)","Trades, capital, personal spends","Posts buy / sell trade vouchers and settlement of personal spends."],
+["imp",0,"Import data","Bank statements, old records","Turns statement lines and old Excel / CSV records into vouchers; unknown items go to Suspense."],
+["bank",1,"Cash & Bank","Cash, bank, card, wallet","Where money actually sits. Every payment and receipt ends here."],
+["recv",1,"Receivables","Aggregators, customers, UPI / card settlements","Money due to you: Swiggy / Zomato payouts, UPI and card settlements, credit customers."],
+["pay",1,"Payables","Vendors","Money you owe suppliers. Purchases credit it, bank payments clear it."],
+["stf",1,"Staff","Salary per person","Salary earned (credit) and salary paid (debit). Staff food is charged here."],
+["adv",1,"Staff advances & loans","Advances, loans, salary held","Advance and loan balances to recover; held salary still owed."],
+["inc",1,"Income","Sales and other income","Sales by head, shown in P&L."],
+["exp",1,"Expenses","Heads and sub-categories","Everything spent, shown in P&L and expenses by category."],
+["tax",1,"Duties & Taxes","GST in and out, TDS, professional tax","Output GST collected, input GST claimable, balances payable to the government."],
+["loan",1,"Loans & deposits","Loans, deposits paid / received","Loans taken or given with interest, and security deposits."],
+["ast",1,"Assets & investments","Fixed assets, shares, stock, capital","Equipment, investments, closing stock value and owner capital."],
+["susp",1,"Suspense","Unclassified","Waiting room for statement lines and bill differences. Should be zero at month end."],
+["rec",2,"Reconcile","Accounts → Reconcile","Per ledger: book balance minus uncleared debits plus uncleared credits must equal the statement closing balance. Used for bank, card, wallet, aggregator, vendor, staff, loans and deposits."],
+["bchk",2,"Bank check","One payment, one entry","Finds doubles between imported statement lines and hand entries, and ticks one off against the other."],
+["agg",2,"Aggregator reconciliation","Swiggy / Zomato reports","Matches each order to Petpooja by order id, and each payout to the bank by UTR or amount."],
+["mm",2,"Mismatch finder","Daily, monthly, yearly (read-only)","Flags unposted Petpooja days, payments not received, payroll and bank gaps and suspense. Feeds Home reminders."],
+["sus",2,"Suspense check","Accounts → Suspense","Gives every unclassified entry a proper ledger."],
+["frz",2,"Freeze, GST, Reports","Close the month","Compares GST collected with GST paid, shows P&L and balance sheet, then locks the period."]];
+const GE=[ // module -> ledger
+["sales","bank"],["sales","recv"],["sales","inc"],["sales","tax"],["sales","exp"],
+["inv","ast"],["inv","exp"],["inv","tax"],["inv","pay"],["inv","susp"],
+["staff","stf"],["staff","adv"],["staff","exp"],["staff","bank"],
+["kot","stf"],["kot","inc"],
+["assets","ast"],["assets","exp"],["assets","bank"],
+["dues","exp"],["dues","tax"],["dues","loan"],["dues","bank"],
+["inv2","ast"],["inv2","bank"],
+["imp","bank"],["imp","susp"],
+// ledger -> check
+["bank","rec"],["recv","rec"],["pay","rec"],["stf","rec"],["adv","rec"],["loan","rec"],
+["bank","bchk"],["recv","agg"],["bank","agg"],
+["inc","mm"],["recv","mm"],["bank","mm"],["stf","mm"],["pay","mm"],["susp","mm"],
+["susp","sus"],["tax","frz"],["inc","frz"],["exp","frz"]];
+const gBy=Object.fromEntries(GN.map(n=>[n[0],n]));let gSel=null;
+function gRel(id){const on=new Set([id]);const up=x=>{for(const [a,b] of GE)if(b===x&&gBy[a][1]<gBy[x][1]&&!on.has(a)){on.add(a);up(a)}};const dn=x=>{for(const [a,b] of GE)if(a===x&&gBy[b][1]>gBy[x][1]&&!on.has(b)){on.add(b);dn(b)}};up(id);dn(id);return on}
+function gDraw(){const w=document.getElementById("bm-wrap"),svg=document.getElementById("bm-svg");if(!w||!svg)return;svg.innerHTML="";if(w.clientWidth<700)return;const r=w.getBoundingClientRect();
+  for(const [a,b] of GE){const A=w.querySelector(`[data-id="${a}"]`),B=w.querySelector(`[data-id="${b}"]`);if(!A||!B)continue;const x=A.getBoundingClientRect(),y=B.getBoundingClientRect();const x1=x.right-r.left,y1=x.top+x.height/2-r.top,x2=y.left-r.left,y2=y.top+y.height/2-r.top,m=(x1+x2)/2;
+    const p=document.createElementNS("http://www.w3.org/2000/svg","path");p.setAttribute("d",`M${x1} ${y1} C${m} ${y1} ${m} ${y2} ${x2} ${y2}`);p.setAttribute("class","bm-ln");p.dataset.a=a;p.dataset.b=b;svg.appendChild(p)}gApply()}
+function gApply(){const w=document.getElementById("bm-wrap");if(!w)return;const on=gSel?gRel(gSel):null;w.classList.toggle("sel",!!gSel);
+  w.querySelectorAll(".bm-nd").forEach(e=>{e.classList.toggle("on",!!on&&on.has(e.dataset.id));e.classList.toggle("me",e.dataset.id===gSel)});
+  w.querySelectorAll(".bm-ln").forEach(p=>p.classList.toggle("on",!!on&&on.has(p.dataset.a)&&on.has(p.dataset.b)));
+  const d=document.getElementById("bm-detail");if(!d)return;if(!gSel){d.innerHTML="<b>Tap a module, ledger group or check.</b> Everything it feeds or is checked by lights up and the rest dims. Tap it again to clear.";return}
+  const n=gBy[gSel],g=c=>[...on].filter(x=>gBy[x][1]===c&&x!==gSel);const ch=(t,c)=>g(c).length?`<div class="hint">${t}</div><div class="bm-cn">${g(c).map(x=>`<button class="btn sm" data-a="bmPick" data-x="${x}">${esc(gBy[x][2])}</button>`).join("")}</div>`:"";
+  d.innerHTML=`<b>${esc(n[2])}</b><div>${esc(n[4])}</div>${ch("Modules that feed it",0)}${ch("Ledgers involved",1)}${ch("Checks that tally it",2)}`}
+J.act("bmPick",el=>{const id=el.dataset.x||el.dataset.id;gSel=gSel===id?null:id;gApply()});
+function booksGraph(){gSel=null;setTimeout(gDraw,60);setTimeout(gDraw,400);
+  return `<style>#bm-wrap{position:relative;display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 48px;border:1px solid var(--line,#ddd);border-radius:10px;padding:12px 14px}#bm-wrap .bm-col{display:flex;flex-direction:column;gap:6px;position:relative;z-index:2;min-width:0}#bm-svg{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+  .bm-nd{text-align:left;cursor:pointer;border:1px solid var(--line,#ccc);border-radius:8px;padding:6px 10px;background:#e4eef2;color:#14232c;font:inherit;transition:opacity .15s}.bm-nd.k1{background:#0f4c5c;color:#fff}.bm-nd.k2{background:#e7f3ea;border-color:#9cc7a7}.bm-nd small{display:block;opacity:.75;font-size:11px}
+  #bm-wrap.sel .bm-nd{opacity:.28}#bm-wrap.sel .bm-nd.on{opacity:1;box-shadow:0 0 0 2px #b45309}.bm-ln{fill:none;stroke:#889;stroke-width:1.2;opacity:.25}#bm-wrap.sel .bm-ln{opacity:.05}#bm-wrap.sel .bm-ln.on{stroke:#b45309;stroke-width:2.2;opacity:.95}
+  #bm-detail{margin-top:8px;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:10px}.bm-cn{display:flex;flex-wrap:wrap;gap:5px;margin:3px 0}@media(max-width:700px){#bm-wrap{grid-template-columns:1fr}#bm-svg{display:none}}</style>
+  <div id="bm-wrap"><svg id="bm-svg" aria-hidden="true"></svg>${[0,1,2].map(c=>`<div class="bm-col"><div class="hint"><b>${["Modules","Ledgers in Accounts","Checks"][c]}</b></div>${GN.filter(n=>n[1]===c).map(n=>`<button class="bm-nd k${c}" data-a="bmPick" data-id="${n[0]}">${esc(n[2])}<small>${esc(n[3])}</small></button>`).join("")}</div>`).join("")}</div><div id="bm-detail"><b>Tap a module, ledger group or check.</b> Everything it feeds or is checked by lights up and the rest dims. Tap it again to clear.</div>`}
+window.addEventListener("resize",()=>gDraw());
 function booksMap(){const V=J.all("vouchers");const by={};for(const v of V){const k=v.src?.col||"x:"+(v.type||"entry");(by[k]=by[k]||{n:0,d:""}).n++;if((v.date||"")>by[k].d)by[k].d=v.date}
   const rows=Object.entries(by).sort((a,b)=>b[1].n-a[1].n).map(([k,x])=>`<tr><td>${esc(SRC[k]||(k.startsWith("x:")?"Accounts · "+k.slice(2)+" entries":k))}</td><td class="num">${x.n.toLocaleString("en-IN")}</td><td>${x.d?J.fmtDate(x.d):""}</td></tr>`).join("");
   const kinds={};for(const a of J.all("accounts"))kinds[a.kind]=(kinds[a.kind]||0)+1;
@@ -195,7 +254,7 @@ function booksMap(){const V=J.all("vouchers");const by={};for(const v of V){cons
   const mrows=mods.map(m=>{const l=LINKS[m.id];return `<tr><td><b>${esc(m.label)}</b></td>${l?`<td>${esc(l[0])}</td><td>${esc(l[1])}</td><td>${esc(l[2])}</td>`:`<td colspan="3"><span class="chip warn">Not mapped yet</span> add this module to LINKS in js/manual.js</td>`}</tr>`}).join("");
   return `<section class="panel" id="man-books"><h2>How the books connect</h2><div class="pb">
   <p><b>Every module posts vouchers into Accounts; Accounts holds the ledger balances; the checks compare those balances with outside proof</b> (bank statement, Petpooja, aggregator report, vendor bill, cash drawer).</p>
-  <pre class="hint" style="white-space:pre-wrap">Modules  →  Accounts (vouchers → ledgers)  →  Reconcile · Bank check · Aggregator reconciliation · Mismatch finder · Suspense · Freeze &amp; checks</pre>
+  ${booksGraph()}
   <div class="tbl-wrap"><table><thead><tr><th>Module</th><th>Posts</th><th>Ledgers touched</th><th>Tallied against</th></tr></thead><tbody>${mrows}</tbody></table></div>
   <h3>Figures that must agree</h3><ul>
    <li>Petpooja day total = Sales + GST payable = cash + UPI + card + aggregator + due ledgers.</li>
