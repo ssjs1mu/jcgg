@@ -39,7 +39,7 @@ J.parseOrderListing=rows=>{const hi=rows.findIndex(r=>r.some(c=>HDR.no.test(Stri
     const o={no,ext:String(g(r,"ext")||"").trim(),ch,table:(type.match(/\(([^)]+)\)/)||[])[1]||"",area:ch==="dine"?sub:"",agg:/swiggy/i.test(sub)?"swiggy":/zomato/i.test(sub)?"zomato":/eazy/i.test(sub)?"eazydiner":"",
       name:String(g(r,"name")||"").trim(),phone:ph.length===10&&!DUMMY.has(ph)?ph:"",items,amt:r2(nm(g(r,"amt"))),disc:r2(nm(g(r,"disc"))),deliv:r2(nm(g(r,"deliv"))),cont:r2(nm(g(r,"cont"))),tax:r2(nm(g(r,"tax"))),round:r2(nm(g(r,"round"))),
       total:r2(nm(g(r,"total"))),payType:String(g(r,"pay")||"").trim(),mode:payMode(g(r,"pay")),status:String(g(r,"status")||"").trim(),date,time,split:[]};
-    o.house=hs.has(norm(o.name))||(!!o.phone&&housePh().has(o.phone))||(items.length>0&&items.every(isStaffItem));out.push(o);cur=o}
+    o.house=hs.has(norm(o.name))||(!!o.phone&&housePh().has(String(o.phone).replace(/\D/g,"").slice(-10)))||(items.length>0&&items.every(isStaffItem));out.push(o);cur=o}
   for(const o of out){const calc=r2(o.amt-o.disc+o.deliv+o.cont+o.tax+o.round);o.net=o.mode!=="part"&&o.total>0?o.total:calc;let pays;
     if(o.mode==="part")pays=o.split.filter(p=>p.amt>0&&!["due","notpaid"].includes(p.m));else if(["due","notpaid"].includes(o.mode))pays=[];else pays=[{m:o.mode||"other",amt:o.total||o.net}];
     const paid=r2(pays.reduce((s,p)=>s+p.amt,0));const due=r2(o.net-paid);if(due>0.5)pays.push({m:"due",amt:due});else if(due<-0.5)o.extra=r2(-due);
@@ -105,13 +105,12 @@ function review(){const st=ui().stg;const os=st.orders;const okk=os.filter(live)
    <tr><td>Days already imported</td><td>${have.length?have.length+" — their orders are replaced by this file (no doubles)":"none"}</td></tr></tbody></table></div>
   <section class="panel pb" style="margin:8px 0"><b>House / staff orders: ${hs.length} · ${money0(sum(hs,o=>o.net))}</b><div class="hint">Orders for ${esc(house().join(", "))}, or from phone ${esc([...housePh()].join(", "))} (Suraj Joshi, Manoj Joshi), or with only staff items (names ending “-e” or “Staff”).</div>
    ${fld("House account names (comma separated)",txt("house",house().join(", ")))}
-   <label class="row" style="gap:6px"><input type="radio" name="houseAs" value="staff" ${st.houseAs==="staff"?"checked":""}> Staff / owner food — not sales: matched each day with the staff KOTs and received against the house ledger (Staff KOT → Daily tally)</label>
-   <label class="row" style="gap:6px"><input type="radio" name="houseAs" value="sales" ${st.houseAs==="sales"?"checked":""}> Count them as sales, paid as Petpooja shows</label></section>
+   <input type="hidden" name="houseAs" value="staff"><p class="hint" style="margin:6px 0 0"><b>Fixed rule:</b> these orders are always staff / owner food — never sales. They are matched each day with the staff KOTs and received against the house ledger (Staff KOT → Daily tally). Nothing to choose here.</p></section>
   <label class="row" style="gap:6px"><input type="checkbox" name="post" ${st.post?"checked":""}> Post each day's sales to Accounts (cash → Cash in Hand, UPI → Google Pay settlements, online → Swiggy / Zomato, dues → the customer's ledger)</label>
   <label class="row" style="gap:6px"><input type="checkbox" name="points" ${st.points?"checked":""}> Add every bill with its items to the client master (history, habits and reward points)</label>
   <p class="hint">Each day becomes one sales entry, so UPI sales can be matched with Google Pay credits in the bank (Sales &amp; Cash → UPI ↔ Google Pay) and cash with the counter count (Cash counter).</p>`,
   onSubmit:async fd=>{const hn=String(fd.house||"").split(",").map(s=>s.trim()).filter(Boolean);if(hn.join()!==house().join())await J.store.patch("meta","settings",{ppHouse:hn});const hs2=new Set(hn.map(norm));
-    for(const o of os){o.house=fd.houseAs==="sales"?false:(hs2.has(norm(o.name))||(!!o.phone&&housePh().has(o.phone))||(o.items.length>0&&o.items.every(isStaffItem)))}
+    for(const o of os){o.house=(hs2.has(norm(o.name))||(!!o.phone&&housePh().has(String(o.phone).replace(/\D/g,"").slice(-10)))||(o.items.length>0&&o.items.every(isStaffItem)))}
     await commit(os,{post:!!fd.post,points:!!fd.points,file:st.file});ui().stg=null}})}
 async function commit(os,opt){const byDay={};for(const o of os)if(o.date)(byDay[o.date]??=[]).push(o);const days=Object.keys(byDay).sort();
   J.busy.start("Importing Petpooja orders",days.length+(opt.points?1:0),"steps");let acc=null;try{if(opt.post)acc=await L();
