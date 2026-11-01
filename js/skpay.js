@@ -24,7 +24,9 @@ const famNames=()=>{const set=arr(J.settings().kotPayers).map(nm).filter(Boolean
   const out=new Set();try{const houseO=new Set();for(const d of J.all("ppday"))for(const o of (d.orders||[]))if(J.ppIsHouse?.(o,d.id))houseO.add(d.id+"#"+o.no);const cnt={};
     for(const c of J.gpay.run().colls){const t=String(c.used||"").split("+").filter(x=>x&&!x.startsWith("kot:")).map(x=>x.split("#").slice(0,2).join("#"));if(t.some(x=>houseO.has(x)))cnt[nm(c.n)]=(cnt[nm(c.n)]||0)+1}
     for(const [n,c] of Object.entries(cnt))if(c>=3)out.add(n)}catch(e){}return out};
-const isFam=(c,fam)=>fam.has(nm(c.n))||/^(manoj|suraj)\b/.test(nm(c.n));
+// Google Pay shortens names ("Manju S", "Swati J"), so a payer matches a family name when the first name is equal and the later words agree as initials / prefixes.
+const nameOk=(a,b)=>{const x=a.split(" "),y=b.split(" ");return x[0]===y[0]&&x.slice(1).every((t,i)=>y[i+1]&&y[i+1].startsWith(t))};
+const isFam=(c,fam)=>{const n=nm(c.n);if(fam.has(n)||/^(manoj|suraj)\b/.test(n))return true;for(const f of fam)if(nameOk(n,f)||nameOk(f,n))return true;return false};
 const allPayers=()=>J.ui("skm",{}).allp===true;
 const unusedColls=()=>{try{const f=J.gpay.run().colls.filter(c=>!c.used);if(allPayers())return f;const fam=famNames();return f.filter(c=>isFam(c,fam))}catch(e){return []}};
 // ---- automatic matching ----
