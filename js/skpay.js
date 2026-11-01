@@ -28,7 +28,7 @@ const famNames=()=>{const set=arr(J.settings().kotPayers).map(nm).filter(Boolean
 const nameOk=(a,b)=>{const x=a.split(" "),y=b.split(" ");return x[0]===y[0]&&x.slice(1).every((t,i)=>y[i+1]&&y[i+1].startsWith(t))};
 const isFam=(c,fam)=>{const n=nm(c.n);if(fam.has(n)||/^(manoj|suraj)\b/.test(n))return true;for(const f of fam)if(nameOk(n,f)||nameOk(f,n))return true;return false};
 const allPayers=()=>J.ui("skm",{}).allp===true;
-const unusedColls=()=>{try{const f=J.gpay.run().colls.filter(c=>!c.used);if(allPayers())return f;const fam=famNames();return f.filter(c=>isFam(c,fam))}catch(e){return []}};
+const unusedColls=()=>{try{const f=J.gpay.run().colls.filter(c=>!c.used);if(allPayers())return f;const fam=famNames(),pin=J.ui("skm",{}).pin||{};return f.filter(c=>isFam(c,fam)||pin[c.k])}catch(e){return []}};
 // ---- automatic matching ----
 // 1) a day's unpaid KOT total == that day's free Google Pay collections;
 // 2) a collection equals the clubbed total of consecutive unpaid KOT days ending on, or up to 3 days before, the collection date.
@@ -89,6 +89,8 @@ function view(){const U=ui();const pm=paidMap();const all=kots();
    <td>${g.ps.map(p=>`<span class="chip ok">${p.auto?"Auto · ":""}Paid ${fmtDate(p.date)}</span>`).join(" ")}${g.un.length?`<span class="chip warn">Unpaid</span>${candHint(g)}`:""}</td></tr>`}).join("")||'<tr><td colspan="6" class="muted">Nothing to show.</td></tr>'}</tbody></table></div></section>
   <section class="panel"><h2>Payments matched</h2><div class="tbl-wrap"><table><thead><tr><th>Paid on</th><th>Amount</th><th>KOTs</th><th>Person(s)</th><th>Difference</th><th>Note</th><th></th></tr></thead><tbody>${items().slice().reverse().map(p=>`<tr><td>${fmtDate(p.date)}<div class="hint">${p.auto?"auto":esc((p.by||"").split("@")[0])}</div></td><td class="num">${inr.format(p.amt)}</td><td class="num">${arr(p.kots).length}<div class="hint">${esc(p.nos||"")}</div></td><td class="hint">${esc(p.who||"")}</td><td class="num">${Math.abs(p.diff||0)>=0.5?(p.diff>0?"+":"−")+inr.format(Math.abs(p.diff)):"—"}</td><td>${esc(p.note||"")}${p.vid&&J.get("vouchers",p.vid)?` <button class="linkbtn vno" data-a="editv" data-x="${p.vid}">${esc(J.get("vouchers",p.vid).no)}</button>`:'<div class="hint">match only</div>'}</td><td>${J.confirmBtn("skp:"+p.id,"Undo this match","skmUndo",p.id)}</td></tr>`).join("")||'<tr><td colspan="7" class="muted">No payments matched yet.</td></tr>'}</tbody></table></div></section>`}
 J.skMatchView=view;
+// Used from the collections-of-the-day list: tick the unpaid KOTs of a day and the chosen Google Pay collection, then open Match payments to save.
+J.skPickColl=(date,ck)=>{const U=ui();const pm=paidMap();U.sel={};U.gp={[ck]:true};U.pin={...(U.pin||{}),[ck]:true};for(const k of kots())if(k.date===date&&!pm.has(k.id))U.sel[k.id]=true;J.go("kot","match");setTimeout(()=>window.scrollTo(0,0),200)};
 J.act("skmDay",el=>{const U=ui();const pm=paidMap();for(const k of kots())if(k.date===el.dataset.x&&!pm.has(k.id)&&(!U.staff||k.staff===U.staff)){if(el.checked)U.sel[k.id]=true;else delete U.sel[k.id]}J.render()});
 J.act("skmUse",el=>{const [ck,a,b]=el.dataset.x.split("|");const U=ui();const pm=paidMap();U.sel={};U.gp={[ck]:true};for(const k of kots())if(k.date>=a&&k.date<=b&&!pm.has(k.id))U.sel[k.id]=true;J.render();window.scrollTo(0,0)});
 J.act("skmGp",el=>{const U=ui();if(el.checked)U.gp[el.dataset.x]=true;else delete U.gp[el.dataset.x];J.render()});
