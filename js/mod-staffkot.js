@@ -132,7 +132,8 @@ function vFood(){const U=J.ui("skf",{fy:"",sid:"",m:""});const fy=U.fy||J.fyOf(t
 // Without a Google Pay file at all, Petpooja's own payment line is trusted.
 J.skProof=()=>{let has=false;const used=new Set();try{const r=J.gpay&&J.gpay.txns&&J.gpay.txns().length?J.gpay.run():null;if(r){has=true;for(const c of r.colls)for(const t of String(c.used||"").split("+")){if(t&&!t.startsWith("kot:"))used.add(t.split("#").slice(0,2).join("#"))}}}catch(e){has=false}
   const kd=new Set();for(const p of (J.get("meta","kotPay")?.items||[])){for(const d of (p.days||[]))kd.add(d);for(const id of (p.kots||[])){const k=J.get("kots",id);if(k)kd.add(k.date)}}
-  return d=>{const os=(J.get("ppday",d)?.orders||[]).filter(o=>(J.ppIsHouse?J.ppIsHouse(o,d):o.house)&&!/cancel|saved/i.test(o.status||""));let ok=0,no=0;for(const o of os)for(const p of o.pays){if(p.m==="due")continue;if(!has||p.m!=="upi"||used.has(d+"#"+o.no)||kd.has(d))ok+=p.amt;else no+=p.amt}return {ok:r2(ok),no:r2(no)}}};
+  const hold={};for(const p of (J.get("meta","kotPay")?.items||[]))if(p.hold)hold[p.date]=r2((hold[p.date]||0)+p.amt);
+  const fn=d=>{const os=(J.get("ppday",d)?.orders||[]).filter(o=>(J.ppIsHouse?J.ppIsHouse(o,d):o.house)&&!/cancel|saved/i.test(o.status||""));let ok=0,no=0;for(const o of os)for(const p of o.pays){if(p.m==="due")continue;if(!has||p.m!=="upi"||used.has(d+"#"+o.no)||kd.has(d))ok+=p.amt;else no+=p.amt}return {ok:r2(ok+(hold[d]||0)),no:r2(no)}};fn.hold=hold;return fn};
 J.skDayMatch=(days)=>{const legs=[];const q=[];const adv=[];const left={};const cl=a=>Math.abs(a)<1;
   for(const x of days){let k=x.k;
     if(k>=1&&Math.abs(x.pay-k)<1){legs.push({kd:x.d,pd:x.d,a:k});continue}
@@ -148,7 +149,7 @@ function vTally(){const m=WM();const h=J.settings().kotHouse||{};const hk=J.kotH
   const days=[...new Set([...J.all("kots").filter(k=>k.kind==="staff"&&k.date.startsWith(m)).map(k=>k.date),...J.all("ppday").filter(d=>d.id.startsWith(m)).map(d=>d.id)])].sort();
   const pp=d=>{const os=(J.get("ppday",d)?.orders||[]).filter(o=>(J.ppIsHouse?J.ppIsHouse(o,d):o.house)&&!/cancel|saved/i.test(o.status||""));return {n:os.length,amt:r2(os.reduce((s,o)=>s+o.net,0)),how:[...new Set(os.flatMap(o=>o.pays.map(p=>({cash:"Cash",upi:"UPI",card:"Card",due:"Due",online:"Online"})[p.m]||p.m)))].join(" + ")}};
   const rows=days.map(d=>{const k=dayTot(d),p=pp(d);return {d,k,n:J.all("kots").filter(x=>x.kind==="staff"&&x.date===d).length,p,diff:r2(p.amt-k)}});const T=rows.reduce((t,r)=>({k:t.k+r.k,p:t.p+r.p.amt}),{k:0,p:0});const proof=J.skProof();const hp=d=>proof(d).ok;
-  const from0=hk?.from?hk.from+"-01":"";const allDays=[...new Set([...J.all("kots").filter(k=>k.kind==="staff"&&k.date>=from0).map(k=>k.date),...J.all("ppday").filter(d=>d.id>=from0).map(d=>d.id)])].sort();
+  const from0=hk?.from?hk.from+"-01":"";const allDays=[...new Set([...J.all("kots").filter(k=>k.kind==="staff"&&k.date>=from0).map(k=>k.date),...J.all("ppday").filter(d=>d.id>=from0).map(d=>d.id),...(J.get("meta","kotPay")?.items||[]).filter(p=>p.hold&&p.date>=from0).map(p=>p.date)])].sort();
   const DM=J.skDayMatch(allDays.map(d=>({d,k:dayTot(d),pay:hp(d)})));
   const pos=up=>{const r=J.skDayMatch(allDays.filter(d=>d<=up).map(d=>({d,k:dayTot(d),pay:hp(d)})));return {D:r2(Object.values(r.pend).reduce((t,x)=>t+x,0)),E:r2(Object.values(r.ahead).reduce((t,x)=>t+x,0))}};
   const opn=pos(J.addDays(m+"-01",-1)),cls=pos(J.monthEnd(m));const bal=x=>(x.D>=1?"due "+money(x.D):"")+(x.D>=1&&x.E>=1?" · ":"")+(x.E>=1?"excess "+money(x.E):"")||"nil";
@@ -174,7 +175,7 @@ J.act("khSave",async()=>{let acc=document.getElementById("kh-acc")?.value||"";co
     for(const d of J.all("ppday"))if(d.id.slice(0,7)>=(on?from2:from)&&J.ppPostDay&&d.orders.some(o=>J.ppIsHouse?J.ppIsHouse(o,d.id):o.house))await J.ppRepost?.(d.id)},on?"Staff food now goes through "+J.accName(acc)+" from "+monthLabel(from):"House account switched off");J.H?.syncSoon?.("staff food billing changed")});
 // Staff KOT badge: unpaid KOT days and excess payments on hold, net due as on today.
 J.skDueSummary=()=>{const hk=J.kotHouse();if(!hk)return null;const proof=J.skProof();const from0=hk.from?hk.from+"-01":"";
-  const days=[...new Set([...J.all("kots").filter(k=>k.kind==="staff"&&k.date>=from0).map(k=>k.date),...J.all("ppday").filter(d=>d.id>=from0).map(d=>d.id)])].sort();
+  const days=[...new Set([...J.all("kots").filter(k=>k.kind==="staff"&&k.date>=from0).map(k=>k.date),...J.all("ppday").filter(d=>d.id>=from0).map(d=>d.id),...(J.get("meta","kotPay")?.items||[]).filter(p=>p.hold&&p.date>=from0).map(p=>p.date)])].sort();
   const DM=J.skDayMatch(days.map(d=>({d,k:dayTot(d),pay:proof(d).ok})));
   const due=Object.entries(DM.pend).map(([d,a])=>({d,a})).sort((x,y)=>x.d.localeCompare(y.d)),ex=Object.entries(DM.ahead).map(([d,a])=>({d,a})).sort((x,y)=>x.d.localeCompare(y.d));
   const D=r2(due.reduce((t,x)=>t+x.a,0)),E=r2(ex.reduce((t,x)=>t+x.a,0));return {due,ex,D,E,net:r2(D-E)}};
