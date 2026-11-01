@@ -253,6 +253,26 @@ J.orderHabits=c=>{const e=arr(c.pts).filter(p=>p.type==="earn"&&arr(p.items).len
   return `<div style="margin-top:8px"><h4 class="ph" style="padding:4px 0">Order habits (from Petpooja)</h4><div class="row" style="gap:6px;flex-wrap:wrap">${Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([i,n])=>`<span class="chip plain">${esc(i)} ×${n}</span>`).join("")}</div>
   <p class="hint" style="margin:6px 0 0">Sits at <b>${esc(md(p=>p.ch==="dine"?[p.table,p.area].filter(Boolean).join(" · "):p.agg||p.ch))}</b> · pays by <b>${esc(md(p=>(MODE_L[String(p.mode||"").split("+")[0]]||"")))}</b> · ${(e.reduce((s,p)=>s+p.items.length,0)/e.length).toFixed(1)} items a bill.</p></div>`};
 // ---------- module ----------
+// ---- Dues badge: customers who took bills on credit (Petpooja "due") and have not yet paid. Outstanding = what is still debit on their dues ledger; oldest bills are treated as cleared first.
+J.dueList=()=>{const accs=J.all("accounts").filter(a=>a.kind==="customer");const byName=new Map(accs.map(a=>[a.name,a]));const g=new Map();
+  for(const d of J.all("ppday").slice().sort((a,b)=>a.id.localeCompare(b.id)))for(const o of (Array.isArray(d.orders)?d.orders:[])){if(!live(o)||houseOf(o,d.id))continue;const du=r2(o.pays.filter(p=>p.m==="due").reduce((t,p)=>t+p.amt,0));if(du<=0.5)continue;
+    const label=(o.name||"Walk-in")+(o.phone?" ("+o.phone+")":"")+" — dues";const a=byName.get(label);
+    if(!a&&J.staffList?.(true).some(x=>norm(x.name.split(" - ")[0])===norm(o.name)||norm(x.name).startsWith(norm(o.name)+" ")))continue;
+    let c=g.get(label);if(!c){c={key:label,acc:a,name:o.name||"Walk-in",phone:o.phone||"",bills:[]};g.set(label,c)}if(o.phone&&!c.phone)c.phone=o.phone;c.bills.push({date:d.id,no:o.no,amt:du})}
+  const out=[];for(const c of g.values()){const G=r2(c.bills.reduce((t,b)=>t+b.amt,0));const out0=c.acc?Math.min(G,Math.max(0,J.balanceOf(c.acc.id))):G;let settled=r2(G-out0);
+    for(const b of c.bills){if(settled>=b.amt-0.004){settled=r2(settled-b.amt);b.amt=0}else if(settled>0.004){b.amt=r2(b.amt-settled);settled=0}}
+    c.bills=c.bills.filter(b=>b.amt>0.004);if(!c.bills.length)continue;c.total=r2(c.bills.reduce((t,b)=>t+b.amt,0));out.push(c)}
+  return out.sort((a,b)=>b.total-a.total)};
+J.dueBadge=(cls)=>{const L=J.dueList();const n=L.reduce((t,c)=>t+c.bills.length,0),tot=r2(L.reduce((t,c)=>t+c.total,0));
+  return cls==="kpi"?`<button class="kpi" data-a="dueList"><small>Customer dues</small><strong>${money0(tot)}</strong><em>${n} bill${n===1?"":"s"} · ${L.length} client${L.length===1?"":"s"}</em></button>`
+    :`<button class="btn w" data-a="dueList" title="Customers who owe money on credit bills">💳 Dues ${money0(tot)} · ${n} bill${n===1?"":"s"}</button>`};
+J.act("dueList",()=>{const L=J.dueList();const n=L.reduce((t,c)=>t+c.bills.length,0),tot=r2(L.reduce((t,c)=>t+c.total,0));
+  J.drawer({title:"Customer dues",body:`<p class="hint" style="margin-top:0"><b>${money0(tot)}</b> due against <b>${n}</b> bill${n===1?"":"s"} from ${L.length} client${L.length===1?"":"s"}. Tap a name for the contact number, bill dates, bill numbers and amounts. Payments received on the client's dues ledger clear the oldest bills first.</p>
+   ${L.map(c=>`<details style="border-bottom:1px solid var(--rule);padding:6px 0"><summary style="cursor:pointer;display:flex;justify-content:space-between;gap:8px"><b>${esc(c.name)}</b><span>${money0(c.total)} · ${c.bills.length} bill${c.bills.length===1?"":"s"}</span></summary>
+    <div style="padding:6px 0 2px 12px"><div>${c.phone?`📞 <a href="tel:${esc(c.phone)}">${esc(c.phone)}</a>`:'<span class="muted">No contact number on the bill</span>'}</div>
+    <table style="margin-top:4px"><thead><tr><th>Date</th><th>Bill no.</th><th class="num">Due</th></tr></thead><tbody>${c.bills.map(b=>`<tr><td>${fmtDate(b.date)}</td><td class="mono">#${esc(b.no)}</td><td class="num">${inr.format(b.amt)}</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="2">Total · ${c.bills.length} bill${c.bills.length===1?"":"s"}</td><td class="num"><b>${inr.format(c.total)}</b></td></tr></tfoot></table>
+    ${c.acc?`<button class="linkbtn" data-a="openLedger" data-x="${c.acc.id}">Open ledger</button>`:""}</div></details>`).join("")||'<p class="muted">No customer dues pending.</p>'}`})});
 J.mod({id:"sales",label:"Sales & Cash",group:"Finance",icon:'<path d="M3 7h18v10H3z"/><circle cx="12" cy="12" r="2.5"/><path d="M6 10v4M18 10v4"/>',sub:"Petpooja orders, daily sales posting, UPI and aggregator reconciliation, and the cash counter.",
+  headBtns:()=>J.dueBadge(),
   tabs:[["daily","Daily sales",vDaily],["log","Bill changes & uploads",()=>J.ppLogView?J.ppLogView():""],["upi","Google Pay & UPI",()=>J.gpay&&J.gpay.txns().length?J.gpayView():vUpi()],["agg","Swiggy / Zomato",vAgg],["cash","Cash counter",vCash],["fam","Parents' week",()=>J.vFamWeek?J.vFamWeek():""],["items","Items & habits",vItems]]});
 })();
