@@ -171,7 +171,7 @@ const LINKS={
  sales:["One sale voucher per Petpooja day; Swiggy / Zomato settlements and fee journals; Google Pay and cash receipts. Google Pay & UPI: each UPI bill is mapped to a Google Pay payment (by amount when names differ; asks you when two are alike), mappings are recorded and editable, and each day's Google Pay payout is matched with the bank credit","Sales, GST payable, cash, UPI, card, aggregator, due ledgers","Petpooja day total; aggregator report vs bank payout (UTR / amount); cash counter vs drawer; Mismatch finder"],
  inventory:["Purchase vouchers, debit notes for returns, bill-vs-payment journals, stock journals","Stock / expense head, input GST, vendor","Vendor ledger in Accounts → Reconcile; payment from bank; expiry audit"],
  staff:["Salary paid, advances, loans, salary held (escrow)","Staff, staff advance, staff loan, salary held","Each person's ledger in Reconcile; attendance feeds the payroll amount"],
- kot:["Staff food charges and the receipts when staff pay","Staff ledger, food income","Mismatch finder against Petpooja staff food; staff ledger in Reconcile"],
+ kot:["Staff food charges and the receipts when staff pay","Staff ledger, food income","Mismatch finder against Petpooja staff food; Daily tally clears the oldest unpaid KOT days with each Petpooja house payment (combined payments), and Match payments pairs the rest with Google Pay; staff ledger in Reconcile"],
  assets:["Asset purchase, repair expense, disposal journals","Asset, depreciation, repairs","Depreciation schedule"],
  insurance:["Premium payments and renewals","Expense heads, deposits","Renewal radar"],
  invest:["Buy / sell trade vouchers","Investment ledgers","Holdings vs ledger cost"],
