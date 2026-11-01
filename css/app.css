@@ -561,3 +561,5 @@ table.hol{width:100%}table.hol td{padding:6px 8px;border-bottom:1px solid var(--
 .due-old,.due-old td{color:var(--bad);background:var(--bad-wash);font-weight:600;animation:dueblink 1.1s ease-in-out infinite}
 @keyframes dueblink{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.due-old,.due-old td{animation:none;outline:1px solid var(--bad)}}
+
+@media print{.noprint{display:none!important}}

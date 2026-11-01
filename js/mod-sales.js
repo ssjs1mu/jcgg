@@ -253,6 +253,15 @@ J.orderHabits=c=>{const e=arr(c.pts).filter(p=>p.type==="earn"&&arr(p.items).len
   <p class="hint" style="margin:6px 0 0">Sits at <b>${esc(md(p=>p.ch==="dine"?[p.table,p.area].filter(Boolean).join(" · "):p.agg||p.ch))}</b> · pays by <b>${esc(md(p=>(MODE_L[String(p.mode||"").split("+")[0]]||"")))}</b> · ${(e.reduce((s,p)=>s+p.items.length,0)/e.length).toFixed(1)} items a bill.</p></div>`};
 // ---------- module ----------
 // ---- Dues badge: customers who took bills on credit (Petpooja "due") and have not yet paid. Outstanding = what is still debit on their dues ledger; oldest bills are treated as cleared first.
+// Unpaid Petpooja bills of a staff member (mapped to the staff ledger): checks payment received and salary adjustments before saying what is still outstanding.
+J.staffDueAdjItems=()=>{const a=J.get("meta","staffDueAdj")?.items;return Array.isArray(a)?a:[]};
+J.staffDues=sid=>{const s=J.get("accounts",sid);if(!s)return {bills:[],G:0,adj:0,rec:0,out:0};const bills=[];
+  for(const d of J.all("ppday").slice().sort((a,b)=>a.id.localeCompare(b.id)))for(const o of (Array.isArray(d.orders)?d.orders:[])){if(!live(o)||houseOf(o,d.id))continue;const du=r2(o.pays.filter(p=>p.m==="due").reduce((t,p)=>t+p.amt,0));if(du<=0.5)continue;
+    if(!(norm(s.name.split(" - ")[0])===norm(o.name)||norm(s.name).startsWith(norm(o.name)+" ")))continue;bills.push({date:d.id,no:o.no,amt:du})}
+  const G=r2(bills.reduce((t,b)=>t+b.amt,0));const adj=r2(J.staffDueAdjItems().filter(x=>x.sid===sid).reduce((t,x)=>t+x.amt,0));
+  const rec=r2((J.D.post?.get(sid)||[]).filter(p=>p.v?.type==="receipt").reduce((t,p)=>t+p.cr-p.dr,0));let left=r2(Math.max(0,adj+rec));
+  const open=bills.map(b=>({...b}));for(const b of open){if(left>=b.amt-0.004){left=r2(left-b.amt);b.amt=0}else if(left>0.004){b.amt=r2(b.amt-left);left=0}}
+  const ob=open.filter(b=>b.amt>0.004);return {bills:ob,G,adj,rec,out:r2(ob.reduce((t,b)=>t+b.amt,0))}};
 J.dueDays=()=>{const x=J.settings().ppDueDays;return x==null||x===""?7:+x};
 J.dueList=()=>{const accs=J.all("accounts").filter(a=>a.kind==="customer");const byName=new Map(accs.map(a=>[a.name,a]));const g=new Map();
   for(const d of J.all("ppday").slice().sort((a,b)=>a.id.localeCompare(b.id)))for(const o of (Array.isArray(d.orders)?d.orders:[])){if(!live(o)||houseOf(o,d.id))continue;const du=r2(o.pays.filter(p=>p.m==="due").reduce((t,p)=>t+p.amt,0));if(du<=0.5)continue;
