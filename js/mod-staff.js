@@ -240,7 +240,7 @@ J.act("payOv",async el=>{const [sid,k,mm]=el.dataset.x.split("|");const m=mm||WM
 J.act("postPayroll",async()=>{const m=WM();if(m>J.H.lastClosedMonth())return toast("Salaries for "+monthLabel(m)+" post automatically once the month ends.");const r=await J.safe(()=>J.H.syncMonth(m,"re-checked from payroll screen"));if(r&&r.main!==undefined)toast(r.main?"Salary entry posted":r.adj?"Salary entry updated":"Ledger already matches");J.render()});
 // ---------- Monthly settlement (one person or everyone) ----------
 const SK=[["bonus","Perks / bonus"],["penalty","Penalty"],["late","Late ded."],["short","Short duty"],["adj","Other ±"],["adv","Advance rec."],["loan","Loan EMI"],["food","Staff food"]];
-function setlCalc(m,id,draft){const s=J.get("accounts",id);const base=J.get("payroll",m)?.ov?.[id]||{};const ov={...base,...(draft[id]||{})};for(const k in ov)if(ov[k]===null)delete ov[k];const c=calc(s,m,ov);const pv=paidV(m,id);const paidAmt=r2(J.all("vouchers").filter(v=>v.type==="payment"&&v.src?.col==="payroll"&&v.src?.id===m).reduce((t,v)=>t+v.lines.filter(l=>l.a===id).reduce((a,l)=>a+l.dr-l.cr,0),0));return {s,c,ov,base,pv,paidAmt,bal:r2(c.net-paidAmt)}}
+function setlCalc(m,id,draft){const s=J.get("accounts",id);const base=J.get("payroll",m)?.ov?.[id]||{};const ov={...base,...(draft[id]||{})};for(const k in ov)if(ov[k]===null)delete ov[k];const c=calc(s,m,ov);const pv=paidV(m,id);const paidAmt=r2(J.all("vouchers").filter(v=>v.type==="payment"&&v.src?.col==="payroll"&&v.src?.id===m).reduce((t,v)=>t+v.lines.filter(l=>l.a===id).reduce((a,l)=>a+l.dr-l.cr,0),0));const adj=J.salAdj?J.salAdj(id,m):0;return {s,c,ov,base,pv,paidAmt:r2(paidAmt+adj),bal:r2(c.net-paidAmt-adj)}}
 function setlTable(m,ids,draft){const rows=ids.map(id=>setlCalc(m,id,draft));const tot=k=>r2(rows.reduce((t,r)=>t+(+(k in r?r[k]:r.c[k])||0),0));const f=n=>inr.format(n||0);
   const inp=(id,k,val,ph,w=78)=>`<input type="number" step="any" name="s-${id}-${k}" id="s-${id}-${k}" data-setl="${id}|${k}" value="${esc(val??"")}" placeholder="${esc(ph??"")}" style="width:${w}px">`;
   return `<div class="tbl-wrap"><table class="setl"><thead><tr><th>Employee</th><th class="num">Paid days</th><th class="num">Salary earned</th><th class="num">OT earned</th>${SK.map(([k,l])=>`<th class="num">${l}</th>`).join("")}<th>Note</th><th class="num">Final OT</th><th class="num">Gross</th><th class="num">Deductions</th><th class="num">Net payable</th><th class="num">Paid</th><th class="num">Balance</th></tr></thead><tbody>
@@ -276,7 +276,9 @@ function payMoves(sid,m){const o={paid:[],bf:[],out:[],P:0,BF:0,OUT:0};for(const
     if(lb==="Salary carried forward"||(lb==="Salary hold"&&a<0)){it.amt=-a;o.bf.push(it);o.BF=r2(o.BF-a)}else if(lb==="Salary difference"||lb==="Salary hold"){o.out.push(it);o.OUT=r2(o.OUT+a)}else{o.paid.push(it);o.P=r2(o.P+a)}}
   return o}
 J.payMoves=payMoves;
-function payBlock(s,m,c){const x=payMoves(s.id,m);const tot=r2(c.net+x.BF);const bal=r2(tot-x.P-x.OUT);const row=(a,b,st)=>`<tr${st?` style="${st}"`:""}><td>${a}</td><td class="num">${b}</td></tr>`;
+// dues of a customer adjusted against this person's salary: reduces what is left to pay, but is not listed on the payslip
+J.salAdj=(sid,m)=>r2(J.all("vouchers").filter(v=>v.src?.col==="duesadj"&&v.src?.id===m).reduce((t,v)=>t+v.lines.filter(l=>l.a===sid).reduce((a,l)=>a+l.dr-l.cr,0),0));
+function payBlock(s,m,c){const x=payMoves(s.id,m);const tot=r2(c.net+x.BF);const bal=r2(tot-x.P-x.OUT-J.salAdj(s.id,m));const row=(a,b,st)=>`<tr${st?` style="${st}"`:""}><td>${a}</td><td class="num">${b}</td></tr>`;
   return `<table style="margin-top:12px"><thead><tr><th>Payment</th><th class="num">₹</th></tr></thead><tbody>${row("Net pay for "+monthLabel(m),inr.format(c.net))}
    ${x.bf.map(i=>row(esc(i.narr)+` <span class="muted">(${esc(i.no)})</span>`,(i.amt>=0?"+ ":"− ")+inr.format(Math.abs(i.amt)))).join("")}
    ${x.bf.length?row("<b>Total payable</b>","<b>"+inr.format(tot)+"</b>"):""}
