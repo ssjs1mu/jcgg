@@ -26,7 +26,7 @@ J.houseAlloc=()=>{const h=J.kotHouse();if(!h)return null;const from=(h.from||"00
   const sig=J.all("kots").length+"|"+J.all("ppday").map(d=>d.id+":"+(d.at||0)).join(",")+"|"+from+"|"+J.all("kots").reduce((s,k)=>s+(+k.total||0),0);if(allocMemo&&allocMemo.sig===sig)return allocMemo;
   const ds=new Set();for(const k of J.all("kots"))if(k.kind==="staff"&&k.date>=from)ds.add(k.date);for(const d of J.all("ppday"))if(d.id>=from)ds.add(d.id);
   const kot={},pay={};const q=[];let adv=0;
-  for(const d of [...ds].sort()){const by=J.skDayByStaff(d);const K={staff:{},house:0};
+  for(const d of [...ds].sort()){const by=J.skDayByStaff(d);const K={staff:{},house:0};const dT=r2(Object.values(by).reduce((t,x)=>t+x,0)),dP=J.ppHousePaid?J.ppHousePaid(d):0;if(dT>=1&&Math.abs(dT-dP)<1){kot[d]=K;pay[d]={staff:{...by},house:0};continue}
     for(const [sid,a0] of Object.entries(by)){let a=a0;if(adv>0.004){const x=r2(Math.min(adv,a));adv=r2(adv-x);a=r2(a-x);K.house=r2(K.house+x)}if(a>0.004){K.staff[sid]=r2((K.staff[sid]||0)+a);q.push({sid,a})}}
     kot[d]=K;let P=J.ppHousePaid?J.ppHousePaid(d):0;const Pd={staff:{},house:0};
     while(P>0.004&&q.length){const c=q[0];const x=r2(Math.min(P,c.a));Pd.staff[c.sid]=r2((Pd.staff[c.sid]||0)+x);c.a=r2(c.a-x);P=r2(P-x);if(c.a<=0.004)q.shift()}
@@ -130,6 +130,8 @@ function vFood(){const U=J.ui("skf",{fy:"",sid:"",m:""});const fy=U.fy||J.fyOf(t
 // so one payment on the 3rd that covers the 1st, 2nd and 3rd shows all three days as matched against it. Money paid ahead waits and clears later days.
 J.skDayMatch=(days)=>{const legs=[];const q=[];const adv=[];const left={};const cl=a=>Math.abs(a)<1;
   for(const x of days){let k=x.k;
+    if(k>=1&&Math.abs(x.pay-k)<1){legs.push({kd:x.d,pd:x.d,a:k});continue}
+    const sd=r2(Math.min(k,x.pay));if(sd>=1){legs.push({kd:x.d,pd:x.d,a:sd});k=r2(k-sd);x.pay=r2(x.pay-sd)}
     while(k>=1&&adv.length){const a=adv[0];const t=r2(Math.min(a.a,k));legs.push({kd:x.d,pd:a.d,a:t,adv:true});k=r2(k-t);a.a=r2(a.a-t);if(cl(a.a))adv.shift()}
     if(k>=1)q.push({d:x.d,a:k});
     let P=x.pay;
