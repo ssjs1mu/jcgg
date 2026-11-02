@@ -7,6 +7,7 @@ function parseDate(s){s=String(s||"").trim();let m=s.match(/^(\d{1,2})[\s\-\/.](
   m=s.match(/^(\d{1,2})[\-\/.](\d{1,2})[\-\/.](\d{2,4})$/);if(m){let y=+m[3];if(y<100)y+=2000;if(+m[2]>12)return null;return y+"-"+pad(+m[2])+"-"+pad(+m[1])}
   m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return s;return null}
 const AMT=/^-?(?:\d{1,3}(?:,\d{2,3})*|\d+)\.\d{2}(?:\s*(?:Cr|Dr|CR|DR))?$/;
+const LOOSE=/^-?(?:\d{1,3}(?:,\d{2,3})*|\d+)(?:\.\d{1,2})?(?:\s*(?:Cr|Dr|CR|DR))?$/;
 const num=s=>{const n=parseFloat(String(s).replace(/[,\s]|Cr|Dr|CR|DR/g,""));return isNaN(n)?null:n};
 // group text items into lines per page
 function toLines(pages){const lines=[];for(const [pi,p] of pages.entries()){const rows=[];for(const it of p.items){const t=String(it.str||"").trim();if(!t)continue;let r=rows.find(r=>Math.abs(r.y-it.y)<=2.5);if(!r){r={y:it.y,page:pi,items:[]};rows.push(r)}r.items.push({t,x:it.x,w:it.w||0})}
@@ -17,23 +18,41 @@ function splitDate(r){// a line starts a transaction when one of its first items
 function parse(pages){const lines=toLines(pages);const all=lines.map(l=>l.text).join("\n");
   const meta={};const g=re=>{const m=all.match(re);return m?m[1].trim():""};
   meta.acNo=g(/Account\s*(?:No\.?|Number)\s*[:\-]?\s*([0-9Xx*]{6,20})/i);meta.ifsc=g(/IFSC(?:\s*Code)?\s*[:\-]?\s*([A-Z]{4}0[A-Z0-9]{6})/);meta.micr=g(/MICR\s*(?:Code)?\s*[:\-]?\s*(\d{9})/i);
-  meta.bank=(all.match(/(Kotak Mahindra Bank|State Bank of India|HDFC Bank|ICICI Bank|Axis Bank|Punjab National Bank|Bank of Baroda|Canara Bank|Union Bank of India|IDFC FIRST Bank|Yes Bank|IndusInd Bank|Bank of India|Central Bank of India|Indian Bank|UCO Bank|Federal Bank|Bandhan Bank|AU Small Finance Bank)/i)||[])[1]||(meta.ifsc?({KKBK:"Kotak Mahindra Bank",SBIN:"State Bank of India",HDFC:"HDFC Bank",ICIC:"ICICI Bank",UTIB:"Axis Bank",PUNB:"Punjab National Bank",BARB:"Bank of Baroda",CNRB:"Canara Bank",UBIN:"Union Bank of India",IDFB:"IDFC FIRST Bank",YESB:"Yes Bank",INDB:"IndusInd Bank"})[meta.ifsc.slice(0,4)]||"":"");
+  const IF={UCBA:"UCO Bank",SBIN:"State Bank of India",HDFC:"HDFC Bank",ICIC:"ICICI Bank",UTIB:"Axis Bank",PUNB:"Punjab National Bank",BARB:"Bank of Baroda",CNRB:"Canara Bank",UBIN:"Union Bank of India",IDFB:"IDFC FIRST Bank",YESB:"Yes Bank",INDB:"IndusInd Bank",BKID:"Bank of India",CBIN:"Central Bank of India",IDIB:"Indian Bank",KKBK:"Kotak Mahindra Bank"};
+  meta.ifscBank=IF[(meta.ifsc||"").slice(0,4)]||"";
+  meta.bank=meta.ifscBank||(lines.slice(0,40).map(l=>l.text).join("\n").match(/(Kotak Mahindra Bank|State Bank of India|HDFC Bank|ICICI Bank|Axis Bank|Punjab National Bank|Bank of Baroda|Canara Bank|Union Bank of India|IDFC FIRST Bank|Yes Bank|IndusInd Bank|Bank of India|Central Bank of India|Indian Bank|UCO Bank|Federal Bank|Bandhan Bank|AU Small Finance Bank)/i)||[])[1]||(meta.ifsc?({KKBK:"Kotak Mahindra Bank",SBIN:"State Bank of India",HDFC:"HDFC Bank",ICIC:"ICICI Bank",UTIB:"Axis Bank",PUNB:"Punjab National Bank",BARB:"Bank of Baroda",CNRB:"Canara Bank",UBIN:"Union Bank of India",IDFB:"IDFC FIRST Bank",YESB:"Yes Bank",INDB:"IndusInd Bank"})[meta.ifsc.slice(0,4)]||"":"");
   meta.type=g(/Account\s*Type\s*[:\-]?\s*([A-Za-z ]{3,20}?)(?:\s{2,}|\n|$)/i);meta.branch=g(/Branch\s*[:\-]?\s*([A-Za-z][A-Za-z .,\-]{2,40}?)(?:\s{2,}|\n|Branch Phone|$)/);
   const per=all.match(/(\d{1,2}[\s\-\/][A-Za-z]{3}[\s\-\/]\d{4}|\d{2}[\-\/]\d{2}[\-\/]\d{4})\s*(?:-|to|–)\s*(\d{1,2}[\s\-\/][A-Za-z]{3}[\s\-\/]\d{4}|\d{2}[\-\/]\d{2}[\-\/]\d{4})/i);if(per){meta.from=parseDate(per[1]);meta.to=parseDate(per[2])}
+  // account block above the table: "Label  value" pairs, several per line (left and right column)
+  {const LBL=/^(Customer ID|CKYC ID|Branch Code|Branch Name|Name|Account Holder|IFSC Code|MICR Code|A\/c Type|Account Type|Mobile No\.?|Phone No\.?|E-?Mail ID|Nominee(?: Name)?|Branch)$/i;
+   for(const l of lines){if(/opening balance/i.test(l.text)||(/date/i.test(l.text)&&/balance/i.test(l.text)))break;let key=null;const kv={};
+     for(const it of l.items){const t=it.t.trim();if(LBL.test(t)){key=t.toLowerCase().replace(/[^a-z]/g,"");continue}
+       if(key){const m=t.match(/^(Customer ID|CKYC ID|Branch Code|Branch Name|IFSC Code|MICR Code|A\/c Type|Mobile No\.?|Phone No\.?|E-?Mail ID)\s+(.*)$/i);if(m&&!LBL.test(t)){key=null}else kv[key]=((kv[key]||"")+" "+t).trim()}}
+     const put=(f,k)=>{if(kv[k]&&(!meta[f]||f==="type"||f==="branch"||!meta["_"+f])){meta[f]=kv[k].replace(/\s+/g," ");meta["_"+f]=1}};
+     put("holder","name");put("holder","accountholder");put("custId","customerid");put("type","actype");put("type","accounttype");put("branch","branchname");put("mobile","mobileno");put("email","emailid");put("nominee","nominee");put("nominee","nomineename")}
+   if(meta.mobile)meta.mobile=String(meta.mobile).replace(/\D/g,"").slice(-10);
+   if(meta.email&&meta.email.includes(" ")&&!/@/.test(meta.email.split(" ")[0]))meta.email=meta.email.split(" ").find(x=>/@/.test(x))||meta.email;
+   if(meta.branch)meta.branch=meta.branch.replace(/^Name\s+/i,"");for(const k of Object.keys(meta))if(k[0]==="_")delete meta[k]}
   // header row: find the x positions of the amount columns
   let hdr=null;for(const l of lines){const t=l.text.toLowerCase();if(/balance/.test(t)&&/(withdraw|debit|dr\.)/.test(t)&&/(deposit|credit|cr\.)/.test(t)&&/date/.test(t)){const col=re=>{const it=l.items.find(i=>re.test(i.t.toLowerCase()));return it?it.x+(it.w||0)/2:null};hdr={dr:col(/withdraw|debit/),cr:col(/deposit|credit/),bal:col(/balance/),ref:col(/ref|chq|cheque/),desc:col(/desc|narr|partic|details/)};break}}
-  const rows=[];let opening=null,cur=null,inTable=!!hdr;
+  const zone=hdr?Math.min(...[hdr.dr,hdr.cr,hdr.bal].filter(v=>v!=null))-70:null;
+  const isAmt=i=>AMT.test(i.t)||(zone!=null&&LOOSE.test(i.t)&&i.x+(i.w||0)/2>=zone);
+  // layout where each transaction's narration is centred on the date line (lines above AND below it)?
+  let centred=false;{let st=false;for(const l of lines){const low=l.text.toLowerCase();if(/opening balance/.test(low)){st=true;continue}if(!st)continue;if(splitDate(l)&&l.items.some(isAmt))break;if(!l.items.some(isAmt)&&l.text.length>3&&!/^\s*#?\s*date\b/i.test(l.text)){centred=true;break}}}
+  const rows=[];let opening=null,cur=null,inTable=!!hdr,pend=[];
   for(const l of lines){const low=l.text.toLowerCase();
-    if(/opening balance/.test(low)){const a=l.items.filter(i=>AMT.test(i.t)).map(i=>num(i.t));if(a.length&&opening==null)opening=a.at(-1);cur=null;continue}
-    if(/closing balance|statement summary|account summary|end of statement|page \d+ of \d+|statement generated|^\s*#?\s*date\b.*balance/i.test(l.text)){if(/closing balance/.test(low)){const a=l.items.filter(i=>AMT.test(i.t)).map(i=>num(i.t));if(a.length)meta.closing=a.at(-1)}cur=null;continue}
-    const sd=splitDate(l);const amts=l.items.filter(i=>AMT.test(i.t));
+    if(/opening balance/.test(low)){const a=l.items.filter(i=>isAmt(i)).map(i=>num(i.t));if(a.length&&opening==null)opening=a.at(-1);cur=null;continue}
+    if(/closing balance|statement summary|account summary|end of statement|page \d+ of \d+|statement generated|^\s*#?\s*date\b.*balance/i.test(l.text)){if(centred&&cur&&pend.length){cur.desc=(cur.desc+" "+pend.map(q=>q.t).join(" ")).replace(/\s+/g," ").trim()}pend=[];if(/closing balance/.test(low)){const a=l.items.filter(isAmt).map(i=>num(i.t));if(a.length)meta.closing=a.at(-1)}cur=null;continue}
+    const sd=splitDate(l);const amts=l.items.filter(isAmt);
     if(sd&&amts.length>=1){// new transaction line
-      const dateEnd=sd.at!=null?sd.at+sd.span:0;const txt=l.items.slice(dateEnd).filter(i=>!AMT.test(i.t));
+      const dateEnd=sd.at!=null?sd.at+sd.span:0;const txt=l.items.slice(dateEnd).filter(i=>!isAmt(i));
       let ref="",desc=[];for(const i of txt){const cx=i.x+(i.w||0)/2;if(hdr?.ref!=null&&hdr?.dr!=null&&cx>hdr.ref-60&&cx<hdr.dr-20&&/^[A-Za-z0-9\-\/]{6,}$/.test(i.t)&&!ref)ref=i.t;else desc.push(i.t)}
       // strip a leading serial number
       if(sd.at>0){}
       const vals=amts.map(i=>({v:num(i.t),x:i.x+(i.w||0)/2,raw:i.t}));const bal=vals.length>=2?vals.at(-1).v:null;const amtItem=vals.length>=2?vals.at(-2):vals[0];
-      cur={date:sd.date,desc:desc.join(" "),ref,amt:Math.abs(amtItem.v),amtX:amtItem.x,raw:amtItem.raw,bal,page:l.page};rows.push(cur);continue}
+      const prevRow=cur;cur={date:sd.date,desc:desc.join(" "),ref,amt:Math.abs(amtItem.v),amtX:amtItem.x,raw:amtItem.raw,bal,page:l.page,y:l.y};
+      if(centred){const up=[];for(const q of pend){if(prevRow&&prevRow.page===q.page&&Math.abs(q.y-prevRow.y)<Math.abs(q.y-l.y))prevRow.desc=(prevRow.desc+" "+q.t).replace(/\s+/g," ").trim();else up.push(q.t)}cur.desc=(up.join(" ")+" "+cur.desc).replace(/\s+/g," ").trim()}pend=[];rows.push(cur);continue}
+    if(centred&&!amts.length&&!sd&&l.text.length<120&&!/^\s*#?\s*date\b/i.test(l.text)){pend.push({t:l.text,y:l.y,page:l.page});continue}
     if(cur&&!amts.length&&l.page===cur.page&&!sd&&l.text.length<120){cur.desc=(cur.desc+" "+l.text).replace(/\s+/g," ").trim();continue}
     if(cur&&amts.length)cur=null}
   // direction: running balance first, then column position, then Dr/Cr suffix

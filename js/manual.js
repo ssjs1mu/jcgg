@@ -91,7 +91,7 @@ settings:{t:"Settings",p:"Business details, users and roles, logins (kitchen, Cu
   d:["Give each person the smallest role that works.","Back up to Drive regularly."],n:["Don't share the owner login.","Don't change the book start month after entries exist."]},
 import:{t:"Import data",p:"Bring in statements and old records from PDF, Excel or CSV. Every import can be undone from Import history.",
   l:["Accounts (bank, card, wallet statements)","Staff, Inventory, Directory"],i:"Creates entries and records; matched lines are ticked, not duplicated.",
-  d:["Press Import once and wait for “Import finished”.","Read the Check column before importing."],n:["Don't import the same file twice — use Undo if a file went in wrong."]},
+  d:["Press Import once and wait for “Import finished”.","Read the Check column before importing.","Bank PDF: tick which account details (holder, IFSC, branch, customer ID…) to copy into the ledger, and check the statement's opening balance against the books."],n:["Don't import the same file twice — use Undo if a file went in wrong."]},
 manual:{t:"Manual",p:"This manual: every module and every kind of ledger, with what to do and what not to do.",l:[],i:"None.",d:["Open the Manual button on any screen when unsure."],n:[]}
 };
 // ledger kinds (account manual)
