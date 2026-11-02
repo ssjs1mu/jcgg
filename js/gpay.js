@@ -43,6 +43,9 @@ function run(){const T=txns();const sig=T.length+"|"+J.all("ppday").map(d=>d.id+
   for(const [ok,ck] of Object.entries(J.get("meta","gpayMan")?.links||{})){const o=O.find(x=>x.k.split("#").slice(0,2).join("#")===ok&&!x.used),c=colls.find(x=>x.k===ck&&!x.used);if(o&&c){link(o,c,"manual");o.man=ok}}
   // collections already matched with staff KOT payments (Staff KOT → Match payments) are reserved first
   for(const it of arr(J.get("meta","kotPay")?.items))for(const id of arr(it.gp)){const c=colls.find(x=>x.k===id&&!x.used);if(c)c.used="kot:"+it.id}
+  // house / staff bills (Petpooja house account) whose day is covered by a Staff KOT payment are settled through that payment — never pending here
+  {const ph=J.ppIsHouse;if(ph)for(const it of arr(J.get("meta","kotPay")?.items)){if(!arr(it.gp).length)continue;const ds=new Set([...arr(it.days),...arr(it.kots).map(id=>J.get("kots",id)?.date).filter(Boolean)]);
+    for(const o of O){if(o.used||!ds.has(o.date))continue;const day=J.get("ppday",o.date);const ord=day&&day.orders.find(z=>String(z.no)===String(o.no));if(ord&&ph(ord,o.date))o.used="kot:"+it.id}}}
   // same day, same amount, several bills and/or payments and names that do not settle it: do not guess — ask (Needs your choice)
   const MAN=J.get("meta","gpayMan")||{};const blocked=(o,c)=>!!MAN.block?.[o.date+"#"+o.no+"|"+c.k];const amb=[];
   {const g={};for(const o of O)if(!o.used)(g[o.date+"|"+o.a]??={date:o.date,a:o.a,o:[],c:[]}).o.push(o);for(const c of colls)if(!c.used){const q=g[c.d+"|"+c.a];if(q)q.c.push(c)}
