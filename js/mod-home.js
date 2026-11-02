@@ -20,7 +20,7 @@ function alerts(){const out=[];const t=today();const add=(lvl,text,go,tab)=>out.
   const order={bad:0,crit:1,warn:2,ok:3};return out.sort((a,b)=>order[a.lvl]-order[b.lvl])}
 J.homeAlerts=alerts;
 function search(q){q=q.toLowerCase();const r=[];const push=(kind,name,sub,act,x)=>r.push({kind,name,sub,act,x});
-  for(const a of J.all("accounts"))if(a.name.toLowerCase().includes(q))push(a.kind==="staff"?"Staff":"Ledger",a.name,J.bal(J.balanceOf(a.id)),a.kind==="staff"?"staffProfile":"openLedger",a.id);
+  for(const a of J.all("accounts"))if(a.name.toLowerCase().includes(q))push(a.kind==="staff"?"Staff":"Ledger",a.name,J.bal(J.balanceOf(a.id),a.kind),a.kind==="staff"?"staffProfile":"openLedger",a.id);
   for(const i of J.all("items"))if(i.name.toLowerCase().includes(q))push("Stock item",i.name,(J.D.inv?.items[i.id]?.qty||0)+" "+i.unit,"editItem",i.id);
   for(const c of J.all("contacts"))if((c.name+" "+(c.company||"")+" "+(c.phones||[]).map(p=>p.num).join(" ")).toLowerCase().includes(q))push("Contact",c.name,c.company||c.cat,"viewContact",c.id);
   for(const m of J.all("menu"))if(m.name.toLowerCase().includes(q))push("Dish","₹"+m.price+" · "+m.name,m.cat,"editDish",m.id);
