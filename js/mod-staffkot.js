@@ -132,7 +132,7 @@ function vFood(){const U=J.ui("skf",{fy:"",sid:"",m:""});const fy=U.fy||J.fyOf(t
 // Without a Google Pay file at all, Petpooja's own payment line is trusted.
 J.skProof=()=>{let has=false;const used=new Set();try{const r=J.gpay&&J.gpay.txns&&J.gpay.txns().length?J.gpay.run():null;if(r){has=true;for(const c of r.colls)for(const t of String(c.used||"").split("+")){if(t&&!t.startsWith("kot:"))used.add(t.split("#").slice(0,2).join("#"))}}}catch(e){has=false}
   const kd=new Set();for(const p of (J.get("meta","kotPay")?.items||[])){for(const d of (p.days||[]))kd.add(d);for(const id of (p.kots||[])){const k=J.get("kots",id);if(k)kd.add(k.date)}}
-  const hold={};for(const p of (J.get("meta","kotPay")?.items||[]))if(p.hold)hold[p.date]=r2((hold[p.date]||0)+p.amt);
+  const hold={};for(const p of (J.get("meta","kotPay")?.items||[])){if(p.hold)hold[p.date]=r2((hold[p.date]||0)+p.amt);for(const [d,v] of Object.entries(p.holdDays||{}))hold[d]=r2((hold[d]||0)+v)}
   const fn=d=>{const os=(J.get("ppday",d)?.orders||[]).filter(o=>(J.ppIsHouse?J.ppIsHouse(o,d):o.house)&&!/cancel|saved/i.test(o.status||""));let ok=0,no=0;for(const o of os)for(const p of o.pays){if(p.m==="due")continue;if(!has||p.m!=="upi"||used.has(d+"#"+o.no)||kd.has(d))ok+=p.amt;else no+=p.amt}return {ok:r2(ok+(hold[d]||0)),no:r2(no)}};fn.hold=hold;return fn};
 J.skDayMatch=(days)=>{const legs=[];const q=[];const adv=[];const left={};const cl=a=>Math.abs(a)<1;
   for(const x of days){let k=x.k;
