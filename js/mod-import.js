@@ -104,7 +104,7 @@ function stmtPrep(r,o,kinds){const d=asDate(r.date);if(!d)return r.skip=1;if(d<J
 // a statement line that is already in the books: same bank, same amount, within 2 days — or within 5 days for the same person.
 // A hand entry made from Cash for the same person and amount is offered to be moved onto this bank instead of adding a second entry.
 function markDups(recs){const used=new Set();for(const r of recs){if(r.err.length||r.skip)continue;const side=r.out?"cr":"dr",amt=r.out||r.inn;const txt=str(r.desc)+" "+(r.party?.name||"")+" "+(r.party?.remark||"");
-  const who=v=>{const s=J.bankShape?.(v.lines);if(!s)return false;return J.get("accounts",r.counter)?J.bankSameParty(s.others,[r.counter],txt):J.bankTextHit(s.others,txt)};
+  const who=v=>{if(v.f?.reg)return true;const s=J.bankShape?.(v.lines);if(!s)return false;return J.get("accounts",r.counter)?J.bankSameParty(s.others,[r.counter],txt):J.bankTextHit(s.others,txt)};
   const cand=(J.D.post.get(r.target)||[]).filter(p=>!used.has(p.v.id)&&!(p.v.imp&&p.v.imp===r._imp)&&Math.abs((side==="cr"?p.cr:p.dr)-amt)<0.005&&Math.abs(daysBetween(p.date,r.d))<=5)
     .map(p=>({p,who:who(p.v),gap:Math.abs(daysBetween(p.date,r.d))})).filter(x=>x.who||x.gap<=2).sort((a,b)=>(b.who-a.who)||a.gap-b.gap);
   const hit=cand[0]?.p;r.dup=null;r.dupId=null;r.relink=null;r.pairV=null;

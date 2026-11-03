@@ -67,7 +67,7 @@ J.findDups=()=>{const vs=J.all("vouchers");const imp=vs.filter(v=>v.imp);const o
     const keep=list[0];for(const v of list.slice(1))if(v.imp!==keep.imp){extra.add(v.id);out.twice.push({keep,extra:v})}}
   const used=new Set();const man=vs.filter(v=>!v.imp&&!linked(v)).map(v=>({v,s:shape(v.lines)})).filter(x=>x.s);
   for(const i of imp){if(extra.has(i.id)||linked(i))continue;const si=shape(i.lines);if(!si)continue;const txt=i.narr+" "+arr(i.lines).map(l=>l.n||"").join(" ");
-    const hit=man.filter(({v,s})=>!used.has(v.id)&&s.side===si.side&&Math.abs(s.amt-si.amt)<0.01&&days(v.date,i.date)<=5&&(s.acc===si.acc||["cash"].includes(kindOf(s.acc)))&&sameParty(s.others,si.others,txt))
+    const hit=man.filter(({v,s})=>!used.has(v.id)&&s.side===si.side&&Math.abs(s.amt-si.amt)<0.01&&days(v.date,i.date)<=5&&(s.acc===si.acc||["cash"].includes(kindOf(s.acc)))&&(v.f?.reg||sameParty(s.others,si.others,txt)))
       .sort((a,b)=>(a.s.acc===si.acc?0:1)-(b.s.acc===si.acc?0:1)||days(a.v.date,i.date)-days(b.v.date,i.date))[0];
     if(hit){used.add(hit.v.id);out.pairs.push({man:hit.v,bank:i,moved:hit.s.acc!==si.acc})}}
   return out};
