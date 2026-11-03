@@ -39,7 +39,7 @@ function parseFlipkart(R,all){const b={lines:[],charges:[],warnings:[],docType:"
   const tr=R.find(r=>/^Total\b/.test(r.text));const tn=tr?(tr.text.match(NUM)||[]).map(N):[];b.total=tn.at(-1)||r2(b.lines.reduce((s,l)=>s+l.total,0));b.taxable=tn.length>=3?tn[2]:0;
   const sum=r2([...b.lines,...b.charges].reduce((s,l)=>s+l.total,0));if(Math.abs(sum-b.total)>1)b.warnings.push(`Lines add up to ${money(sum)} but the bill total is ${money(b.total)} — check the lines.`);
   if(!b.lines.length)b.warnings.push("No item lines could be read from this Flipkart invoice. Enter them by hand.");return b}
-J.parseBill=items=>{const R=rowsOf(items);const all=R.map(r=>r.text).join("\n");if(/Metro Cash and Carry/i.test(all)&&/Document Number/i.test(all)&&/Item Details/i.test(all))return parseMetro(R,all);if(/Sold By:/i.test(all)&&/Invoice Number\s*#/i.test(all)&&/\bOD\d{12,}/.test(all)&&/Order ID/i.test(all))return parseFlipkart(R,all);const b={lines:[],charges:[],warnings:[]};
+J.parseBill=(items,fmt)=>{const R=rowsOf(items);const all=R.map(r=>r.text).join("\n");const auto=!fmt||fmt==="auto";if(fmt==="metro"||auto&&/Metro Cash and Carry/i.test(all)&&/Document Number/i.test(all))return parseMetro(R,all);if(fmt==="flipkart"||auto&&/Sold By:/i.test(all)&&/Invoice Number\s*#/i.test(all)&&/\bOD\d{12,}/.test(all)&&/Order ID/i.test(all))return parseFlipkart(R,all);const b={lines:[],charges:[],warnings:[]};
   b.docType=/BILL OF SUPPLY/i.test(all)?"Bill of supply":/TAX INVOICE/i.test(all)?"Tax invoice":"Invoice";
   b.vendorName=(all.match(/Bill From[^:\n]*:\s*([^\n]+)/i)?.[1]||"").replace(/\s*\(.*$/,"").replace(/Limted/i,"Limited").trim();
   if(/hyperpure/i.test(all))b.vendorKey="hyperpure";
@@ -82,10 +82,15 @@ function mapLine(l,isCharge){const exp=isCharge?expOf(l.desc,l.hsn)||"delivch":e
 // ---------------- upload & review ----------------
 const STG={bills:[]};
 J.billParseFile=async f=>J.parseBill(await pdfItems(f));
-J.billStage=async files=>{STG.bills=[];J.busy.start("Reading supplier bills",files.length,"bills");
-  for(const f of files){J.busy.label(f.name);try{const b=J.parseBill(await pdfItems(f));b.file=f;b.fileName=f.name;b.dup=J.all("bills").find(x=>x.invNo&&x.invNo===b.invNo);b.lines.forEach(l=>l.map=mapLine(l,false));b.charges.forEach(l=>l.map=mapLine(l,true));STG.bills.push(b)}catch(e){STG.bills.push({file:f,fileName:f.name,err:e.message,lines:[],charges:[],warnings:[]})}J.busy.tick()}J.busy.end();
+J.billStage=async(files,fmt)=>{STG.bills=[];J.busy.start("Reading supplier bills",files.length,"bills");
+  for(const f of files){J.busy.label(f.name);try{const b=J.parseBill(await pdfItems(f),fmt);b.file=f;b.fileName=f.name;b.dup=J.all("bills").find(x=>x.invNo&&x.invNo===b.invNo);b.lines.forEach(l=>l.map=mapLine(l,false));b.charges.forEach(l=>l.map=mapLine(l,true));STG.bills.push(b)}catch(e){STG.bills.push({file:f,fileName:f.name,err:e.message,lines:[],charges:[],warnings:[]})}J.busy.tick()}J.busy.end();
   STG.bills.sort((a,b)=>(a.date||"").localeCompare(b.date||""));reviewDrawer()};
-J.act("billUpload",()=>{const i=document.createElement("input");i.type="file";i.accept="application/pdf";i.multiple=true;i.onchange=()=>{const f=[...i.files];if(f.length)J.billStage(f)};i.click()});
+// the bill formats the reader knows — the person picks one after choosing the files (Auto-detect works for most)
+const FMTS=[["auto","Auto-detect"],["hyperpure","Zomato Hyperpure / standard tax invoice"],["flipkart","Flipkart / Flipkart Minutes"],["metro","Metro Cash & Carry"]];
+function chooseFmt(files){let last="auto";try{last=localStorage.getItem("billFmt")||"auto"}catch(e){}
+  J.drawer({title:"Which bill format?",submit:"Read "+files.length+" bill"+(files.length>1?"s":""),body:`<p class="hint" style="margin:0">${files.map(f=>esc(f.name)).join(", ")}</p><label class="f">Bill format<select id="bill-fmt">${FMTS.map(([k,l])=>`<option value="${k}" ${k===last?"selected":""}>${l}</option>`).join("")}</select></label><p class="hint">Auto-detect reads most bills. If a bill shows no lines, upload it again and pick its format here.</p>`,
+  onSubmit:async()=>{const fmt=document.getElementById("bill-fmt")?.value||"auto";try{localStorage.setItem("billFmt",fmt)}catch(e){}setTimeout(()=>J.billStage(files,fmt),120)}})}
+J.act("billUpload",()=>{const i=document.createElement("input");i.type="file";i.accept="application/pdf";i.multiple=true;i.onchange=()=>{const f=[...i.files];if(f.length)chooseFmt(f)};i.click()});
 const itemOptions=sel=>`<option value="new" ${sel==="new"?"selected":""}>＋ New stock item</option>${J.all("items").sort((a,b)=>a.name.localeCompare(b.name)).map(it=>`<option value="${esc(it.id)}" ${sel===it.id?"selected":""}>${esc(it.name)} (${esc(it.unit)})</option>`).join("")}`;
 const subList=cat=>[...new Set(J.all("items").filter(i=>!cat||i.cat===cat).map(i=>i.sub).filter(Boolean).concat((SUBRE[cat]||[]).map(x=>x[0])))].sort();
 // one spreadsheet row per bill line: breakup of the price, then where it goes, category, sub-category, unit and stock quantity
