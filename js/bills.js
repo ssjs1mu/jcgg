@@ -73,11 +73,13 @@ const CATRE=[["Dairy",/paneer|curd|dahi|milk|milkmaid|cream|cheese|butter|ghee|k
 const catOf=(d,hsn)=>(CATRE.find(([,re])=>re.test(d))||[])[0]||(/^0[45]/.test(hsn)?"Dairy":/^07/.test(hsn)?"Vegetables":/^08/.test(hsn)?"Fruits":/^09/.test(hsn)?"Spices & Masala":/^1[01]/.test(hsn)?"Grains & Pulses":/^15/.test(hsn)?"Oils & Ghee":/^2201|^2202/.test(hsn)?"Beverages":/^17/.test(hsn)?"Sweeteners":"Other");
 const expOf=(d,hsn)=>/delivery|convenience|platform|handling|fee/i.test(d)?"delivch":/subscription|membership|plan/i.test(d)?"subs":/lighter|knife|ladle|spoon|utensil|tong|brush|apron|glove|cap\b|scrubber/i.test(d)?"kitcons":/clean|detergent|soap|phenyl/i.test(d)?"cleanexp":/container|foil|pouch|packag|box|bag/i.test(d)&&!/pouch \(pack/i.test(d)?"packexp":/^99/.test(hsn)?"delivch":/^9[0-7]|^8[2-5]|^39|^48/.test(hsn)?"kitcons":"";
 const words=s=>String(s).toLowerCase().replace(/\(.*?\)/g," ").split(/[^a-z]+/).filter(w=>w.length>2&&!/^(the|and|with|economy|premium|fresh|desi|peeled|orange|indian|refined|pack|pouch)$/.test(w));
-function matchItem(name){const w=words(name);let best=null,bs=0;for(const it of J.all("items")){const iw=words(it.name);const s=w.filter(x=>iw.includes(x)).length/Math.max(1,Math.max(w.length,iw.length));if(s>bs){bs=s;best=it}}return bs>=0.5?best:null}
+const norm=x=>String(x||"").toLowerCase().replace(/[^a-z0-9]+/g,"");
+// exact (spacing / case / punctuation ignored) match only; anything else is added as a new stock item named as on the bill
+function matchItem(name,desc){const k=[norm(name),norm(desc)].filter(Boolean);return J.all("items").find(it=>k.includes(norm(it.name)))||null}
 const SUBRE={"Beverages":[["Packaged water",/water/i],["Soft drinks",/cola|sprite|coke|pepsi|fanta|soft drink|soda|thums|limca|mirinda/i],["Juices & ready drinks",/juice|aamras|panna|ampanna|guava|mango|lassi|buttermilk|energy|boba/i],["Tea & coffee",/tea|coffee/i]],"Oils & Ghee":[["Refined oil",/refined|soya|sunflower|palm|rice bran/i],["Mustard oil",/mustard/i],["Ghee & vanaspati",/ghee|vanaspati|dalda/i]],"Dairy":[["Milk",/milk/i],["Paneer & cheese",/paneer|cheese/i],["Curd & butter",/curd|dahi|butter|cream/i]]};
 const subOf=(cat,d)=>((SUBRE[cat]||[]).find(([,re])=>re.test(d))||[])[0]||"";
 // default mapping for a parsed line
-function mapLine(l,isCharge){const exp=isCharge?expOf(l.desc,l.hsn)||"delivch":expOf(l.desc,l.hsn);if(exp)return {kind:"exp",exp};const pk=PACK(l.desc);const nm=nameOf(l.desc);const ex=matchItem(nm);
+function mapLine(l,isCharge){const exp=isCharge?expOf(l.desc,l.hsn)||"delivch":expOf(l.desc,l.hsn);if(exp)return {kind:"exp",exp};const pk=PACK(l.desc);const nm=String(l.desc).replace(/\s+/g," ").trim();const ex=matchItem(nm,nameOf(l.desc));
   const cat0=catOf(l.desc,l.hsn);return {kind:"stock",item:ex?.id||"new",newName:nm,cat:cat0,sub:subOf(cat0,l.desc),unit:ex?.unit||pk?.unit||"PCS",perPack:pk&&(!ex||ex.unit===pk.unit)?pk.q:1}}
 // ---------------- upload & review ----------------
 const STG={bills:[]};
@@ -129,7 +131,7 @@ async function saveBill(b){const id="bill-"+(b.invNo||uid()).replace(/[^\w-]/g,"
   let file=null;try{file=await J.fileSave(b.file,"files")}catch(e){console.warn("bill file",e)}
   const stock=[],exp={};let stockTotal=0;
   for(const l of [...b.lines,...b.charges]){const m=l.map;if(m.kind==="exp"){const nm=EXP.find(e=>e[0]===m.exp)?.[1]||"Miscellaneous Kitchen Expenses";exp[m.exp]=(exp[m.exp]||{n:nm,amt:0});exp[m.exp].amt=r2(exp[m.exp].amt+l.total);continue}
-    let item=m.item;if(item==="new"){const nm=(m.newName||nameOf(l.desc)).trim();const ex=J.all("items").find(i=>i.name.toLowerCase()===nm.toLowerCase());item=ex?.id||uid();if(!ex)await J.store.put("items",{id:item,name:nm,cat:m.cat,sub:(m.sub||"").trim(),unit:m.unit,reorder:0,gst:0,shelf:0,vendor:vend,img:"",veg:true,active:true,src:"bill"})}
+    let item=m.item;if(item==="new"){const nm=(m.newName||l.desc).replace(/\s+/g," ").trim();const ex=matchItem(nm);item=ex?.id||uid();if(!ex)await J.store.put("items",{id:item,name:nm,cat:m.cat,sub:(m.sub||"").trim(),unit:m.unit,reorder:0,gst:0,shelf:0,vendor:vend,img:"",veg:true,active:true,src:"bill"})}
     const q=r3(m.stockQty??(l.qty*(m.perPack||1)))||l.qty;stock.push({item,qty:q,rate:r2(l.total/q),gst:0,batch:"BILL-"+(b.invNo||id).slice(-8)+"-"+(stock.length+1),exp:"",desc:l.desc});stockTotal=r2(stockTotal+l.total)}
   const L=[];if(stockTotal)L.push({a:J.sysAcc("purch")?.id||await J.ensureAcc("Kitchen Purchases (Raw Material)","expense","purch"),dr:stockTotal,cr:0});
   for(const [sys,e] of Object.entries(exp))L.push({a:await J.ensureAcc(e.n,"expense",sys),dr:e.amt,cr:0});
