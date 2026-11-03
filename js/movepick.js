@@ -16,11 +16,11 @@ function upd(){const cat=document.getElementById("mv-cat")?.value||"";const sub=
   const rc=document.getElementById("mv-rencatbox"),ri=document.getElementById("f-rencat");if(rc){const x=cat.startsWith("x:");rc.style.display=x?"":"none";if(ri&&x&&ri.dataset.for!==cat){ri.value=cat.slice(2);ri.dataset.for=cat}}
   const rs=document.getElementById("mv-rensubbox"),rsi=document.getElementById("f-rensub"),acc=sub&&sub!=="new"?J.get("accounts",sub):null;if(rs){rs.style.display=acc?"":"none";if(rsi&&acc&&rsi.dataset.for!==sub){rsi.value=acc.name;rsi.dataset.for=sub}}
   const pb=document.getElementById("f-pers");if(pb&&acc&&pb.dataset.for!==sub){pb.checked=!!J.isPersonalAcc(acc);pb.dataset.for=sub}const sv=document.getElementById("mv-svc"),sb=document.getElementById("mv-svcbox");if(sv&&sb){const o=sub&&sub!=="new"?svcOpts(sub,sv.value):"";sv.innerHTML=o;sb.style.display=o?"":"none"}}
-J.act("susMoveDlg",el=>{const [vid,from]=el.dataset.x.split("|");const src=J.get("accounts",from);const all=vid==="all";const posts=(J.D.post?.get(from)||[]).filter(p=>all||p.v.id===vid);if(!posts.length)return;
+const moveDlg=(vid,from)=>{const sel=vid==="sel";const all=vid==="all"||sel;const posts=sel?(J._shiftSel||[]).map(x=>{const p=(J.D.post?.get(x.from)||[]).find(y=>y.v.id===x.vid);return p?{...p,_f:x.from}:null}).filter(Boolean):(J.D.post?.get(from)||[]).filter(p=>all||p.v.id===vid).map(p=>({...p,_f:from}));if(!posts.length)return toast("Tick at least one entry first");const srcs=[...new Set(posts.map(p=>p._f))];const src=srcs.length===1?J.get("accounts",srcs[0]):null;from=srcs[0];
   const v0=posts[0].v;const txt=posts.map(p=>(p.v.narr||"")+" "+(p.n||"")).join(" ");const guess=J.svcMatch?.(txt);const gAcc=guess?J.get("accounts",guess.a):null;const cv=catOf(gAcc);
   const tot=r2(posts.reduce((s,p)=>s+p.dr-p.cr,0));
-  J.drawer({title:all?`Move ${posts.length} entries · ${src?.name||""}`:`Move ${v0.no}`,submit:all?`Move ${posts.length} entries`:"Move entry",body:`
-   <div class="sus-sum">${all?`<b>${esc(src?.name||"")}</b> · ${posts.length} entries · ${money(Math.abs(tot))} ${tot>=0?"Dr":"Cr"}`:`<b>${fmtDate(v0.date)}</b> · ${esc(v0.no)} · ${money(Math.abs(posts[0].dr-posts[0].cr))} ${posts[0].dr?"Dr":"Cr"}`}</div>
+  J.drawer({title:all?`Move ${posts.length} entries${src?" · "+src.name:" · "+srcs.length+" ledgers"}`:`Move ${v0.no}`,submit:all?`Move ${posts.length} entries`:"Move entry",body:`
+   <div class="sus-sum">${all?`<b>${esc(src?.name||srcs.length+" ledgers")}</b> · ${posts.length} entries · ${money(Math.abs(tot))} ${tot>=0?"Dr":"Cr"}`:`<b>${fmtDate(v0.date)}</b> · ${esc(v0.no)} · ${money(Math.abs(posts[0].dr-posts[0].cr))} ${posts[0].dr?"Dr":"Cr"}`}</div>
    <div class="form">${J.fld("Category",`<select id="mv-cat" name="cat"><option value="">Choose…</option>${cats().map(([v,l])=>`<option value="${esc(v)}" ${v===cv?"selected":""}>${esc(l)}</option>`).join("")}</select>`)}
     ${J.fld("Sub-category / ledger",`<select id="mv-sub" name="sub">${subOpts(cv,gAcc?.id||"")}</select>`)}</div>
    <div id="mv-newcatbox" style="display:none">${J.fld("New category name",J.txt("newcat","","e.g. Owner's personal"))}</div>
@@ -30,7 +30,7 @@ J.act("susMoveDlg",el=>{const [vid,from]=el.dataset.x.split("|");const src=J.get
    <label class="row" style="gap:6px"><input type="checkbox" name="pers" id="f-pers"> Personal — hide from every JCGG login (only the Super Admin sees it)</label>
    <div id="mv-svcbox" style="${gAcc&&svcOpts(gAcc.id,"")?"":"display:none"}">${J.fld("Connection (meter / number / building)",`<select id="mv-svc" name="svc">${gAcc?svcOpts(gAcc.id,guess?.svc||""):""}</select>`)}</div>
    ${all?J.fld("Add a note to every narration (optional)",J.txt("note","")):J.fld("Narration",`<textarea name="narr" id="f-narr" rows="3">${esc(v0.narr||"")}</textarea>`)}
-   ${src&&!src.sys?`<label class="row" style="gap:6px"><input type="checkbox" name="remember" checked> Remember: map ${esc(src.name)} here in future statements</label>`:""}`,
+   ${srcs.some(i=>!J.get("accounts",i)?.sys)?`<label class="row" style="gap:6px"><input type="checkbox" name="remember" checked> Remember: map ${src?esc(src.name):"these parties"} here in future statements</label>`:""}`,
    onSubmit:async fd=>{let to=fd.sub;let cat=fd.cat;if(!cat)return "Choose the category.";if(!to)return "Choose the sub-category / ledger.";
      const taken=n=>J.allRaw("accounts").some(a=>a.name.toLowerCase()===n.toLowerCase()&&a.id!==to);
      if(cat==="newcat"){const n=String(fd.newcat||"").trim();if(!n)return "Type the new category name.";if(J.expCatsAll().some(c=>c.toLowerCase()===n.toLowerCase()))return "That category already exists.";if(!String(fd.newsub||"").trim())return "Type the first sub-category name for the new category.";
@@ -42,12 +42,11 @@ J.act("susMoveDlg",el=>{const [vid,from]=el.dataset.x.split("|");const src=J.get
        else{const g=KG[+cat.slice(2)];to=await J.ensureAcc(n,g[1][0]);if(fd.pers)await J.store.patch("accounts",to,{personal:true})}}
      else{const cur=J.get("accounts",to);const rn=String(fd.rensub||"").trim();if(cur&&rn&&rn!==cur.name){if(taken(rn))return "A ledger called “"+rn+"” already exists.";await J.store.patch("accounts",to,{name:rn})}
        if(cur&&!!fd.pers!==!!cur.personal&&!(J.personalCats().includes(J.expCatOf(cur))))await J.store.patch("accounts",to,{personal:!!fd.pers})}
-     if(to===from)return "That is the same ledger.";const svc=fd.svc||"";
-     J.busy.start("Moving entries",posts.length,"entries");try{for(const p of posts){const v=J.get("vouchers",p.v.id);if(!v)continue;const lines=v.lines.map(l=>l.a===from?{...l,a:to,...(svc&&+l.dr>0?{s:svc}:{})}:l);const rec={...(v.rec||{})};if(rec[from]){rec[to]=rec[from];delete rec[from]}
+     if(posts.every(p=>p._f===to))return "That is the same ledger.";const svc=fd.svc||"";
+     J.busy.start("Moving entries",posts.length,"entries");try{for(const p of posts){const v=J.get("vouchers",p.v.id);if(!v||p._f===to)continue;const from=p._f;const lines=v.lines.map(l=>l.a===from?{...l,a:to,...(svc&&+l.dr>0?{s:svc}:{})}:l);const rec={...(v.rec||{})};if(rec[from]){rec[to]=rec[from];delete rec[from]}
        const narr=all?(fd.note?((v.narr||"")+" · "+fd.note).slice(0,240):v.narr):String(fd.narr??v.narr).trim();
        await J.postVoucher({...v,id:v.id,lines,party:v.party===from?to:v.party,narr,rec});J.busy.tick()}
-     if(fd.remember&&src&&!src.sys)await J.rememberParty(from,to);
-     if(src&&!src.sys&&!(J.D.post?.get(from)||[]).some(p=>!posts.find(x=>x.v.id===p.v.id)))await J.store.patch("accounts",from,{active:false,note:"Merged into "+J.accName(to)})}finally{J.busy.end()}
+     for(const sid of srcs){const sa=J.get("accounts",sid);if(!sa||sa.sys||sid===to)continue;if(fd.remember)await J.rememberParty(sid,to);if(!(J.D.post?.get(sid)||[]).some(p=>!posts.find(x=>x.v.id===p.v.id&&x._f===sid)))await J.store.patch("accounts",sid,{active:false,note:"Merged into "+J.accName(to)})}}finally{J.busy.end()}
      toast((all?posts.length+" entries":"Entry")+" moved to "+J.accName(to))}});
-  setTimeout(upd,30)});
+  setTimeout(upd,30)};J.moveDlg=moveDlg;J.act("susMoveDlg",el=>{const [v,f]=el.dataset.x.split("|");moveDlg(v,f)});
 })();
