@@ -148,16 +148,16 @@ J.fileDrop=async f=>{if(!f.drive)return fileDrop0(f);if(tok())await dropFile(f.d
 
 // ---- one-time move of attachments kept inside the app to Drive (tap in Settings → Data) ----
 const FILE_KEYS=["docs","files","media","kyc"];
-const fileRefs=()=>{const out=[];for(const col of J.DATA_KEYS)for(const r of J.all(col)){for(const k of FILE_KEYS)(Array.isArray(r[k])?r[k]:[]).forEach((f,i)=>{if(f&&f.fid)out.push({col,id:r.id,k,i,f})});if(r.file&&r.file.fid)out.push({col,id:r.id,k:"file",i:-1,f:r.file})}return out};
-J.driveFileStats=()=>{let app=0,drive=0,bytes=0;for(const col of J.DATA_KEYS)for(const r of J.all(col)){const arr=[...FILE_KEYS.flatMap(k=>Array.isArray(r[k])?r[k]:[]),...(r.file?[r.file]:[])];for(const f of arr){if(!f)continue;if(f.drive)drive++;else if(f.fid){app++;bytes+=+f.size||0}}}return {app,drive,bytes}};
+const fileRefs=()=>{const out=[];for(const col of J.DATA_KEYS)for(const r of J.all(col)){for(const k of FILE_KEYS)(Array.isArray(r[k])?r[k]:[]).forEach((f,i)=>{if(f&&f.fid&&!f.lost)out.push({col,id:r.id,k,i,f})});if(r.file&&r.file.fid&&!r.file.lost)out.push({col,id:r.id,k:"file",i:-1,f:r.file})}return out};
+J.driveFileStats=()=>{let app=0,drive=0,bytes=0,lost=0;for(const col of J.DATA_KEYS)for(const r of J.all(col)){const arr=[...FILE_KEYS.flatMap(k=>Array.isArray(r[k])?r[k]:[]),...(r.file?[r.file]:[])];for(const f of arr){if(!f)continue;if(f.drive)drive++;else if(f.lost)lost++;else if(f.fid){app++;bytes+=+f.size||0}}}return {app,drive,bytes,lost}};
 const COLMOD={vouchers:"Accounts",accounts:"Accounts",moves:"Inventory",items:"Inventory",bills:"Inventory",assets:"Fixed Assets",policies:"Insurance",clients:"Clients",contacts:"Directory",trades:"Investments",menu:"Kitchen",recipes:"Kitchen",staffcc:"Customer Care",payroll:"Staff & Payroll",attendance:"Staff & Payroll",meta:"Other"};
-J.driveMigrate=async(onStep)=>{if(!tok()){const ok=await J.driveConnect();if(!ok)return {moved:0,failed:0}}const refs=fileRefs();let moved=0,failed=0;
+J.driveMigrate=async(onStep)=>{if(!tok()){const ok=await J.driveConnect();if(!ok)return {moved:0,failed:0}}const refs=fileRefs();let moved=0,failed=0,lost=0,lostNames=null;
   for(const [n,x] of refs.entries()){onStep&&onStep(n+1,refs.length,x.f.name);try{const fcol=x.f.col||(x.k==="files"&&x.col==="policies"?"polfiles":x.k==="kyc"?"ccfiles":"files");const blob=await fileBlob0({...x.f,col:fcol});
       const sub=x.col==="accounts"&&J.get("accounts",x.id)?.kind==="staff"?"Staff & Payroll":COLMOD[x.col]||"Other";const id=await upload(blob,x.f.name||"file",x.f.type||blob.type||"application/octet-stream",[ROOT,"Files",sub]);
       const cur=J.get(x.col,x.id);if(!cur)continue;const nf={...x.f,drive:id,dfolder:sub,size:blob.size};delete nf.fid;delete nf.of;delete nf.col;
       if(x.k==="file")await J.store.patch(x.col,x.id,{file:nf});else{const arr=[...(cur[x.k]||[])];const j=arr.findIndex(z=>z&&z.fid===x.f.fid);if(j<0)continue;arr[j]=nf;await J.store.patch(x.col,x.id,{[x.k]:arr,...(x.k==="docs"?{docsAt:Date.now()}:{})})}
-      await fileDrop0({...x.f,col:fcol});moved++}catch(e){failed++;console.warn("move to Drive",x,e);if(/expired|connected/.test(e.message))break}}
-  return {moved,failed,total:refs.length}};
+      await fileDrop0({...x.f,col:fcol});moved++}catch(e){if(/incomplete/.test(e.message)){try{const cur=J.get(x.col,x.id);if(cur){if(x.k==="file")await J.store.patch(x.col,x.id,{file:{...cur.file,lost:true}});else{const arr=[...(cur[x.k]||[])];const j=arr.findIndex(z=>z&&z.fid===x.f.fid);if(j>=0){arr[j]={...arr[j],lost:true};await J.store.patch(x.col,x.id,{[x.k]:arr})}}}lost++;(lostNames||(lostNames=[])).push(x.f.name)}catch(_){failed++}}else failed++;console.warn("move to Drive",x,e);if(/expired|connected/.test(e.message))break}}
+  return {moved,failed,lost,lostNames,total:refs.length}};
 // ---- item photos stored inside item records are shrunk to small thumbnails (big pictures slow the app's start-up) ----
 J.shrinkItemPhotos=async(onStep)=>{const big=J.all("items").filter(i=>/^data:image/.test(i.img||"")&&i.img.length>14000);let n=0,saved=0;
   for(const it of big){onStep&&onStep(n+1,big.length);try{const img=await loadImg(it.img);const d=scaleTo(img,200,0.78);if(d.length<it.img.length){saved+=it.img.length-d.length;await J.store.patch("items",it.id,{img:d});n++}}catch(e){}}return {n,saved,total:big.length}};
@@ -171,7 +171,7 @@ J.act("driveSync",()=>J.driveBackup(true));
 J.act("driveChange",()=>J.driveConnect(true));
 J.act("driveMigrate",async el=>{const st=J.driveFileStats();if(!st.app)return toast("Nothing to move — all attachments are already in Drive.");if(!el.dataset.armed){el.dataset.armed="1";el.textContent="Tap again to move "+st.app+" files to Drive";return}
   el.disabled=true;const p=document.getElementById("drv-prog");const r=await J.driveMigrate((i,n,name)=>{if(p)p.textContent="Moving "+i+" of "+n+" · "+(name||"")});el.disabled=false;delete el.dataset.armed;
-  if(p)p.textContent=r.moved+" moved to Drive"+(r.failed?", "+r.failed+" could not be moved (they stay in the app)":"")+".";toast(r.moved+" files moved to Google Drive");J.render()});
+  if(p)p.textContent=r.moved+" moved to Drive"+(r.failed?", "+r.failed+" could not be moved (they stay in the app — tap again)":"")+(r.lost?". "+r.lost+" have no data left in the app and must be attached again: "+(r.lostNames||[]).join(", "):"")+".";toast(r.moved+" files moved to Google Drive");J.render()});
 J.act("shrinkPhotos",async el=>{el.disabled=true;const p=document.getElementById("drv-prog");const r=await J.shrinkItemPhotos((i,n)=>{if(p)p.textContent="Shrinking photo "+i+" of "+n+"…"});el.disabled=false;if(p)p.textContent=r.n+" item photos made smaller · "+Math.round(r.saved/1024)+" KB saved.";J.render()});
 setInterval(paint,30e3);document.addEventListener("DOMContentLoaded",paint);setTimeout(paint,1500);
 })();
