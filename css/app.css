@@ -592,7 +592,7 @@ table.fit td,table.fit th{padding:5px 10px}
 .sidesw button{justify-content:center;padding:7px 6px;border-radius:8px;font-weight:600;font-size:13px;background:transparent}
 .sidesw button[aria-current=page]{background:linear-gradient(135deg,#7E22CE,#B069F0);color:#fff}
 #mis-body p.hint{display:none}
-#mis-body .panel.mcol:not(.open)>*:not(h2){display:none}
+#mis-body .panel.mcol:not(.open)>*:not(h2){display:none!important}
 #mis-body .panel.mcol>h2{cursor:pointer;margin:0;padding:12px 14px}
 #mis-body .panel.mcol>h2::after{content:" ▸";color:var(--ink-3)}
 #mis-body .panel.mcol.open>h2::after{content:" ▾"}
