@@ -14,8 +14,10 @@ const money=n=>(n<0?"−":"")+"₹"+inr.format(Math.abs(r2(n)));
 const money0=n=>(n<0?"−":"")+"₹"+inr0.format(Math.abs(Math.round(n||0)));
 // plain-language side of a balance, by ledger kind (postings stay Dr / Cr underneath)
 const PLAIN={cash:["in hand","overdrawn"],bank:["in bank","overdrawn"],wallet:["in wallet","overdrawn"],card:["paid in advance","to pay card"],aggregator:["to receive","to pay them"],customer:["to receive","advance received"],vendor:["advance paid","to pay"],staff:["staff owes us","to pay staff"],staffadv:["staff owes us","owed to staff"],staffloan:["staff owes us","owed to staff"],escrow:["owed by staff","held for staff"],expense:["spent","refund"],income:["reversed","earned"],tax:["to get back","to pay"],loan:["lent (to receive)","borrowed (to repay)"],deprec:["returned extra","deposit held"],deppaid:["deposit given","returned extra"],capital:["drawn out","capital in"],asset:["value","reduced"],invest:["invested","sold / reduced"],stock:["stock value","reduced"],suspense:["unclassified (in)","unclassified (out)"]};
-const PLAINCOL={cash:["Money in","Money out"],bank:["Money in","Money out"],wallet:["Money in","Money out"],card:["Paid to card","Spent on card"],customer:["Billed","Received"],vendor:["Paid","Bought"],expense:["Spent","Refund"],income:["Reversed","Earned"]};
-const bal=(n,kind)=>{n=r2(n);if(Math.abs(n)<0.005)return "₹0.00";const w=kind&&PLAIN[kind]?PLAIN[kind][n>0?0:1]:null;return "₹"+inr.format(Math.abs(n))+(w?' <small class="muted">('+w+')</small>':(n>0?" Dr":" Cr"))};
+const PLAINCOL_OFF={cash:["Money in","Money out"],bank:["Money in","Money out"],wallet:["Money in","Money out"],card:["Paid to card","Spent on card"],customer:["Billed","Received"],vendor:["Paid","Bought"],expense:["Spent","Refund"],income:["Reversed","Earned"]};
+const NEGCR=new Set(["cash","bank","wallet","customer","aggregator"]);
+// Dr / Cr as in the books; a credit balance is blue, and red where a credit means a negative balance (cash, bank, wallet, customers, aggregators)
+const bal=(n,kind)=>{n=r2(n);if(Math.abs(n)<0.005)return "₹0.00";const t="₹"+inr.format(Math.abs(n));return n>0?t+" Dr":'<span class="'+(NEGCR.has(kind)?"bal-neg":"bal-cr")+'">'+t+" Cr</span>"};
 const pad=n=>String(n).padStart(2,"0");
 const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const today=()=>iso(new Date());
@@ -31,7 +33,7 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 const monthsBetween=(a,b)=>{const out=[];let [y,m]=a.split("-").map(Number);const [by,bm]=b.split("-").map(Number);while(y<by||(y===by&&m<=bm)){out.push(y+"-"+pad(m));m++;if(m>12){m=1;y++}}return out};
 const initials=s=>String(s||"?").split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("");
 function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2800)}
-Object.assign(J,{$,esc,inr,inr0,qf,r2,r3,money,money0,bal,PLAIN,PLAINCOL,pad,iso,today,parseISO,addDays,daysBetween,fmtDate,monthLabel,monthEnd,daysInMonth,fyOf,uid,monthsBetween,initials,toast});
+Object.assign(J,{$,esc,inr,inr0,qf,r2,r3,money,money0,bal,PLAIN,PLAINCOL:PLAINCOL_OFF,pad,iso,today,parseISO,addDays,daysBetween,fmtDate,monthLabel,monthEnd,daysInMonth,fyOf,uid,monthsBetween,initials,toast});
 
 const PERIODS=[["today","Today"],["7d","7 days"],["month","This month"],["lastmonth","Last month"],["fy","This FY"],["all","All"],["custom","Custom"]];
 function periodRange(p,c){const t=today(),fy=fyOf(t);
