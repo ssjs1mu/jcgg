@@ -564,6 +564,6 @@ table.hol{width:100%}table.hol td{padding:6px 8px;border-bottom:1px solid var(--
 
 @media print{.noprint{display:none!important}}
 
-.bal-cr{color:#1d4ed8;font-weight:600}.bal-neg{color:#dc2626;font-weight:600}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .bal-cr{color:#7aa7ff}:root:not([data-theme="light"]) .bal-neg{color:#ff7b7b}}
-:root[data-theme="dark"] .bal-cr{color:#7aa7ff}:root[data-theme="dark"] .bal-neg{color:#ff7b7b}
+.bal-pos{color:#1d4ed8;font-weight:600}.bal-neg{color:#dc2626;font-weight:600}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .bal-pos{color:#7aa7ff}:root:not([data-theme="light"]) .bal-neg{color:#ff7b7b}}
+:root[data-theme="dark"] .bal-pos{color:#7aa7ff}:root[data-theme="dark"] .bal-neg{color:#ff7b7b}

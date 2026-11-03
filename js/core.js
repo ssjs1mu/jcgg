@@ -15,9 +15,8 @@ const money0=n=>(n<0?"−":"")+"₹"+inr0.format(Math.abs(Math.round(n||0)));
 // plain-language side of a balance, by ledger kind (postings stay Dr / Cr underneath)
 const PLAIN={cash:["in hand","overdrawn"],bank:["in bank","overdrawn"],wallet:["in wallet","overdrawn"],card:["paid in advance","to pay card"],aggregator:["to receive","to pay them"],customer:["to receive","advance received"],vendor:["advance paid","to pay"],staff:["staff owes us","to pay staff"],staffadv:["staff owes us","owed to staff"],staffloan:["staff owes us","owed to staff"],escrow:["owed by staff","held for staff"],expense:["spent","refund"],income:["reversed","earned"],tax:["to get back","to pay"],loan:["lent (to receive)","borrowed (to repay)"],deprec:["returned extra","deposit held"],deppaid:["deposit given","returned extra"],capital:["drawn out","capital in"],asset:["value","reduced"],invest:["invested","sold / reduced"],stock:["stock value","reduced"],suspense:["unclassified (in)","unclassified (out)"]};
 const PLAINCOL_OFF={cash:["Money in","Money out"],bank:["Money in","Money out"],wallet:["Money in","Money out"],card:["Paid to card","Spent on card"],customer:["Billed","Received"],vendor:["Paid","Bought"],expense:["Spent","Refund"],income:["Reversed","Earned"]};
-const NEGCR=new Set(["cash","bank","wallet","customer","aggregator"]);
-// Dr / Cr as in the books; a credit balance is blue, and red where a credit means a negative balance (cash, bank, wallet, customers, aggregators)
-const bal=(n,kind)=>{n=r2(n);if(Math.abs(n)<0.005)return "₹0.00";const t="₹"+inr.format(Math.abs(n));return n>0?t+" Dr":'<span class="'+(NEGCR.has(kind)?"bal-neg":"bal-cr")+'">'+t+" Cr</span>"};
+// Dr balance (money we hold / are owed) is blue; Cr balance (negative — to pay / overdrawn) is red
+const bal=(n,kind)=>{n=r2(n);if(Math.abs(n)<0.005)return "₹0.00";const t="₹"+inr.format(Math.abs(n));return '<span class="'+(n>0?"bal-pos":"bal-neg")+'">'+t+(n>0?" Dr":" Cr")+"</span>"};
 const pad=n=>String(n).padStart(2,"0");
 const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const today=()=>iso(new Date());
