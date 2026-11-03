@@ -208,7 +208,7 @@ const GN=[ // id, column, label, sub, detail
 ["ast",1,"Assets & investments","Fixed assets, shares, stock, capital","Equipment, investments, closing stock value and owner capital."],
 ["susp",1,"Suspense","Unclassified","Waiting room for statement lines and bill differences. Should be zero at month end."],
 ["rec",2,"Reconcile","Accounts → Reconcile","Per ledger: book balance minus uncleared debits plus uncleared credits must equal the statement closing balance. Used for bank, card, wallet, aggregator, vendor, staff, loans and deposits."],
-["bchk",2,"Bank check","One payment, one entry","Finds doubles between imported statement lines and hand entries, and transfers between two of your banks that came in from both statements; ticks one off against the other."],
+["bchk",2,"Bank check","One payment, one entry","Finds doubles between imported statement lines and hand entries, and transfers between two of your banks that came in from both statements; ticks one off against the other. Also lists payments from personal banks to the restaurant's Google Pay id (…@okbizaxis) booked as Staff Welfare or Suspense and moves the debit to Owner's Capital / Drawings, because Google Pay matching already credits Staff Welfare."],
 ["agg",2,"Aggregator reconciliation","Swiggy / Zomato reports","Matches each order to Petpooja by order id, and each payout to the bank by UTR or amount."],
 ["mm",2,"Mismatch finder","Daily, monthly, yearly (read-only)","Flags unposted Petpooja days, payments not received, payroll and bank gaps and suspense. Feeds Home reminders."],
 ["sus",2,"Suspense check","Accounts → Suspense","Gives every unclassified entry a proper ledger."],
