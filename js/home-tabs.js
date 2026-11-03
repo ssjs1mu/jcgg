@@ -88,7 +88,7 @@ function groups(f,t,by){const out=[];if(by==="month"){let m=f.slice(0,7);while(m
 // ---------- Super Admin position (top of the MIS report) ----------
 const DENS=[[500,"n"],[200,"n"],[100,"n"],[50,"n"],[20,"n"],[10,"n"],[20,"c"],[10,"c"],[5,"c"],[2,"c"],[1,"c"]];
 function misTop(t){if(!(S.me.owner||J.myRole?.()==="Super Admin"))return "";
-  const own=a=>(J.isPersonalMoney?.(a)||a.personal===true)?(/manoj/i.test(a.holder||a.owner||"")||!(a.holder||a.owner)?"MKJ":"Family"):"JCGG";const KL={bank:"Bank",card:"Credit card",wallet:"Wallet",cash:"Cash"};
+  const own=a=>({jcgg:"JCGG",mkj:"MKJ",fam:"Family"})[J.divOf(a)]||"JCGG";const KL={bank:"Bank",card:"Credit card",wallet:"Wallet",cash:"Cash"};
   const accs=J.accsOf(["bank","card","wallet"]).map(a=>({a,g:own(a),b:J.balanceOf(a.id,t)})).filter(x=>Math.abs(x.b)>0.004||x.a.active!==false);
   const cashB=J.accsOf(["cash"]).map(a=>({a,g:own(a),b:J.balanceOf(a.id,t)}));
   // dues: bills / EMIs / licences due soon or overdue, plus supplier payables (oldest unpaid bill + credit terms)

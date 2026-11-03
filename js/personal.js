@@ -15,8 +15,14 @@ J.personalCats=()=>arr(J.get("meta","cats")?.personal);
 J.seePersonal=()=>{try{return J.canSee("mkjacc")}catch(e){return true}};
 J.isPersonalAcc=a=>{if(!a)return false;if(a.personal===true)return true;if(a.kind==="expense"){const pc=J.personalCats();return pc.length>0&&pc.includes(J.expCatOf?.(a)||a.cat||"")}return false};
 J.isPersonalMoney=a=>!!a&&a.mkj===true&&MONEYK.includes(a.kind);
+// ---- divisions: jcgg (business) · mkj (Manoj Joshi's own) · fam (family members') — each person can be allowed any of them ----
+J.DIVS=[["jcgg","JCGG (business)"],["mkj","Personal (MKJ)"],["fam","Personal (Family)"]];
+J.divOf=a=>{if(!a)return "jcgg";if(a.div==="jcgg"||a.div==="mkj"||a.div==="fam")return a.div;
+  if(J.isPersonalMoney(a)||(a.personal===true&&MONEYK.includes(a.kind))){const h=a.holder||a.owner||"";return !h||/manoj/i.test(h)?"mkj":"fam"}
+  return J.isPersonalAcc(a)?"mkj":"jcgg"};
+J.divsSeen=()=>{if(J.seePersonal())return new Set(["jcgg","mkj","fam"]);const l=J.get("meta","roles")?.divs?.[S.me.email];return new Set(["jcgg",...(Array.isArray(l)?l:[])])};
 // sets of hidden ledgers: hard (entry vanishes) and bank (entry stays on business side if every other line is a business ledger)
-const sets=()=>{if(J.seePersonal())return null;const H=new Set(),B=new Set();for(const a of raw("accounts")){if(J.isPersonalAcc(a))H.add(a.id);else if(J.isPersonalMoney(a))B.add(a.id)}return H.size||B.size?{H,B}:null};
+const sets=()=>{const vis=J.divsSeen();if(vis.size>=3)return null;const H=new Set(),B=new Set();for(const a of raw("accounts")){if(vis.has(J.divOf(a)))continue;if(MONEYK.includes(a.kind))B.add(a.id);else H.add(a.id)}return H.size||B.size?{H,B}:null};
 const TAG=/\s*\|\s*Bank stmt ·.*$/;
 const clean=v=>({...v,narr:String(v.narr||"").replace(TAG,""),ref:/^S\d{5,}$/.test(v.ref||"")?"":v.ref,bank:undefined,rec:undefined,lines:arr(v.lines).map(l=>({...l,n:String(l.n||"").replace(TAG,"")}))});
 // "hide" | "strip" | "" for a voucher
@@ -31,7 +37,7 @@ const ec=J.expCats;J.expCatsAll=ec;
 if(ec){J.expCats=()=>{const l=ec();if(J.seePersonal())return l;const pc=J.personalCats();return pc.length?l.filter(c=>!pc.includes(c)):l}}
 // a hidden account's name never shows to others
 const an=J.accName;
-if(an){J.accName=id=>{if(!J.seePersonal()){const a=J.get("accounts",id);if(a&&(J.isPersonalAcc(a)||J.isPersonalMoney(a)))return "Personal account"}return an(id)}}
+if(an){J.accName=id=>{if(!J.seePersonal()){const a=J.get("accounts",id);if(a&&!J.divsSeen().has(J.divOf(a)))return "Personal account"}return an(id)}}
 // ledger rows of other accounts show hidden entries without details, and bank details are removed from kept ones
 J.onDerive(D=>{if(J.seePersonal())return;const X=sets();if(!X)return;
   for(const [id,list] of D.post)for(let i=0;i<list.length;i++){const p=list[i];const d=verdict(p.v,X);if(!d)continue;

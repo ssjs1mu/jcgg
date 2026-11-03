@@ -175,7 +175,7 @@ const LINKS={
  assets:["Asset purchase, repair expense, disposal journals","Asset, depreciation, repairs","Depreciation schedule"],
  insurance:["Premium payments and renewals","Expense heads, deposits","Renewal radar"],
  invest:["Buy / sell trade vouchers","Investment ledgers","Holdings vs ledger cost"],
- accounts:["Day book, manual entries, loans interest, card statements, GST paid","All ledgers","Reconcile, Bank check, Suspense, Reports, Freeze & checks"],
+ accounts:["Day book, manual entries, loans interest, card statements, GST paid","All ledgers","Reconcile, Bank check, Divisions (JCGG / Personal MKJ / Personal Family per ledger; who sees which is in Settings → Users & roles), Suspense, Reports, Freeze & checks"],
  import:["Bank statement lines and old records as vouchers","Bank / card, with unknowns in Suspense","Bank check removes doubles against hand entries and doubled bank-to-bank transfers; a line whose account number is your other bank becomes a transfer by itself"],
  directory:["Does not post. Vendors, customers and staff are the parties ledgers belong to","—","—"],
  kitchen:["Does not post. Recipe costing reads Inventory item rates","—","—"],
