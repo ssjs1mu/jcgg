@@ -105,7 +105,7 @@ function misTop(t){if(!(S.me.owner||J.myRole?.()==="Super Admin"))return "";
   const grp=(g,kinds)=>{const xs=accs.filter(x=>x.g===g&&kinds.includes(x.a.kind)).sort((a,b)=>a.a.kind.localeCompare(b.a.kind)||a.a.name.localeCompare(b.a.name));if(!xs.length)return "";return `<div class="tbl-wrap"><table class="fit"><thead><tr><th colspan="3">${g==="JCGG"?"JCGG (business)":g==="MKJ"?"Personal (MKJ)":"Personal (Family)"}</th></tr></thead><tbody>${xs.map(x=>`<tr><td>${esc(x.a.name)}</td><td>${KL[x.a.kind]}</td><td class="num">${B(x.b)}</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="2">Total</td><td class="num"><b>${B(r2(xs.reduce((s,x)=>s+x.b,0)))}</b></td></tr></tfoot></table></div>`};
   const boxes=J.accsOf(["cash"]).map(a=>({a,c:J.all("cashday").filter(c=>c.box===a.id).sort((x,y)=>y.date.localeCompare(x.date))[0]}));
   const cashT=boxes.length?`<table><thead><tr><th>Denomination</th>${boxes.map(b=>`<th class="num" colspan="2">${esc(b.a.name)}<div class="hint">${b.c?"counted "+fmtDate(b.c.date)+(b.c.by?" · "+esc(b.c.by):""):"no count saved"}</div></th>`).join("")}</tr></thead><tbody>${DENS.map(([v,ty])=>`<tr><td>₹${v} ${ty==="n"?"note":"coin"}</td>${boxes.map(b=>{const n=+(b.c?.counts?.[ty+v])||0;return `<td class="num">${n||""}</td><td class="num">${n?inr0.format(n*v):""}</td>`}).join("")}</tr>`).join("")}</tbody><tfoot><tr><td>Counted</td>${boxes.map(b=>`<td></td><td class="num"><b>${b.c?inr0.format(b.c.counted):"—"}</b></td>`).join("")}</tr><tr><td>Should be (books)</td>${boxes.map(b=>`<td></td><td class="num">${b.c?inr0.format(b.c.expected):"—"}</td>`).join("")}</tr><tr><td>Short / excess</td>${boxes.map(b=>`<td></td><td class="num" style="color:${b.c&&b.c.diff<0?"var(--bad)":"inherit"}">${b.c?(b.c.diff>0?"+":"")+inr0.format(b.c.diff):"—"}</td>`).join("")}</tr><tr><td>Books balance now</td>${boxes.map(b=>`<td></td><td class="num">${B(J.balanceOf(b.a.id,t))}</td>`).join("")}</tr></tfoot></table>`:'<p class="hint pb">No cash counter set up.</p>';
-  const U=J.ui("mis",{});const sel=U.tile===undefined?"net":U.tile;
+  const U=J.ui("mis",{});const sel=U.tile===undefined?"":U.tile;
   const tot=ks=>r2(accs.filter(x=>ks.includes(x.a.kind)).reduce((s,x)=>s+x.b,0));
   const overdue=dues.filter(x=>x.d<t&&!x.card).length;
   const cnt=boxes.reduce((s,b)=>s+(b.c?.counted||0),0);const lastCnt=boxes.map(b=>b.c?.date).filter(Boolean).sort().at(-1);
@@ -153,4 +153,11 @@ function vMIS(){const fy=J.fyOf(today()).start;const U=J.ui("mis",{from:fy,to:to
 J.act("misRange",el=>{const [a,b]=el.dataset.x.split("|");const U=J.ui("mis");U.from=a;U.to=b;J.render()});
 J.act("misPrint",()=>{const b=document.getElementById("mis-body");if(b)J.printDoc?.("MIS report",`<h1>${esc(J.settings().business||"JCGG")} — MIS report</h1>`+b.innerHTML,true)});
 {const h=J.MODS.find(m=>m.id==="home");if(h&&!h.tabs.find(x=>x[0]==="mis"))h.tabs.push(["mis","MIS report",vMIS])}
+})();
+
+// MIS first look = tiles + headline figures; every other report is a collapsed bar that opens on tap
+(()=>{const J=window.J;const OPEN=new Set();
+J.afterRender.push(()=>{const b=document.getElementById("mis-body");if(!b)return;
+  b.querySelectorAll(":scope>section.panel, :scope>.grid2>section.panel").forEach(p=>{const h=p.querySelector(":scope>h2");if(!h)return;p.classList.add("mcol");if(OPEN.has(h.textContent))p.classList.add("open");
+    if(!h._m){h._m=1;h.addEventListener("click",()=>{const o=p.classList.toggle("open");o?OPEN.add(h.textContent):OPEN.delete(h.textContent)})}})});
 })();

@@ -580,10 +580,20 @@ table.hol{width:100%}table.hol td{padding:6px 8px;border-bottom:1px solid var(--
 .mt-det+.mt-h{display:none}
 #mis-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px;align-items:start}
 #mis-body>.hint,#mis-body>.mis-kpis,#mis-body>.mt-row,#mis-body>.mt-det,#mis-body>.mt-h,#mis-body>section:has(.mis-trend){grid-column:1/-1}
-#mis-body>.hint{order:-2}#mis-body>.mt-row{order:-3}#mis-body>.mt-det{order:-1}
+#mis-body>.hint{order:-2;font-size:12px}#mis-body>.mt-row{order:-3}#mis-body>.mt-det{order:-1}
 #mis-body .grid2{display:contents}
 #mis-body table,#mis-body .tbl-wrap table{width:100%}
 #mis-body .tbl-wrap{overflow-x:auto}
 table.fit td,table.fit th{padding:5px 10px}
 @media print{.mt-row{display:none}}
 .mt-det>.tbl-wrap:only-child{grid-column:1/-1}
+
+.sidesw{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;margin:0 4px 6px;border-radius:10px;background:var(--rule)}
+.sidesw button{justify-content:center;padding:7px 6px;border-radius:8px;font-weight:600;font-size:13px;background:transparent}
+.sidesw button[aria-current=page]{background:linear-gradient(135deg,#7E22CE,#B069F0);color:#fff}
+#mis-body p.hint{display:none}
+#mis-body .panel.mcol:not(.open)>*:not(h2){display:none}
+#mis-body .panel.mcol>h2{cursor:pointer;margin:0;padding:12px 14px}
+#mis-body .panel.mcol>h2::after{content:" ▸";color:var(--ink-3)}
+#mis-body .panel.mcol.open>h2::after{content:" ▾"}
+#mis-body .panel.mcol.open>*:not(h2){display:revert}

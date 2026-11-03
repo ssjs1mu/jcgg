@@ -236,7 +236,9 @@ J.go=(mod,tab)=>{const m=MODS.find(x=>x.id===mod);if(!m)return;S.route={mod,tab:
 const setHTML=(el,h)=>{if(el&&el._h!==h){el.innerHTML=h;el._h=h}};
 function renderRail(){
   const vis=MODS.filter(m=>J.canSee(m.id));
-  let h="";for(const g of GROUPS){const ms=vis.filter(m=>m.group===g);if(!ms.length)continue;if(g!=="Home")h+=`<div class="ng">${g}</div>`;
+  const isMk=m=>(J.MKJ_MODS||[]).includes(m.id);const hasMk=vis.some(isMk);const curM=MODS.find(x=>x.id===S.route.mod);const side=curM&&isMk(curM)?"mkj":"jcgg";
+  let h=hasMk?`<div class="sidesw"><button data-go="home" ${side==="jcgg"?'aria-current="page"':""}>JCGG</button><button data-go="${vis.find(isMk).id}" ${side==="mkj"?'aria-current="page"':""}>Personal</button></div>`:"";
+  for(const g of GROUPS){const ms=vis.filter(m=>m.group===g&&(!hasMk||isMk(m)===(side==="mkj")||m.id==="home"&&side==="jcgg"));if(!ms.length)continue;if(g!=="Home")h+=`<div class="ng">${g}</div>`;
     h+=ms.map(m=>{const b=m.badge?.();return `<button data-go="${m.id}" ${S.route.mod===m.id?'aria-current="page"':""}>${ICON(m.icon)}<span>${esc(m.label)}</span>${b?`<span class="count">${b}</span>`:""}</button>`}).join("")}
   setHTML($("#nav"),h);const who=$("#who");if(who&&S.me.email)setHTML(who,(S.me.photo?`<img src="${esc(S.me.photo)}" alt="" referrerpolicy="no-referrer">`:"")+`<span>${esc((S.me.name||S.me.email).split(" ")[0])} · ${esc(myRole())}</span>`);const bn=J.settings().business||"JCGG";if($("#bizName").textContent!==bn)$("#bizName").textContent=bn;
   setHTML($("#mnav"),[["jdash","Dashboard"],["home","Home"],["accounts","Accounts"],["inventory","Stock"],["kot","Staff KOT"]].filter(([k])=>J.canSee(k)).map(([k,l])=>{const m=MODS.find(x=>x.id===k);return `<button data-go="${k}" ${S.route.mod===k?'aria-current="page"':""}>${ICON(m.icon)}<span>${l}</span></button>`}).join("")+`<button data-a="modmenu">${ICON('<path d="M4 6h16M4 12h16M4 18h16"/>')}<span>More</span></button>`);
