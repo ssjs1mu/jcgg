@@ -82,7 +82,7 @@ const subOf=(cat,d)=>((SUBRE[cat]||[]).find(([,re])=>re.test(d))||[])[0]||"";
 function mapLine(l,isCharge){const exp=isCharge?expOf(l.desc,l.hsn)||"delivch":expOf(l.desc,l.hsn);if(exp)return {kind:"exp",exp};const pk=PACK(l.desc);const nm=String(l.desc).replace(/\s+/g," ").trim();const ex=matchItem(nm,nameOf(l.desc));
   const cat0=catOf(l.desc,l.hsn);return {kind:"stock",item:ex?.id||"new",newName:nm,cat:cat0,sub:subOf(cat0,l.desc),unit:ex?.unit||pk?.unit||"PCS",perPack:pk&&(!ex||ex.unit===pk.unit)?pk.q:1}}
 // ---------------- upload & review ----------------
-const STG={bills:[]};
+const STG={bills:[]};let NEWN=[];
 J.billParseFile=async f=>J.parseBill(await pdfItems(f));
 J.billStage=async(files,fmt)=>{STG.bills=[];J.busy.start("Reading supplier bills",files.length,"bills");
   for(const f of files){J.busy.label(f.name);try{const b=J.parseBill(await pdfItems(f),fmt);b.file=f;b.fileName=f.name;b.dup=J.all("bills").find(x=>x.invNo&&x.invNo===b.invNo);b.lines.forEach(l=>l.map=mapLine(l,false));b.charges.forEach(l=>l.map=mapLine(l,true));STG.bills.push(b)}catch(e){STG.bills.push({file:f,fileName:f.name,err:e.message,lines:[],charges:[],warnings:[]})}J.busy.tick()}J.busy.end();
@@ -121,9 +121,9 @@ J.act("billMap",el=>{const [bi,kind,li]=el.dataset.k.split("-");const l=STG.bill
   const st=document.getElementById("drawerForm")?.scrollTop;reviewDrawer();const fm=document.getElementById("drawerForm");if(fm)fm.scrollTop=st});
 async function vendorId(b){if(b.vendorKey==="hyperpure"){const v=J.all("accounts").find(a=>a.kind==="vendor"&&/hyperpure/i.test(a.name));if(v)return v.id}
   const nm=b.vendorName||"Supplier";const ex=J.all("accounts").find(a=>a.kind==="vendor"&&a.name.toLowerCase()===nm.toLowerCase());return ex?ex.id:J.ensureAcc(nm,"vendor")}
-async function saveAll(){const todo=STG.bills.filter(b=>!b.err&&!b.dup&&(b.lines.length||b.charges.length));if(!todo.length)return "Nothing new to save.";let done=0;J.busy.start("Saving supplier bills",todo.length,"bills");
+async function saveAll(){const todo=STG.bills.filter(b=>!b.err&&!b.dup&&(b.lines.length||b.charges.length));if(!todo.length)return "Nothing new to save.";NEWN=[];let done=0;J.busy.start("Saving supplier bills",todo.length,"bills");
   for(const b of todo){J.busy.label(b.invNo||b.fileName);try{await saveBill(b);done++}catch(e){console.error(e);toast("Could not save "+(b.invNo||b.fileName)+": "+e.message)}J.busy.tick()}J.busy.label("Matching bills with bank payments…");
-  toast(done+" bill"+(done>1?"s":"")+" saved and posted");
+  toast(done+" bill"+(done>1?"s":"")+" saved and posted"+(NEWN.length?" · "+NEWN.length+" new stock item"+(NEWN.length>1?"s":"")+" added":""));
   // wait until every saved bill is back from the database, so bills of one order are matched together
   const ids=todo.map(b=>"bill-"+(b.invNo||"").replace(/[^\w-]/g,""));for(let i=0;i<40&&!ids.every(id=>J.get("bills",id));i++)await new Promise(r=>setTimeout(r,250));
   try{await J.billsReconcile()}finally{J.busy.end()}J.go("inventory","bills")}
@@ -131,7 +131,7 @@ async function saveBill(b){const id="bill-"+(b.invNo||uid()).replace(/[^\w-]/g,"
   let file=null;try{file=await J.fileSave(b.file,"files")}catch(e){console.warn("bill file",e)}
   const stock=[],exp={};let stockTotal=0;
   for(const l of [...b.lines,...b.charges]){const m=l.map;if(m.kind==="exp"){const nm=EXP.find(e=>e[0]===m.exp)?.[1]||"Miscellaneous Kitchen Expenses";exp[m.exp]=(exp[m.exp]||{n:nm,amt:0});exp[m.exp].amt=r2(exp[m.exp].amt+l.total);continue}
-    let item=m.item;if(item==="new"){const nm=(m.newName||l.desc).replace(/\s+/g," ").trim();const ex=matchItem(nm);item=ex?.id||uid();if(!ex)await J.store.put("items",{id:item,name:nm,cat:m.cat,sub:(m.sub||"").trim(),unit:m.unit,reorder:0,gst:0,shelf:0,vendor:vend,img:"",veg:true,active:true,src:"bill"})}
+    let item=m.item;if(item==="new"){const nm=(m.newName||l.desc).replace(/\s+/g," ").trim();const ex=matchItem(nm);item=ex?.id||uid();if(!ex){NEWN.push(nm);await J.store.put("items",{id:item,name:nm,cat:m.cat,sub:(m.sub||"").trim(),unit:m.unit,reorder:0,gst:0,shelf:0,vendor:vend,img:"",veg:true,active:true,src:"bill"})}}
     const q=r3(m.stockQty??(l.qty*(m.perPack||1)))||l.qty;stock.push({item,qty:q,rate:r2(l.total/q),gst:0,batch:"BILL-"+(b.invNo||id).slice(-8)+"-"+(stock.length+1),exp:"",desc:l.desc});stockTotal=r2(stockTotal+l.total)}
   const L=[];if(stockTotal)L.push({a:J.sysAcc("purch")?.id||await J.ensureAcc("Kitchen Purchases (Raw Material)","expense","purch"),dr:stockTotal,cr:0});
   for(const [sys,e] of Object.entries(exp))L.push({a:await J.ensureAcc(e.n,"expense",sys),dr:e.amt,cr:0});
