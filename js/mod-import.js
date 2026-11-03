@@ -72,6 +72,7 @@ function classify(r,o,targetId){const desc=norm(r.desc);const cat=str(r.cat);if(
   if(tk==="card"&&r.inn&&/payment|thank you|received|autopay|neft|imps|upi/.test(desc)){const b=J.accsOf(["bank"]);const c=b.find(x=>norm(x.name).split(" ").some(w=>w.length>=4&&desc.includes(w)))||b[0];if(c)return {a:c.id,by:"card payment"}}
   for(const a of J.all("accounts")){if(a.id===targetId||!["vendor","staff","customer","aggregator","loan","bank","card"].includes(a.kind))continue;const n=norm(a.name);if(n.length>=5&&desc.includes(n))return {a:a.id,by:"name"}}
   for(const a of J.accsOf(r.out?["expense"]:["income"])){const ws=norm(a.name).split(" ").filter(w=>w.length>=6);if(ws.some(w=>desc.includes(w)))return {a:a.id,by:"head name"}}
+  if(r.inn&&/\bint\.? ?pd\b|interest|int\.paid/.test(desc)){const ia=J.accsOf(["income"]).find(x=>/interest/i.test(x.name));return ia?{a:ia.id,by:"bank interest"}:{a:"make:income:Interest received",by:"bank interest"}}
   if(cat&&o.heads!==false)return {a:"new:"+cat,by:"new head"};return {a:"suspense",by:"unclassified"}}
 // ---- counterparty-aware mapping for bank lines (staff, owner capital, aggregators, suppliers, people) ----
 const titleCase=s=>String(s||"").toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase()).trim();
