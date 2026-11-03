@@ -17,8 +17,8 @@ function toLines(pages){const lines=[];for(const [pi,p] of pages.entries()){cons
 function splitDate(r){// a line starts a transaction when one of its first items (or first 3 tokens) is a date
   const its=r.items;for(let k=0;k<Math.min(its.length,4);k++){const d=parseDate(its[k].t);if(d)return {date:d,at:k,span:1};if(k+2<its.length){const d3=parseDate(its[k].t+" "+its[k+1].t+" "+its[k+2].t);if(d3)return {date:d3,at:k,span:3}}}
   const m=r.text.match(/^(?:\d{1,4}\s+)?(\d{1,2}[\s\-\/.][A-Za-z]{3,4}[\s\-\/.,]*\d{2,4}|\d{1,2}[\-\/.]\d{1,2}[\-\/.]\d{2,4})\b/);if(m){const d=parseDate(m[1]);if(d)return {date:d,text:m[0]}}return null}
-// a narration cut at the column width continues without a space (…/U + P → …/UP)
-const joinD=(a,b)=>{a=String(a||"");b=String(b||"");return (/\S{40,}$/.test(a)&&/^\S{1,3}(\s|$)/.test(b)&&!/\s$/.test(a)?a+b:(a+" "+b)).replace(/\s+/g," ").trim()};
+// a narration cut at the column width (23 or 48 characters) continues without a space (…/U + P → …/UP)
+const joinD=(a,b,n,full)=>{a=String(a||"");b=String(b||"");n=n==null?a.length:n;return (full===true||(full==null&&(n===23||n===48)))&&a&&b?(a+b).replace(/\s+/g," ").trim():(a+" "+b).replace(/\s+/g," ").trim()};
 function parse(pages){const lines=toLines(pages);const all=lines.map(l=>l.text).join("\n");
   const meta={};const g=re=>{const m=all.match(re);return m?m[1].trim():""};
   meta.acNo=g(/Account\s*(?:No\.?|Number)\s*[:\-]?\s*([0-9Xx*]{6,20})/i);meta.ifsc=g(/IFSC(?:\s*Code)?\s*[:\-]?\s*([A-Z]{4}0[A-Z0-9]{6})/);meta.micr=g(/MICR\s*(?:Code)?\s*[:\-]?\s*(\d{9})/i);
@@ -46,21 +46,23 @@ function parse(pages){const lines=toLines(pages);const all=lines.map(l=>l.text).
   if(!meta.holder){const m=all.match(/(?:^|\n)\s*(?:MRS|MR|MS|M\/S|SMT|SHRI|MISS)\.?\s+([A-Z]+(?: [A-Z]+){0,3}?)(?=\s+(?:State|City|Address|HOUSE|Phone|OD|Currency|Email|Cust|Account|RTGS|Branch)\b|\s*(?:\n|$))/);if(m)meta.holder=m[1].replace(/\s+/g," ").trim()}
   // label above its value (Bank of Baroda): the value sits on the next line under (or beside) the label
   {const below=re=>{for(let i=0;i<Math.min(lines.length-1,80);i++){const it=lines[i].items.find(x=>re.test(x.t));if(!it)continue;for(let j=i+1;j<Math.min(i+3,lines.length);j++){const c=lines[j].items.map(x=>({x,d:Math.min(Math.abs(x.x-it.x),Math.abs(x.x+(x.w||0)-(it.x+(it.w||0))))})).filter(o=>o.d<70).sort((a,b)=>a.d-b.d)[0];if(c&&!/^(Account|Branch|IFSC|MICR|Scheme|Mobile|Nominee|Email|CKYC|Helpline|Customer)\b/i.test(c.x.t))return c.x.t.trim()}}return ""};
-   const bad=v=>!v||/^(Details|Account number|Name)$/i.test(v);
-   if(bad(meta.holder)){const v=below(/^Account holder name$/i);if(v)meta.holder=v}
-   if(!meta.acNo){const v=below(/^Account number$/i).replace(/\s+/g,"");if(/^[0-9Xx*]{6,20}$/.test(v))meta.acNo=v}
+   const bad=v=>!v||/^(Details|Account number|Name|Holding Status|Customer ID)$/i.test(v);
+   if(bad(meta.holder)){const v=below(/^Account holder name$/i)||below(/^Name$/i);if(v&&!/^(Holding Status|Customer ID)$/i.test(v))meta.holder=v}
+   if(!meta.acNo){const v=(below(/^Account number$/i)||below(/^Account No\.?$/i)).replace(/\s+/g,"");if(/^[0-9Xx*]{6,20}$/.test(v))meta.acNo=v}
    if(!meta.ifsc){const v=below(/^IFSC code$/i);if(/^[A-Z]{4}0[A-Z0-9]{6}$/.test(v))meta.ifsc=v}
    if(!meta.micr){const v=below(/^MICR code$/i);if(/^\d{9}$/.test(v))meta.micr=v}
    if(bad(meta.branch)){const v=below(/^Branch name$/i);if(v)meta.branch=v}
-   if(!meta.type||/^(Details)$/i.test(meta.type)){const v=below(/^Account type$/i);if(v)meta.type=/saving/i.test(v)?"Savings":/current/i.test(v)?"Current":v}
+   if(!meta.type||/^(Details)$|Currency|Lien|Balance/i.test(meta.type)){const v=below(/^Account type$/i);if(v)meta.type=/saving/i.test(v)?"Savings":/current/i.test(v)?"Current":v}
    if(!meta.mobile){const v=below(/^Mobile number$/i).replace(/\D/g,"");if(v.length>=10)meta.mobile=v.slice(-10)}
    if(!meta.email){const v=below(/^Email ID$/i);if(/@/.test(v))meta.email=v}
    if(!meta.nominee){const v=below(/^Nominee Name$/i);if(v)meta.nominee=v}
    if(meta.ifsc&&!meta.ifscBank){meta.ifscBank=IF[meta.ifsc.slice(0,4)]||"";if(!meta.bank)meta.bank=meta.ifscBank}}
   // header row: find the x positions of the amount columns
-  let hdr=null;for(const l of lines){const t=l.text.toLowerCase();if(/balance/.test(t)&&/(withdraw|debit|dr\.)/.test(t)&&/(deposit|credit|cr\.)/.test(t)&&(/date/.test(t)||/narration|particulars|chq/.test(t))){const col=re=>{const it=l.items.find(i=>re.test(i.t.toLowerCase()));return it?it.x+(it.w||0)/2:null};hdr={dr:col(/withdraw|debit/),cr:col(/deposit|credit/),bal:col(/balance/),ref:col(/ref|chq|cheque/),desc:col(/desc|narr|partic|details/)};break}}
+  let hdr=null;for(const l of lines){const t=l.text.toLowerCase();if(/balance/.test(t)&&/(withdraw|debit|dr\.)/.test(t)&&/(deposit|credit|cr\.)/.test(t)&&(/date/.test(t)||/narration|particulars|chq/.test(t))){const col=re=>{const it=l.items.find(i=>re.test(i.t.toLowerCase()));return it?it.x+(it.w||0)/2:null};hdr={dr:col(/withdraw|debit/),cr:col(/deposit|credit/),bal:col(/balance/),ref:col(/ref|chq|cheque/),desc:col(/desc|narr|partic|details/),descL:(()=>{const it=l.items.find(i=>/desc|narr|partic|details/.test(i.t.toLowerCase()));return it?it.x:null})()};break}}
   const zone=hdr?Math.min(...[hdr.dr,hdr.cr,hdr.bal].filter(v=>v!=null))-70:null;
   const isAmt=i=>AMT.test(i.t)||(zone!=null&&LOOSE.test(i.t)&&i.x+(i.w||0)/2>=zone);
+  // narrations wrapped at the column edge: a line that reaches the widest right edge was cut mid-word
+  let Rmax=null,Rlim=null;if(hdr?.descL!=null){Rlim=(hdr.ref??hdr.dr??1e9)-25;for(const l of lines)for(const i of l.items){if(Math.abs(i.x-hdr.descL)<8&&!isAmt(i)){const rr=i.x+(i.w||0);if(rr<Rlim&&(Rmax==null||rr>Rmax))Rmax=rr}}}
   // layout where each transaction's narration is centred on the date line (lines above AND below it)?
   let centred=false;{let st=false;for(const l of lines){const low=l.text.toLowerCase();const isH=/balance/.test(low)&&/(withdraw|debit|dr\.)/.test(low)&&/(deposit|credit|cr\.)/.test(low)&&/date/.test(low);if(isH){st=true;continue}if(!st)continue;if(/opening balance/.test(low))continue;if(splitDate(l)&&l.items.some(isAmt))break;if(!l.items.some(isAmt)&&l.text.length>3){centred=true;break}}}
   // some statements put the first narration line a few points ABOVE the date line (Bank of Baroda): a text-only line sitting just over a date line
@@ -74,17 +76,20 @@ function parse(pages){const lines=toLines(pages);const all=lines.map(l=>l.text).
     const sd=splitDate(l);const amts=l.items.filter(isAmt);
     if(sd&&amts.length>=1){// new transaction line
       const dateEnd=sd.at!=null?sd.at+sd.span:0;const txt=l.items.slice(dateEnd).filter(i=>!isAmt(i));
-      let ref="",desc=[];for(const i of txt){const cx=i.x+(i.w||0)/2;if(i.t==="-"||(hdr?.desc!=null&&cx<hdr.desc-5&&parseDate(i.t)))continue;if(hdr?.ref!=null&&hdr?.dr!=null&&cx>hdr.ref-60&&cx<hdr.dr-20&&/^[A-Za-z0-9\-\/]{6,}$/.test(i.t)&&!ref)ref=i.t;else if(!(hdr?.ref!=null&&cx>hdr.ref&&parseDate(i.t)))desc.push(i.t)}
+      let ref="",desc=[],rr=0;for(const i of txt){const cx=i.x+(i.w||0)/2;if(i.t==="-"||(hdr?.desc!=null&&cx<hdr.desc-5&&parseDate(i.t)))continue;if(hdr?.ref!=null&&hdr?.dr!=null&&cx>hdr.ref-60&&cx<hdr.dr-20&&/^[A-Za-z0-9\-\/]{6,}$/.test(i.t)&&!ref)ref=i.t;else if(!(hdr?.ref!=null&&cx>hdr.ref&&parseDate(i.t))){desc.push(i.t);rr=Math.max(rr,i.x+(i.w||0))}}
       // strip a leading serial number
       if(sd.at>0){}
-      const vals=amts.map(i=>({v:num(i.t),x:i.x+(i.w||0)/2,raw:i.t}));const bal=vals.length>=2?vals.at(-1).v:null;const amtItem=vals.length>=2?vals.at(-2):vals[0];
-      const prevRow=cur;cur={date:sd.date,desc:desc.join(" "),ref,amt:Math.abs(amtItem.v),amtX:amtItem.x,raw:amtItem.raw,bal,page:l.page,y:l.y};
+      const vals=amts.map(i=>({v:num(i.t),x:i.x+(i.w||0)/2,raw:i.t}));let bal=vals.length>=2?vals.at(-1).v:null;let amtItem=vals.length>=2?vals.at(-2):vals[0];let force=null;
+      if(vals.length>=3){const w=vals.at(-3),d2=vals.at(-2);if(w.v>0&&!(d2.v>0)){amtItem=w;force="out"}else if(d2.v>0&&!(w.v>0)){amtItem=d2;force="in"}else amtItem=w.v>=d2.v?w:d2}
+      const prevRow=cur;cur={date:sd.date,desc:desc.join(" "),ref,amt:Math.abs(amtItem.v),amtX:amtItem.x,raw:amtItem.raw,bal,page:l.page,y:l.y,force,_last:desc.join(" ").length,_r:rr};
       if(centred){const up=[];for(const q of pend){if(prevRow&&prevRow.page===q.page&&Math.abs(q.y-prevRow.y)<Math.abs(q.y-l.y))prevRow.desc=joinD(prevRow.desc,q.t);else up.push(q.t)}cur.desc=joinD(up.join(" "),cur.desc)}pend=[];rows.push(cur);continue}
     if(centred&&!amts.length&&!sd&&l.text.length<120&&!/^\s*#?\s*date\b/i.test(l.text)){pend.push({t:l.text,y:l.y,page:l.page});continue}
-    if(cur&&!amts.length&&l.page===cur.page&&!sd&&l.text.length<120){cur.desc=joinD(cur.desc,l.text);continue}
+    if(cur&&!amts.length&&l.page===cur.page&&!sd&&l.text.length<120){cur.desc=joinD(cur.desc,l.text,cur._last,Rmax!=null?cur._r>=Rmax-6:undefined);cur._last=l.text.length;cur._r=Math.max(0,...l.items.map(i=>i.x+(i.w||0)).filter(x=>Rlim==null||x<Rlim));continue}
     if(cur&&amts.length)cur=null}
+  // newest-first statements (IndusInd): put the lines in date order so the running balance can be followed
+  if(rows.length>1&&rows[0].date>rows.at(-1).date){rows.reverse();meta.newestFirst=true}
   // direction: running balance first, then column position, then Dr/Cr suffix
-  let prev=opening;for(const r of rows){let dir=null;if(prev!=null&&r.bal!=null){const d=Math.round((r.bal-prev)*100)/100;if(Math.abs(Math.abs(d)-r.amt)<0.011)dir=d<0?"out":"in"}
+  let prev=opening;for(const r of rows){let dir=r.force||null;if(!dir&&prev!=null&&r.bal!=null){const d=Math.round((r.bal-prev)*100)/100;if(Math.abs(Math.abs(d)-r.amt)<0.011)dir=d<0?"out":"in"}
     if(!dir&&/dr$/i.test(r.raw))dir="out";if(!dir&&/cr$/i.test(r.raw))dir="in";
     if(!dir&&hdr?.dr!=null&&hdr?.cr!=null)dir=Math.abs(r.amtX-hdr.dr)<Math.abs(r.amtX-hdr.cr)?"out":"in";
     r.out=dir==="out"?r.amt:0;r.inn=dir==="in"?r.amt:0;r.dirBy=dir?"ok":"unknown";if(r.bal!=null)prev=r.bal}
