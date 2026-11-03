@@ -75,8 +75,11 @@ J.act("fileView",el=>{const s=SRC[el.dataset.src]?.(el.dataset.x);const f0=s?.re
 // Access is the drive.file scope only: the app sees just the files it created. The Drive sign-in uses a separate
 // Firebase auth instance, so the app's own login is untouched and any Google account can be the Drive account.
 const DS="https://www.googleapis.com/auth/drive.file";const TK="jcgg-drive-token";
-const tok=()=>{try{const t=JSON.parse(sessionStorage.getItem(TK)||"null");return t&&t.exp>Date.now()+60e3?t.t:null}catch(e){return null}};
-const tokWho=()=>{try{return JSON.parse(sessionStorage.getItem(TK)||"null")?.who||""}catch(e){return ""}};
+const tokRaw=()=>{try{return JSON.parse(localStorage.getItem(TK)||sessionStorage.getItem(TK)||"null")}catch(e){return null}};
+const tokSet=o=>{const j=JSON.stringify(o);try{localStorage.setItem(TK,j)}catch(e){}try{sessionStorage.setItem(TK,j)}catch(e){}};
+const tokClear=()=>{try{localStorage.removeItem(TK)}catch(e){}try{tokClear()}catch(e){}};
+const tok=()=>{const t=tokRaw();return t&&t.exp>Date.now()+60e3?t.t:null};
+const tokWho=()=>tokRaw()?.who||"";
 const meta=()=>J.get("meta","driveSync")||{};
 let dirty=false,timer=null,running=false,lastErr="",lastFix="";
 J.driveStatus=()=>{const m=meta();return {on:!!tok(),who:tokWho(),account:m.account||"",last:m.lastAt,by:m.by,err:lastErr,fix:lastFix,folder:m.rootId||m.folderId,days:Object.keys(m.days||{}).length,months:Object.keys(m.months||{}).length,years:Object.keys(m.years||{}).length,rootId:m.rootId}};
@@ -87,14 +90,14 @@ J.driveConnect=async(change)=>{const m=meta();const p=new firebase.auth.GoogleAu
   try{const r=await app2().auth().signInWithPopup(p);const t=r.credential?.accessToken;const who=(r.user?.email||"").toLowerCase();try{await app2().auth().signOut()}catch(e){}
     if(!t)throw new Error("Google did not return Drive access");
     if(m.account&&who!==m.account.toLowerCase()&&!change){throw new Error("Please choose the app's Drive account "+m.account+" (you picked "+who+"). To switch accounts use Settings → Data → Change Drive account.")}
-    sessionStorage.setItem(TK,JSON.stringify({t,who,exp:Date.now()+55*60e3}));lastErr="";
+    tokSet({t,who,exp:Date.now()+55*60e3});lastErr="";
     if(!m.account||change){if(change&&m.account&&who!==m.account.toLowerCase())await J.store.put("meta",{id:"driveSync",account:who,switchedFrom:m.account,switchedAt:Date.now()});else await J.store.put("meta",{...meta(),id:"driveSync",account:who})}
     paint();await J.driveBackup(true);return true}
   catch(e){lastErr=e.message||e.code||"cancelled";paint();toast("Drive not connected: "+(e.code==="auth/popup-blocked"?"allow pop-ups for this site":lastErr));return false}};
-async function raw(path,opt={}){const t=tok();if(!t)throw new Error("Drive not connected");const r=await fetch(/^https?:/.test(path)?path:"https://www.googleapis.com/"+path,{...opt,headers:{Authorization:"Bearer "+t,...(opt.headers||{})}});if(r.status===401){sessionStorage.removeItem(TK);throw new Error("Drive access expired — reconnect")}
+async function raw(path,opt={}){const t=tok();if(!t)throw new Error("Drive not connected");const r=await fetch(/^https?:/.test(path)?path:"https://www.googleapis.com/"+path,{...opt,headers:{Authorization:"Bearer "+t,...(opt.headers||{})}});if(r.status===401){tokClear();throw new Error("Drive access expired — reconnect")}
   if(!r.ok){let j={};try{j=await r.json()}catch(e){}const er=j.error||{};const why=(er.errors||[])[0]?.reason||(er.details||[]).find(d=>d.reason)?.reason||er.status||"";const pid=firebase.app().options.projectId;
     if(/accessNotConfigured|SERVICE_DISABLED/i.test(why+" "+er.message))throw Object.assign(new Error("Google Drive API is switched off for this app's Google project. Turn it on once, then tap again."),{fix:"https://console.cloud.google.com/apis/library/drive.googleapis.com?project="+pid});
-    if(/insufficient|ACCESS_TOKEN_SCOPE_INSUFFICIENT|PERMISSION_DENIED/i.test(why+" "+er.status)){sessionStorage.removeItem(TK);throw new Error("Drive permission was not given. Tap again and tick the Google Drive box on Google's screen.")}
+    if(/insufficient|ACCESS_TOKEN_SCOPE_INSUFFICIENT|PERMISSION_DENIED/i.test(why+" "+er.status)){tokClear();throw new Error("Drive permission was not given. Tap again and tick the Google Drive box on Google's screen.")}
     throw Object.assign(new Error("Drive error "+r.status+(er.message?": "+er.message:"")),{status:r.status})}return r}
 async function api(path,opt={}){const r=await raw(path,opt);return r.status===204?null:r.json()}
 // folders — created once, ids remembered in meta.driveSync.dirs
@@ -168,6 +171,8 @@ const keepDocs=(c,d)=>{const cur=c!=="kots"&&S.c[c]?.get?.(d.id);if(cur&&cur.doc
 const mark=col=>{if(col!=="files"&&col!=="polfiles"&&col!=="ccfiles"&&!(col==="meta"))if(tok()){dirty=true;schedule()}};
 J.store.put=async(c,d)=>{d=keepDocs(c,d);const r=await put0(c,d);mark(c);return r};J.store.patch=async(c,i,p)=>{const r=await patch0(c,i,p);if(!(c==="meta"&&i==="driveSync"))mark(c);return r};J.store.del=async(c,i)=>{const r=await del0(c,i);mark(c);return r};
 J.act("driveSync",()=>J.driveBackup(true));
+J.act("driveClient",async()=>{const v=(document.getElementById("drive-cid")?.value||"").trim();if(v&&!/^\d+-[\w-]+\.apps\.googleusercontent\.com$/.test(v))return toast("That does not look like a Google client ID (…apps.googleusercontent.com)");
+  await J.safe(()=>J.store.put("meta",{...meta(),id:"driveSync",clientId:v}),v?"Saved — Drive will renew itself quietly":"Automatic Drive renewal switched off");gisFail=0;if(v)silentRefresh()});
 J.act("driveChange",()=>J.driveConnect(true));
 
 const subFor=(col,id)=>col==="accounts"&&J.get("accounts",id)?.kind==="staff"?"Staff & Payroll":COLMOD[col]||"Other";
@@ -180,8 +185,21 @@ J.act("driveScan",async el=>{el.disabled=true;const p=document.getElementById("d
 J.act("driveLostCsv",()=>{const L=J.driveLostList();const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';const csv=["File,Belongs to,Date,Size (KB),Upload to Drive folder"].concat(L.map(x=>[x.name,x.rec,x.date,Math.round(x.size/1024),x.path].map(q).join(","))).join("\n");
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="files-to-reupload.csv";document.body.appendChild(a);a.click();a.remove()});
 // Drive sign-in prompt whenever the app starts (and again if the sign-in has run out) — a button, because Google's pop-up needs a tap
+// Silent renewal: Google gives a browser app a Drive token for one hour only. With the app's OAuth client ID saved
+// (Settings → Data) the token is renewed quietly every ~50 minutes while the app is open — no sign-in box — as long as
+// the Drive account is signed in to Google in this browser. If Google needs a fresh sign-in, the box appears as before.
+let gisBusy=false,gisFail=0;
+const loadGis=()=>window.google?.accounts?.oauth2?Promise.resolve():new Promise((ok,no)=>{const sc=document.createElement("script");sc.src="https://accounts.google.com/gsi/client";sc.onload=ok;sc.onerror=()=>no(new Error("Google sign-in script blocked"));document.head.appendChild(sc)});
+async function silentRefresh(){const m=meta();if(!m.clientId||!m.account||gisBusy||gisFail>=3)return false;gisBusy=true;
+  try{await loadGis();const t=await new Promise((ok,no)=>{const to=setTimeout(()=>no(new Error("timeout")),15000);
+    const c=google.accounts.oauth2.initTokenClient({client_id:m.clientId,scope:DS,callback:r=>{clearTimeout(to);r.access_token?ok(r):no(new Error(r.error||"no token"))},error_callback:e=>{clearTimeout(to);no(new Error(e?.type||"blocked"))}});
+    c.requestAccessToken({prompt:"",hint:m.account})});
+    tokSet({t:t.access_token,who:m.account.toLowerCase(),exp:Date.now()+(Math.max(300,+t.expires_in||3600)-300)*1e3});gisFail=0;lastErr="";paint();return true}
+  catch(e){gisFail++;return false}finally{gisBusy=false}}
+J.driveSilent=silentRefresh;
+setInterval(()=>{try{if(!S.me||!S.ready||S.mode!=="cloud"||J.limited?.()||J.isCC?.())return;const t=tokRaw();if(!t||t.exp<Date.now()+6*60e3)silentRefresh().then(ok=>{if(ok&&J.driveBackup)J.driveBackup(false)})}catch(e){}},30e3);
 let askAt=0;
-const askDrive=()=>{try{if(!S.me||!S.ready||S.mode!=="cloud"||J.limited?.()||J.isCC?.()||J.readOnly?.()||tok())return;if(document.querySelector("#overlay .drawer-bg"))return;if(askAt&&Date.now()-askAt<3600e3)return;askAt=Date.now();const m=meta();
+const askDrive=()=>{try{if(!S.me||!S.ready||S.mode!=="cloud"||J.limited?.()||J.isCC?.()||J.readOnly?.()||tok()||gisBusy||(meta().clientId&&gisFail<3&&!askAt&&Date.now()-(window.__t0||(window.__t0=Date.now()))<20e3))return;if(document.querySelector("#overlay .drawer-bg"))return;if(askAt&&Date.now()-askAt<3600e3)return;askAt=Date.now();const m=meta();
   J.drawer({title:"Sign in to Google Drive",submit:"Sign in to Drive",body:`<p style="margin:0 0 8px">Drive is not signed in on this device, so new attachments and the backup cannot go to Drive.</p><p class="hint" style="margin:0">Use the app's Drive account${m.account?": <b>"+esc(m.account)+"</b>":""}.</p>`,onSubmit:async()=>{const ok=await J.driveConnect(false);if(!ok)return false}})}catch(e){}};
 setInterval(askDrive,4e3);
 J.act("driveMigrate",async el=>{const st=J.driveFileStats();if(!st.app)return toast("Nothing to move — all attachments are already in Drive.");if(!el.dataset.armed){el.dataset.armed="1";el.textContent="Tap again to move "+st.app+" files to Drive";return}
