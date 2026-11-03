@@ -52,7 +52,16 @@ J.postVoucher=async spec=>{
   return orig(spec)};
 
 // ---------- 3. find doubles already in the books ----------
-J.findDups=()=>{const vs=J.all("vouchers");const imp=vs.filter(v=>v.imp);const out={twice:[],pairs:[]};
+// bank-to-bank transfer: exactly two lines, both cash / bank / card ledgers
+function xfer(v){const L=arr(v.lines);if(L.length!==2||!L.every(l=>isMon(l.a)))return null;const d=L.find(l=>+l.dr>0),c=L.find(l=>+l.cr>0);if(!d||!c||d.a===c.a)return null;return {from:c.a,to:d.a,amt:r2(+d.dr)}}
+J.bankXfer=xfer;
+// an existing transfer that touches ledger `acc` on the given side ("out" = money left it) for this amount near this date
+J.xferTwin=(acc,side,amt,date,impId,skip)=>J.all("vouchers").map(v=>({v,x:xfer(v)})).filter(({v,x})=>x&&(!skip||!skip.has(v.id))&&(!impId||v.imp!==impId)&&(side==="out"?x.from:x.to)===acc&&Math.abs(x.amt-amt)<0.01&&days(v.date,date)<=5)
+  .sort((a,b)=>days(a.v.date,date)-days(b.v.date,date))[0]?.v||null;
+J.findDups=()=>{const vs=J.all("vouchers");const imp=vs.filter(v=>v.imp);const out={twice:[],pairs:[],xfer:[]};
+  {const T=vs.map(v=>({v,x:xfer(v)})).filter(t=>t.x).sort((a,b)=>(a.v.imp?1:0)-(b.v.imp?1:0)||(a.v.createdAt||0)-(b.v.createdAt||0)||String(a.v.no).localeCompare(String(b.v.no)));const u=new Set();
+   for(let i=0;i<T.length;i++){if(u.has(i))continue;for(let j=i+1;j<T.length;j++){if(u.has(j))continue;const a=T[i],b=T[j];
+     if(a.x.from===b.x.from&&a.x.to===b.x.to&&Math.abs(a.x.amt-b.x.amt)<0.01&&days(a.v.date,b.v.date)<=3&&((a.v.imp||"")!==(b.v.imp||""))){u.add(i);u.add(j);out.xfer.push({keep:a.v,extra:b.v,from:a.x.from,to:a.x.to,amt:a.x.amt});break}}}}
   const g={};for(const v of imp){const s=shape(v.lines);if(!s)continue;(g[[s.acc,v.date,s.side,s.amt,norm(v.narr).slice(0,120)].join("|")]??=[]).push(v)}
   const extra=new Set();for(const list of Object.values(g)){const ids=new Set(list.map(v=>v.imp));if(list.length<2||ids.size<2)continue;list.sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
     const keep=list[0];for(const v of list.slice(1))if(v.imp!==keep.imp){extra.add(v.id);out.twice.push({keep,extra:v})}}
@@ -63,16 +72,19 @@ J.findDups=()=>{const vs=J.all("vouchers");const imp=vs.filter(v=>v.imp);const o
     if(hit){used.add(hit.v.id);out.pairs.push({man:hit.v,bank:i,moved:hit.s.acc!==si.acc})}}
   return out};
 // keep the hand entry (it carries payroll / advance links), take the bank details from the imported line, drop the copy
+// the same transfer came in from both banks' statements: keep one, carry the other bank's cleared date across, drop the copy
+J.mergeXfer=async(kid,eid)=>{const k=J.get("vouchers",kid),e=J.get("vouchers",eid);if(!k||!e)return;const rec={...(e.rec||{}),...(k.rec||{})};await J.store.patch("vouchers",k.id,{rec});await J.store.del("vouchers",e.id)};
 J.mergeBankPair=async(mid,bid)=>{const m=J.get("vouchers",mid),b=J.get("vouchers",bid);if(!m||!b)return;const sm=shape(m.lines),sb=shape(b.lines);if(!sm||!sb)return;
   const bm=arr(b.lines).find(l=>l.a===sb.acc);const lines=arr(m.lines).map(l=>l.a===sm.acc?{...l,a:sb.acc,...(bm?.n&&!l.n?{n:bm.n}:{})}:l);
   const rec={...(m.rec||{})};delete rec[sm.acc];if(b.rec?.[sb.acc])rec[sb.acc]=b.rec[sb.acc];
   await orig({...m,id:m.id,lines,rec,ref:m.ref||b.ref,imp:"",bank:{from:b.no,narr:b.narr,ref:b.ref||"",date:b.date,imp:b.imp,at:Date.now(),by:S.me?.email||"",...(sm.acc!==sb.acc?{movedFrom:sm.acc}:{})}});
   await J.store.del("vouchers",b.id)};
 
-function vDups(){const d=J.findDups();const n=d.twice.length+d.pairs.length;
+function vDups(){const d=J.findDups();const n=d.twice.length+d.pairs.length+d.xfer.length;
   const row=(v,acc)=>{const s=shape(v.lines);return `<button class="linkbtn vno" data-a="editv" data-x="${v.id}">${esc(v.no)}</button> · ${fmtDate(v.date)} · ${esc(J.accName(s?.acc))} · <b>${inr.format(s?.amt||0)}</b> ${s?.side==="out"?"paid to":"from"} ${esc(s?.others.map(J.accName).join(", "))}<div class="hint">${esc(v.narr||"")}</div>`};
   return `<p class="hint" style="margin-top:0">One payment should appear once. This screen finds the doubles — a statement imported twice, or a payment typed by hand that the bank statement also brought in — and fixes each with a tap. How to avoid them is explained under “How it works” below.</p>
   ${n?`<div class="row" style="gap:8px;margin-bottom:10px"><span class="chip warn">${n} double${n===1?"":"s"} found</span><button class="btn small w" data-a="dupFixAll">Fix all ${n}</button></div>`:`<div class="panel pb"><span class="chip ok">No doubles</span> <span class="muted">Every bank line is in the books once.</span></div>`}
+  ${d.xfer.length?`<section class="panel"><h2>Bank-to-bank transfer entered twice (${d.xfer.length})</h2><p class="hint pb" style="margin:0">Both banks' statements carried the same transfer, so it was booked once from each. One stays (with the cleared dates of both banks); the extra copy is removed.</p><div class="tbl-wrap"><table><tbody>${d.xfer.map(x=>`<tr><td><button class="linkbtn vno" data-a="editv" data-x="${x.keep.id}">${esc(x.keep.no)}</button> and <button class="linkbtn vno" data-a="editv" data-x="${x.extra.id}">${esc(x.extra.no)}</button> · ${fmtDate(x.keep.date)} · <b>${inr.format(x.amt)}</b> from ${esc(J.accName(x.from))} to ${esc(J.accName(x.to))}<div class="hint">Extra copy: ${esc(x.extra.no)}</div></td><td style="white-space:nowrap"><button class="btn small danger w" data-a="dupXfer" data-x="${x.keep.id}|${x.extra.id}">Remove copy</button></td></tr>`).join("")}</tbody></table></div></section>`:""}
   ${d.twice.length?`<section class="panel"><h2>Bank line imported twice (${d.twice.length})</h2><p class="hint pb" style="margin:0">The same statement line came in from two imports. The first stays, the extra copy is removed.</p><div class="tbl-wrap"><table><tbody>${d.twice.map(x=>`<tr><td>${row(x.extra)}<div class="hint">Same as ${esc(x.keep.no)}</div></td><td style="white-space:nowrap"><button class="btn small danger w" data-a="dupDel" data-x="${x.extra.id}">Remove copy</button></td></tr>`).join("")}</tbody></table></div></section>`:""}
   ${d.pairs.length?`<section class="panel"><h2>Typed by hand and also in the bank statement (${d.pairs.length})</h2><p class="hint pb" style="margin:0">Your entry stays (with its salary / advance link). The bank details — narration, UTR, cleared date — are copied onto it${d.pairs.some(p=>p.moved)?"; an entry made from Cash is moved to the bank that actually paid":""}. Then the imported copy is removed.</p><div class="tbl-wrap"><table><thead><tr><th>Your entry</th><th>Bank line</th><th></th></tr></thead><tbody>${d.pairs.map(p=>`<tr><td>${row(p.man)}</td><td>${row(p.bank)}${p.moved?`<div class="chip warn" style="margin-top:4px">entry was from ${esc(J.accName(shape(p.man.lines).acc))} — will move to ${esc(J.accName(shape(p.bank.lines).acc))}</div>`:""}</td><td style="white-space:nowrap"><button class="btn small w" data-a="dupMerge" data-x="${p.man.id}|${p.bank.id}">Merge</button></td></tr>`).join("")}</tbody></table></div></section>`:""}
   <section class="panel"><h2>How it works</h2><div class="pb" style="display:flex;flex-direction:column;gap:6px">
@@ -82,7 +94,8 @@ function vDups(){const d=J.findDups();const n=d.twice.length+d.pairs.length;
 J.vDups=vDups;
 const tap=(el,fn)=>{if(!el.dataset.armed){el.dataset.armed="1";el.textContent="Tap again";setTimeout(()=>{if(el.isConnected)delete el.dataset.armed},4000);return}fn()};
 J.act("dupDel",el=>tap(el,()=>J.safe(()=>J.store.del("vouchers",el.dataset.x),"Extra copy removed").then(()=>J.render())));
+J.act("dupXfer",el=>tap(el,()=>{const [k,e]=el.dataset.x.split("|");J.safe(()=>J.mergeXfer(k,e),"Extra transfer removed").then(()=>J.render())}));
 J.act("dupMerge",el=>tap(el,()=>{const [m,b]=el.dataset.x.split("|");J.safe(()=>J.mergeBankPair(m,b),"Merged — one entry with the bank details").then(()=>J.render())}));
-J.act("dupFixAll",el=>tap(el,async()=>{el.disabled=true;const d=J.findDups();let n=0;J.busy.start("Fixing doubles",d.twice.length+d.pairs.length,"entries");await J.safe(async()=>{for(const x of d.twice){await J.store.del("vouchers",x.extra.id);n++;J.busy.tick()}for(const p of d.pairs){await J.mergeBankPair(p.man.id,p.bank.id);n++;J.busy.tick()}});J.busy.end();toast(n+" double"+(n===1?"":"s")+" fixed");J.render()}));
+J.act("dupFixAll",el=>tap(el,async()=>{el.disabled=true;const d=J.findDups();let n=0;J.busy.start("Fixing doubles",d.twice.length+d.pairs.length+d.xfer.length,"entries");await J.safe(async()=>{for(const x of d.xfer){await J.mergeXfer(x.keep.id,x.extra.id);n++;J.busy.tick()}for(const x of d.twice){await J.store.del("vouchers",x.extra.id);n++;J.busy.tick()}for(const p of d.pairs){await J.mergeBankPair(p.man.id,p.bank.id);n++;J.busy.tick()}});J.busy.end();toast(n+" double"+(n===1?"":"s")+" fixed");J.render()}));
 const acc=J.MODS.find(m=>m.id==="accounts");if(acc){const i=acc.tabs.findIndex(t=>t[0]==="suspense");acc.tabs.splice(i+1,0,["dups","Bank check",vDups])}
 })();

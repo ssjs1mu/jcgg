@@ -90,12 +90,15 @@ function smartParty(r,target){const p=r.party;if(!p)return null;const d=str(r.de
   const a=accByParty(p);if(a)return {a:a.id,by:"known party"};
   if(p.short&&p.name&&(p.vpa||p.acNo))return {a:"make:suspense:"+titleCase(p.name)+" · "+(p.vpa||"a/c "+p.acNo),by:"new party ledger (to classify)"};
   if(p.name&&p.name.length>=3&&!/^(upiintent|payviarazorpay)$/i.test(p.name))return {a:"make:suspense:"+titleCase(p.name),by:"new party ledger (to classify)"};return null}
+// the narration / payee account number is one of your own bank ledgers → this line is a transfer between your banks
+function otherBank(r,target){const hay=(r.party?.acNo||"")+" "+str(r.desc)+" "+(r.party?.remark||"");const runs=(hay.match(/\d{6,}/g)||[]);if(!runs.length)return null;
+  return J.accsOf(["bank"]).find(a=>{if(a.id===target)return false;const ac=String(a.bankAc||"").replace(/\D/g,"");return ac.length>=6&&runs.some(x=>ac===x||(x.length>=8&&(ac.endsWith(x)||x.endsWith(ac)))||(x.length>=ac.length&&x.endsWith(ac.slice(-Math.min(ac.length,9)))))})||null}
 function stmtPrep(r,o,kinds){const d=asDate(r.date);if(!d)return r.skip=1;if(d<J.settings().startMonth+"-01")r.err.push("before book start");
   let out=0,inn=0;if(r._m.out||r._m.inn){out=Math.abs(asNum(r.out))||0;inn=Math.abs(asNum(r.inn))||0}
   else{const raw=str(r.amt);let n=asNum(r.amt);const dc=str(r.drcr).toLowerCase();if(/\bcr\b|credit/i.test(dc)||/cr\s*$/i.test(raw)){inn=Math.abs(n)}else if(/\bdr\b|debit/i.test(dc)||/dr\s*$/i.test(raw)){out=Math.abs(n)}else if(o.sign==="pos-out"){n>0?out=n:inn=-n}else{n<0?out=-n:inn=n}}
   out=r2(out);inn=r2(inn);if(!out&&!inn)return r.skip=1;if(out&&inn)r.err.push("both withdrawal and deposit filled");
   let target=o.target;if(r._m.acct&&str(r.acct)){const a=matchAcc(r.acct,J.MONEY);if(a)target=a.id;else r.err.push("account “"+str(r.acct)+"” not found")}if(!target)r.err.push("choose the account to import into");
-  r.d=d;r.out=out;r.inn=inn;r.target=target;r.party=window.BankPDF?window.BankPDF.party(str(r.desc)):null;if(!r.counter||!r.manual){const pm=(o._pm??={});const key=r.party?.short?nameKey((r.party.vpa||r.party.acNo||"")+" "+r.party.name):r.party?.name?nameKey(r.party.name):"";let c=(r.out&&J.svcMatch?.(str(r.desc)+" "+(r.party?.name||"")))||smartParty(r,target);if(key&&pm[key]&&(!c||/^make:suspense:/.test(c.a)))c={a:pm[key],by:"same party as above"};c=c||classify(r,o,target);if(key&&!/^(adv|loan)-/.test(c.a)&&c.a!=="suspense"&&!pm[key])pm[key]=c.a;r.counter=c.a;r.by=c.by;r.partyAcc=c.party||"";r.svc=c.svc||""}
+  r.d=d;r.out=out;r.inn=inn;r.target=target;r.party=window.BankPDF?window.BankPDF.party(str(r.desc)):null;if(!r.counter||!r.manual){const pm=(o._pm??={});const key=r.party?.short?nameKey((r.party.vpa||r.party.acNo||"")+" "+r.party.name):r.party?.name?nameKey(r.party.name):"";let c=(r.out&&J.svcMatch?.(str(r.desc)+" "+(r.party?.name||"")))||smartParty(r,target);if(key&&pm[key]&&(!c||/^make:suspense:/.test(c.a)))c={a:pm[key],by:"same party as above"};c=c||classify(r,o,target);const ib=otherBank(r,target);if(ib)c={a:ib.id,by:"your own bank · "+ib.name};if(key&&!/^(adv|loan)-/.test(c.a)&&c.a!=="suspense"&&!pm[key])pm[key]=c.a;r.counter=c.a;r.by=c.by;r.partyAcc=c.party||"";r.svc=c.svc||""}
   r.view=[d,str(r.desc),out?inr.format(out):"",inn?inr.format(inn):""]}
 // a statement line that is already in the books: same bank, same amount, within 2 days — or within 5 days for the same person.
 // A hand entry made from Cash for the same person and amount is offered to be moved onto this bank instead of adding a second entry.
@@ -103,8 +106,17 @@ function markDups(recs){const used=new Set();for(const r of recs){if(r.err.lengt
   const who=v=>{const s=J.bankShape?.(v.lines);if(!s)return false;return J.get("accounts",r.counter)?J.bankSameParty(s.others,[r.counter],txt):J.bankTextHit(s.others,txt)};
   const cand=(J.D.post.get(r.target)||[]).filter(p=>!used.has(p.v.id)&&!(p.v.imp&&p.v.imp===r._imp)&&Math.abs((side==="cr"?p.cr:p.dr)-amt)<0.005&&Math.abs(daysBetween(p.date,r.d))<=5)
     .map(p=>({p,who:who(p.v),gap:Math.abs(daysBetween(p.date,r.d))})).filter(x=>x.who||x.gap<=2).sort((a,b)=>(b.who-a.who)||a.gap-b.gap);
-  const hit=cand[0]?.p;r.dup=null;r.dupId=null;r.relink=null;
+  const hit=cand[0]?.p;r.dup=null;r.dupId=null;r.relink=null;r.pairV=null;
   if(hit){used.add(hit.v.id);r.dup=hit.v.no;r.dupId=hit.v.id;if(r.inc===undefined)r.inc=false;continue}
+  // the other bank's statement already booked this as a bank-to-bank transfer
+  const xt=J.xferTwin?.(r.target,r.out?"out":"in",amt,r.d,r._imp,used);
+  if(xt){used.add(xt.id);r.dup=xt.no;r.dupId=xt.id;if(r.inc===undefined)r.inc=false;continue}
+  // the other bank's line is waiting in Suspense (or a party ledger made from the narration): this line is its other half
+  const cK=J.get("accounts",r.counter)?.kind;const loose=!r.counter||r.counter==="suspense"||/^make:suspense:/.test(r.counter)||cK==="suspense"||J.MONEY.includes(cK);
+  const pv=loose&&J.all("vouchers").filter(v=>v.imp&&!v.bank?.from&&!used.has(v.id)&&Math.abs(daysBetween(v.date,r.d))<=3).map(v=>({v,s:J.bankShape?.(v.lines)}))
+    .filter(({v,s})=>s&&s.acc!==r.target&&J.get("accounts",s.acc)?.kind==="bank"&&s.side===(r.out?"in":"out")&&Math.abs(s.amt-amt)<0.005&&s.others.every(a=>J.get("accounts",a)?.kind==="suspense"))
+    .sort((a,b)=>Math.abs(daysBetween(a.v.date,r.d))-Math.abs(daysBetween(b.v.date,r.d)))[0];
+  if(pv){used.add(pv.v.id);r.pairV=pv.v.id;r.dup=pv.v.no;r.pairFrom=J.accName(pv.s.acc);if(r.inc===undefined)r.inc=true;continue}
   const mv=J.all("vouchers").filter(v=>!v.imp&&!v.bank?.from&&!used.has(v.id)&&Math.abs(daysBetween(v.date,r.d))<=5).map(v=>({v,s:J.bankShape?.(v.lines)}))
     .find(({v,s})=>s&&s.acc!==r.target&&J.get("accounts",s.acc)?.kind==="cash"&&s.side===(r.out?"out":"in")&&Math.abs(s.amt-amt)<0.005&&who(v));
   if(mv){used.add(mv.v.id);r.relink=mv.v.id;r.dup=mv.v.no;r.relinkFrom=J.accName(mv.s.acc);if(r.inc===undefined)r.inc=true;continue}
@@ -122,12 +134,20 @@ async function stmtCommit(recs,o,log){const susp=async()=>J.sysAcc("suspense")?.
     if(Object.keys(patch).length){await J.store.patch("accounts",tgt.id,patch);Object.assign(tgt,patch)}}
   const bankInfo=r=>({from:"statement",narr:str(r.desc).slice(0,200),ref:str(r.ref),date:r.d,imp:log.id,at:Date.now(),by:S.me?.email||""});
   // lines already in the books (unticked as duplicates) are ticked off on the existing entry with the bank's details
-  for(const r of ui().recs||[]){if(r.inc!==false||!r.dupId||r.err.length)continue;const v=J.get("vouchers",r.dupId);if(!v||v.bank)continue;
+  for(const r of ui().recs||[]){if(r.inc!==false||!r.dupId||r.err.length)continue;const v=J.get("vouchers",r.dupId);if(!v)continue;
+    if(J.bankXfer?.(v)){await J.store.patch("vouchers",v.id,{rec:{...(v.rec||{}),...(o.clear!==false?{[r.target]:r.d}:{})}});log.note("transfer "+v.no+" ticked in both banks");continue}
+    if(v.bank)continue;
     // copy every statement detail onto the existing entry: narration, bank ref, UPI id / payee, value date, amount and balance
     const pt=r.party||{},bal=str(r._row?.[5]),nm=J.accName?.(r.target)||"bank";
     const tag=str(r.desc);
     await J.store.patch("vouchers",v.id,{...(o.clear!==false?{rec:{...(v.rec||{}),[r.target]:r.d}}:{}),narr:(v.narr?v.narr+" | ":"")+tag,lines:v.lines.map(l=>({...l,n:(l.n?l.n+" | ":"")+tag})),bank:{...bankInfo(r),desc:str(r.desc),amount:r.out||r.inn,balance:bal?+bal:null,party:{mode:pt.mode||"",utr:pt.utr||"",name:pt.name||"",bank:pt.ifscBank||pt.bank||"",vpa:pt.vpa||""},stmtFile:U.file||""},...(!v.ref&&str(r.ref)?{ref:str(r.ref)}:{})});log.note("ticked "+v.no)}
   for(const r of recs){if(r.inc===false){log.tick();continue}
+    if(r.pairV){const v=J.get("vouchers",r.pairV);const s=v&&J.bankShape(v.lines);if(s&&!v.bank?.from){const susp_=new Set(s.others);const lines=v.lines.map(l=>susp_.has(l.a)?{...l,a:r.target}:l);const rec={...(v.rec||{})};if(o.clear!==false)rec[r.target]=r.d;
+      const from=r.out?r.target:s.acc,to=r.out?s.acc:r.target;
+      await J.postVoucher({...v,id:v.id,type:"contra",party:"",lines,rec,f:{from,to,amount:String(r.out||r.inn)},narr:(v.narr?v.narr+" | ":"")+str(r.desc).slice(0,160)});log.note(v.no+" is now a transfer between the two banks");log.tick();continue}}
+    {const amt=r.out||r.inn;const cK=J.get("accounts",r.counter)?.kind;const loose=!r.counter||r.counter==="suspense"||/^make:suspense:/.test(r.counter)||cK==="suspense"||J.MONEY.includes(cK);
+      const xt=loose&&!r.forceDup&&J.xferTwin?.(r.target,r.out?"out":"in",amt,r.d,log.id);
+      if(xt){await J.store.patch("vouchers",xt.id,{rec:{...(xt.rec||{}),...(o.clear!==false?{[r.target]:r.d}:{})}});log.note("skipped — already booked as transfer "+xt.no);log.tick();continue}}
     if(r.relink){const v=J.get("vouchers",r.relink);const s=v&&J.bankShape(v.lines);if(s){const lines=v.lines.map(l=>l.a===s.acc?{...l,a:r.target}:l);const rec={...(v.rec||{})};delete rec[s.acc];if(o.clear!==false)rec[r.target]=r.d;
       await J.postVoucher({...v,id:v.id,lines,rec,ref:v.ref||str(r.ref),bank:{...bankInfo(r),movedFrom:s.acc}});log.note(v.no+" moved to the bank");log.tick();continue}}
     {const amt=r.out||r.inn,nar=str(r.desc).slice(0,200);const twin=(J.D.post.get(r.target)||[]).find(p=>p.v.imp&&p.v.imp!==log.id&&p.date===r.d&&(r.out?p.cr:p.dr)===amt&&(p.v.narr===nar||p.v.bank?.narr===nar));if(twin&&!r.forceDup){log.note("skipped a line already imported ("+twin.v.no+")");log.tick();continue}}
@@ -298,7 +318,7 @@ function vPreview(){const U=ui(),t=T[U.type];const recs=U.recs;const bad=recs.fi
     ${t.stmt&&U.pdf?stmtCheck():""}${t.stmt?rulesPanel():""}
     <div class="tbl-wrap"><table><thead><tr><th>Row</th>${t.stmt?"<th>Import</th>":""}${t.cols.map(c=>`<th>${esc(c)}</th>`).join("")}${t.stmt?"<th>Ledger</th>":""}<th>Check</th></tr></thead><tbody>
     ${shown.map(r=>`<tr><td class="muted">${r.n}</td>${t.stmt?`<td><input type="checkbox" data-ach="impInc" data-x="${r.n}" ${r.inc!==false&&!r.err.length?"checked":""} ${r.err.length?"disabled":""} aria-label="Import row ${r.n}"></td>`:""}${(r.view||[]).map(v=>`<td>${esc(v)}</td>`).join("")}${t.stmt?`<td><select data-ach="impCounter" data-x="${r.n}" id="ic-${r.n}" style="min-width:180px">${accOpts(r.counter)}</select><div class="hint">${esc(r.by||"")}</div></td>`:""}
-      <td>${r.err.length?`<span class="chip bad">${esc(r.err.join("; "))}</span>`:r.relink?`<span class="chip warn">${r.inc!==false?"will move":"matches"} ${esc(r.dup)} from ${esc(r.relinkFrom)} to this bank</span>`:r.dup?`<span class="chip warn">already entered as ${esc(r.dup)} — will be ticked off</span>`:r.warn.length?`<span class="chip plain">${esc(r.warn.join("; "))}</span>`:'<span class="chip ok">OK</span>'}</td></tr>`).join("")}</tbody></table></div>
+      <td>${r.err.length?`<span class="chip bad">${esc(r.err.join("; "))}</span>`:r.pairV?`<span class="chip warn">other half of ${esc(r.dup)} in ${esc(r.pairFrom)} — joined as one bank-to-bank transfer</span>`:r.relink?`<span class="chip warn">${r.inc!==false?"will move":"matches"} ${esc(r.dup)} from ${esc(r.relinkFrom)} to this bank</span>`:r.dup?`<span class="chip warn">already entered as ${esc(r.dup)} — will be ticked off</span>`:r.warn.length?`<span class="chip plain">${esc(r.warn.join("; "))}</span>`:'<span class="chip ok">OK</span>'}</td></tr>`).join("")}</tbody></table></div>
     ${pages>1?`<div class="row">${[...Array(pages)].map((_,i)=>`<button class="btn small" data-a="impPage" data-x="${i}" ${i===pg?'style="border-color:var(--bahi)"':""}>${i*per+1}–${Math.min(recs.length,(i+1)*per)}</button>`).join("")}</div>`:""}
     <div class="row"><button class="btn primary w" data-a="impGo" ${inc.length||recs.some(r=>r.dupId&&r.inc===false)?"":"disabled"}>Import ${inc.length} rows</button><span id="impProg" class="muted"></span></div>
     ${U.done?`<div class="note" style="background:var(--ok-wash);color:var(--ok)">${esc(U.done)}</div>`:""}</div></section>`}
