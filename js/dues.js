@@ -42,17 +42,17 @@ function emiRows(e){const P=+e.principal||0,n=+e.n||0,r=(+e.rate||0)/1200;if(!P|
 const emiVid=(e,i)=>"emi-"+e.id+"-"+i;
 // ---------- Home reminders ----------
 J.duesAlerts=()=>{const out=[];const t=today();const from=mAdd(ym(t),-3),to=mAdd(ym(t),1);
-  for(const c of items().filter(x=>x.active!==false))for(const m of occMonths(c,from,to)){const o=occ(c,m);if(o.done)continue;const s=state(o);if(s[0]==="bad"||s[0]==="crit"||(s[0]==="warn"&&o.due<=addDays(t,+c.remind||5)))out.push({lvl:s[0]==="warn"?"warn":s[0],text:o.label+" — "+s[1]+(o.bill!=null?" · "+money(r2(o.bill-o.paid)):""),go:"dues",tab:"month",d:o.due});
+  for(const c of items().filter(x=>x.active!==false))for(const m of occMonths(c,from,to)){const o=occ(c,m);if(o.done)continue;const s=state(o);if(s[0]==="bad"||s[0]==="crit"||(s[0]==="warn"&&o.due<=addDays(t,+c.remind||5)))out.push({lvl:s[0]==="warn"?"warn":s[0],text:o.label+" — "+s[1]+(o.bill!=null?" · "+money(r2(o.bill-o.paid)):""),go:"dues",tab:"month",d:o.due,amt:o.bill!=null?r2(o.bill-o.paid):null,nm:o.label});
     else if(o.bill==null&&o.due<=addDays(t,+c.remind||5)&&c.kind!=="salary")out.push({lvl:"warn",text:o.label+" — enter the bill amount (due "+fmtDate(o.due)+")",go:"dues",tab:"month",d:o.due})}
-  for(const e of emis().filter(x=>x.active!==false))for(const r of emiRows(e))if(!J.get("vouchers",emiVid(e,r.i))&&r.date<=addDays(t,5))out.push({lvl:r.date<t?"bad":"crit",text:"EMI "+r.i+"/"+e.n+" "+e.item+" "+money(r.emi+r.gst)+" due "+fmtDate(r.date),go:"dues",tab:"emi",d:r.date});
-  for(const l of lics().filter(x=>x.active!==false&&x.till)){const d=daysBetween(t,l.till);if(d<=(+l.remind||30))out.push({lvl:d<0?"bad":d<=7?"crit":"warn",text:l.name+(l.no?" ("+l.no+")":"")+(d<0?" expired / overdue since ":l.kind==="tax"?" due ":" valid till ")+fmtDate(l.till)+(l.consultant?" · "+l.consultant+(l.phone?" "+l.phone:""):""),go:"dues",tab:"lic",d:l.till})}
+  for(const e of emis().filter(x=>x.active!==false))for(const r of emiRows(e))if(!J.get("vouchers",emiVid(e,r.i))&&r.date<=addDays(t,5))out.push({lvl:r.date<t?"bad":"crit",text:"EMI "+r.i+"/"+e.n+" "+e.item+" "+money(r.emi+r.gst)+" due "+fmtDate(r.date),go:"dues",tab:"emi",d:r.date,amt:r2(r.emi+r.gst),nm:"EMI "+r.i+"/"+e.n+" "+e.item});
+  for(const l of lics().filter(x=>x.active!==false&&x.till)){const d=daysBetween(t,l.till);if(d<=(+l.remind||30))out.push({lvl:d<0?"bad":d<=7?"crit":"warn",text:l.name+(l.no?" ("+l.no+")":"")+(d<0?" expired / overdue since ":l.kind==="tax"?" due ":" valid till ")+fmtDate(l.till)+(l.consultant?" · "+l.consultant+(l.phone?" "+l.phone:""):""),go:"dues",tab:"lic",d:l.till,amt:null,nm:l.name})}
   return out};
 // popup: anything due today, or past its due date and still unpaid, is shown on opening the app and again every 2 hours while it stays open
 let popAt=0;
 J.duesPopup=force=>{try{if(!S.me||J.limited?.()||J.isCC?.())return;const t=today();const L=J.duesAlerts().filter(x=>x.d&&x.d<=t).sort((a,b)=>a.d.localeCompare(b.d));if(!L.length)return;
-  if(!force&&Date.now()-popAt<7200e3)return;popAt=Date.now();
+  if(document.querySelector("#overlay .drawer-bg"))return;if(!force&&Date.now()-popAt<7200e3)return;popAt=Date.now();
   J.drawer({title:"Bills due today / overdue ("+L.length+")",submit:"Open Bills & dues",wide:true,body:`<div class="tbl-wrap"><table><thead><tr><th>Due</th><th>Bill</th><th>Status</th></tr></thead><tbody>${L.map(x=>{const n=daysBetween(x.d,t);return `<tr><td>${fmtDate(x.d)}</td><td>${esc(x.text)}</td><td><span class="chip ${n>0?"bad":"crit"}">${n>0?n+" day"+(n===1?"":"s")+" overdue":"due today"}</span></td></tr>`}).join("")}</tbody></table></div><p class="hint" style="margin:8px 0 0">This reminder returns every time the app is opened, until each bill is paid.</p>`,onSubmit:async()=>{J.go("dues","month")}})}catch(e){}};
-setTimeout(()=>J.duesPopup(),6000);setInterval(()=>J.duesPopup(),600e3);
+setTimeout(()=>J.duesPopup(),6000);setInterval(()=>J.duesPopup(),60e3);
 // ---------- views ----------
 function vMonth(){const U=J.ui("dues",{m:ym(today())});const m=U.m;const os=items().filter(c=>c.active!==false).flatMap(c=>occMonths(c,m,m).map(mm=>occ(c,mm)));
   const er=emis().filter(e=>e.active!==false).flatMap(e=>emiRows(e).filter(r=>ym(r.date)===m).map(r=>({e,r,posted:!!J.get("vouchers",emiVid(e,r.i))})));
