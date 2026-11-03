@@ -92,14 +92,14 @@ function misTop(t){if(!(S.me.owner||J.myRole?.()==="Super Admin"))return "";
   const accs=J.accsOf(["bank","card","wallet"]).map(a=>({a,g:own(a),b:J.balanceOf(a.id,t)})).filter(x=>Math.abs(x.b)>0.004||x.a.active!==false);
   const cashB=J.accsOf(["cash"]).map(a=>({a,g:own(a),b:J.balanceOf(a.id,t)}));
   // dues: bills / EMIs / licences due soon or overdue, plus supplier payables (oldest unpaid bill + credit terms)
-  const dues=J.duesAlerts().filter(x=>x.d).map(x=>({ty:x.tab==="emi"?"EMI":x.tab==="lic"?"Tax / licence":"Bill",nm:x.nm||x.text,d:x.d,amt:x.amt}));
+  const dues=J.duesAlerts().filter(x=>x.d).map(x=>({ty:x.tab==="emi"?"EMI":x.tab==="lic"?"Tax / licence":"Bill",nm:x.nm||x.text,d:x.d,amt:x.amt,card:x.ck==="card"}));
   for(const a of J.accsOf(["vendor"])){let out=-J.balanceOf(a.id,t);if(out<=0.5)continue;let old=null,rem=out;for(const p of (J.D.post.get(a.id)||[]).filter(p=>p.cr>0&&p.date<=t).slice().reverse()){if(rem<=0)break;rem-=Math.min(rem,p.cr);old=p.date}
     dues.push({ty:"Supplier",nm:a.name+(old?" · oldest bill "+fmtDate(old):""),d:old?addDays(old,+a.terms||0):t,amt:r2(out),vend:true})}
   dues.sort((x,y)=>x.d.localeCompare(y.d));
   const per=d=>{const n=daysBetween(d,t);return n>0?`<span class="chip bad">${n} day${n===1?"":"s"} overdue</span>`:n===0?'<span class="chip crit">due today</span>':`<span class="chip plain">in ${-n} day${n===-1?"":"s"}</span>`};
   const sum=(g,k)=>r2(accs.filter(x=>x.g===g&&x.a.kind===k).reduce((s,x)=>s+x.b,0));const csum=g=>r2(cashB.filter(x=>x.g===g).reduce((s,x)=>s+x.b,0));
-  const dueBill=r2(dues.filter(x=>!x.vend&&x.amt!=null).reduce((s,x)=>s+x.amt,0)),dueVend=r2(dues.filter(x=>x.vend).reduce((s,x)=>s+x.amt,0));
-  const L=[["Bank accounts",sum("JCGG","bank"),sum("Personal","bank")],["Wallets",sum("JCGG","wallet"),sum("Personal","wallet")],["Cash in hand (books)",csum("JCGG"),csum("Personal")],["Credit cards (outstanding)",sum("JCGG","card"),sum("Personal","card")],["Bills, EMIs & dues pending",-dueBill,0],["Supplier payables",-dueVend,0]];
+  const dueBill=r2(dues.filter(x=>!x.vend&&!x.card&&x.amt!=null).reduce((s,x)=>s+x.amt,0)),dueVend=r2(dues.filter(x=>x.vend).reduce((s,x)=>s+x.amt,0));
+  const L=[["Bank accounts",sum("JCGG","bank"),sum("Personal","bank")],["Wallets",sum("JCGG","wallet"),sum("Personal","wallet")],["Cash in hand (books)",csum("JCGG"),csum("Personal")],["Credit cards (outstanding)",sum("JCGG","card"),sum("Personal","card")],["Bills, EMIs & dues pending (card bills already in cards)",-dueBill,0],["Supplier payables",-dueVend,0]];
   const net=[0,1].map(i=>r2(L.reduce((s,r)=>s+r[i+1],0)));
   const B=n=>J.bal(n);
   const grp=g=>{const xs=accs.filter(x=>x.g===g).sort((a,b)=>a.a.kind.localeCompare(b.a.kind)||a.a.name.localeCompare(b.a.name));if(!xs.length)return "";return `<tr><td colspan="3"><b>${g==="JCGG"?"JCGG (business)":"Personal (MKJ)"}</b></td></tr>`+xs.map(x=>`<tr><td>${esc(x.a.name)}</td><td>${KL[x.a.kind]}</td><td class="num">${B(x.b)}</td></tr>`).join("")+`<tr><td colspan="2"><i>Total ${g==="JCGG"?"JCGG":"Personal"}</i></td><td class="num"><b>${B(r2(xs.reduce((s,x)=>s+x.b,0)))}</b></td></tr>`};

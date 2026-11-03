@@ -183,7 +183,7 @@ J.act("driveLostCsv",()=>{const L=J.driveLostList();const q=v=>'"'+String(v??"")
 let askAt=0;
 const askDrive=()=>{try{if(!S.me||!S.ready||S.mode!=="cloud"||J.limited?.()||J.isCC?.()||J.readOnly?.()||tok())return;if(document.querySelector("#overlay .drawer-bg"))return;if(askAt&&Date.now()-askAt<3600e3)return;askAt=Date.now();const m=meta();
   J.drawer({title:"Sign in to Google Drive",submit:"Sign in to Drive",body:`<p style="margin:0 0 8px">Drive is not signed in on this device, so new attachments and the backup cannot go to Drive.</p><p class="hint" style="margin:0">Use the app's Drive account${m.account?": <b>"+esc(m.account)+"</b>":""}.</p>`,onSubmit:async()=>{const ok=await J.driveConnect(false);if(!ok)return false}})}catch(e){}};
-setTimeout(askDrive,3000);setInterval(askDrive,60e3);
+setInterval(askDrive,4e3);
 J.act("driveMigrate",async el=>{const st=J.driveFileStats();if(!st.app)return toast("Nothing to move — all attachments are already in Drive.");if(!el.dataset.armed){el.dataset.armed="1";el.textContent="Tap again to move "+st.app+" files to Drive";return}
   el.disabled=true;const p=document.getElementById("drv-prog");const r=await J.driveMigrate((i,n,name)=>{if(p)p.textContent="Moving "+i+" of "+n+" · "+(name||"")});el.disabled=false;delete el.dataset.armed;
   if(p)p.textContent=r.moved+" moved to Drive"+(r.failed?", "+r.failed+" could not be moved (they stay in the app — tap again)":"")+(r.lost?". "+r.lost+" have no data left in the app and must be attached again: "+(r.lostNames||[]).join(", "):"")+".";toast(r.moved+" files moved to Google Drive");J.render()});
