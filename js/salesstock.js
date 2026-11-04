@@ -33,7 +33,7 @@ function sold(){const c={};for(const d of J.all("ppday"))for(const o of arr(d.or
 function resolve(sd){const m=doc().map||{},out={};
   for(const [k,e] of Object.entries(sd)){const u=m[k];
     if(u){out[k]=u.item==="-"?{item:null,per:+u.per||1,by:"you"}:{item:u.item,per:+u.per||1,by:"you"};continue}
-    if(!BEV.test(e.name))continue;const it=suggest(e.name);let per=1;if(it&&/^(LTR|KG)$/i.test(it.unit)&&!sizes(it.name).size){const z=[...sizes(e.name)][0];if(z)per=r3(+z/1000)}out[k]={item:it?.id||null,per,by:"auto"}}
+    if(!BEV.test(e.name))continue;const it=suggest(e.name);let per=1;if(it&&/^(LTR|KG)$/i.test(it.unit)){const z=[...sizes(e.name)][0]||[...sizes(it.name)][0];if(z)per=r3(+z/1000)}out[k]={item:it?.id||null,per,by:"auto"}}
   return out}
 
 let busy=false;
