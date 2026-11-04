@@ -38,6 +38,7 @@ const persPays=()=>{const out=[];for(const v of J.all("vouchers")){if(!v.imp||!J
 const unusedColls=()=>{try{const u=usedPb();return persPays().filter(c=>!u.has(c.k))}catch(e){return []}};
 // the family Google Pay collection that is the other half of a personal payment
 const tieG=(cs,taken)=>{try{const fam=famNames();const free=J.gpay.run().colls.filter(c=>!c.used&&!(taken&&taken.has(c.k)));const out=[];for(const c of cs){const m=free.filter(g=>!out.includes(g.k)&&Math.abs(g.a-c.a)<=0.5&&Math.abs(J.daysBetween(c.d,g.d))<=3&&(isFam(g,fam)||true)).sort((a,b)=>Math.abs(J.daysBetween(c.d,a.d))-Math.abs(J.daysBetween(c.d,b.d)))[0];if(m){out.push(m.k);taken&&taken.add(m.k)}}return out}catch(e){return []}};
+J.skUnusedPers=()=>unusedColls();
 const tie=cs=>({pb:cs.map(c=>c.k),gp:tieG(cs)});
 // ---- automatic matching ----
 // 1) a day's unpaid KOT total == that day's free Google Pay collections;
