@@ -80,7 +80,7 @@ const SUBRE={"Beverages":[["Packaged water",/water/i],["Soft drinks",/cola|sprit
 const subOf=(cat,d)=>((SUBRE[cat]||[]).find(([,re])=>re.test(d))||[])[0]||"";
 // default mapping for a parsed line
 function mapLine(l,isCharge){const exp=isCharge?expOf(l.desc,l.hsn)||"delivch":expOf(l.desc,l.hsn);if(exp)return {kind:"exp",exp};const pk=PACK(l.desc);const nm=String(l.desc).replace(/\s+/g," ").trim();const ex=matchItem(nm,nameOf(l.desc));
-  const cat0=catOf(l.desc,l.hsn);return {kind:"stock",item:ex?.id||"new",newName:nm,cat:cat0,sub:subOf(cat0,l.desc),unit:ex?.unit||pk?.unit||"PCS",perPack:pk&&(!ex||ex.unit===pk.unit)?pk.q:1}}
+  const cat0=catOf(l.desc,l.hsn);return {kind:"stock",item:ex?.id||"new",newName:nm,cat:cat0,sub:subOf(cat0,l.desc),...(ex?{unit:ex.unit,perPack:pk&&ex.unit===pk.unit?pk.q:1}:/^(kg|kgs|ltr|l|gm|g|ml)$/i.test(String(l.uom||"").trim())&&pk?{unit:pk.unit,perPack:pk.q}:{unit:"PCS",perPack:1})}}
 // ---------------- upload & review ----------------
 const STG={bills:[]};let NEWN=[];
 J.billParseFile=async f=>J.parseBill(await pdfItems(f));
