@@ -12,7 +12,7 @@ const live=o=>!/cancel|saved|void|deleted/i.test(o.status||"");
 const BEV=/water|sprite|thum|coke|coca|cola|soda|limca|fanta|pepsi|7up|mirinda|aamras|paper ?boat|banta|mocktail|boba|iced tea|juice|slice|maaza|frooti|red bull|energy|kinley|bisleri|aquafina|lemoneez|nata de coco|sparkling|chiller|lassi bottle/i;
 const SIZE=/(\d+(?:\.\d+)?)\s*(ltr|litre|l|ml|gm|g|kg)\b/gi;
 const sizes=s=>{const out=new Set();let m;SIZE.lastIndex=0;while((m=SIZE.exec(String(s)))){let q=+m[1],u=m[2].toLowerCase();if(u==="l"||u==="ltr"||u==="litre")q*=1000;if(u==="kg")q*=1000;out.add(String(Math.round(q)))}return out};
-const words=s=>String(s).toLowerCase().replace(/\(.*?\)/g," ").replace(SIZE," ").split(/[^a-z]+/).filter(w=>w.length>2&&!/^(the|and|with|pack|pcs|bottle|can|tin|drink|ltd|new|fresh|soda|tea|water|juice|mocktail|iced|sparkling)$/.test(w));
+const words=s=>String(s).toLowerCase().replace(SIZE," ").split(/[^a-z]+/).filter(w=>w.length>2&&!/^(the|and|with|pack|pcs|bottle|can|tin|drink|ltd|new|fresh|soda|tea|water|juice|mocktail|iced|sparkling)$/.test(w));
 const ALIAS=[[/boba/i,"boba"],[/mocktail/i,"mocktail"],[/iced tea/i,"icedtea"],[/aamras|aam ras/i,"aamras"],[/juice/i,"juice"],[/thum/i,"thums"],[/coke|coca/i,"coca"],[/papeboat|paper ?boat/i,"paperboat"],[/packaged water|bisleri|aquafina/i,"waterpack"]];
 const toks=s=>{const w=words(s);for(const [re,t] of ALIAS)if(re.test(s))w.push(t);return w};
 const doc=()=>J.get("meta","sellMap")||{id:"sellMap",map:{}};
