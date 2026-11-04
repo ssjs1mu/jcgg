@@ -113,7 +113,7 @@ async function putJson(id,name,folder,body){const b="jcgg"+uid();const metaPart=
 const dropFile=async id=>{try{await raw("drive/v3/files/"+id,{method:"DELETE"})}catch(e){if(e.status!==404)throw e}};
 const moveFile=(id,to,from,name)=>api("drive/v3/files/"+id+"?addParents="+to+(from?"&removeParents="+from:"")+"&fields=id",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})});
 const KEEP_DAYS=14,KEEP_MONTHS=12;
-J.driveBackup=async manual=>{if(!tok()){paint();if(manual)return J.driveConnect();return}if(running){dirty=true;return}running=true;dirty=false;paint();
+J.driveBackup=async manual=>{if(!tok()){paint();if(manual)return J.driveConnect();return}if(running){dirty=true;return}running=true;dirty=false;paint();try{await J.loadAll()}catch(e){}
   try{const B=[ROOT,"Backups"];const fB=await dir(B),fD=await dir([...B,"Daily"]),fM=await dir([...B,"Monthly"]),fY=await dir([...B,"Yearly"]);
     const o={exported:new Date().toISOString(),app:"JCGG Suite",version:2,by:S.me?.email||""};for(const k of J.DATA_KEYS)o[k]=J.all(k);const body=JSON.stringify(o);const m=meta();const day=today(),mon=day.slice(0,7),yr=day.slice(0,4);
     const latest=await putJson(m.latestId2,"jcgg-suite-latest.json",fB,body);const daily=await putJson(m.days?.[day],"jcgg-suite-"+day+".json",fD,body);

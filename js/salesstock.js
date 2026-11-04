@@ -38,7 +38,7 @@ function resolve(sd){const m=doc().map||{},out={};
 
 let busy=false;
 async function sync(force){if(busy)return null;busy=true;try{
-  const inv=J.D?.inv;if(!inv)return null;const sd=sold();const rs=resolve(sd);
+  const inv=J.D?.inv;if(!inv)return null;void J.all("ppday");void J.all("moves");if(!(J.loaded("ppday")&&J.loaded("moves")))return null;const sd=sold();const rs=resolve(sd);
   const first=id=>{const b=inv.items[id]?.buys||[];return b.length?b.map(x=>x.date).sort()[0]:null};
   const byDay={};let units=0;
   for(const [k,r] of Object.entries(rs)){if(!r.item)continue;const f=first(r.item);if(!f)continue;

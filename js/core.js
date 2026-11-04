@@ -58,7 +58,16 @@ Object.assign(J,{fld,txt,num,dateI,selO,area,formData});
 const COLS={accounts:"full",vouchers:"monthly",items:"full",moves:"monthly",menu:"full",kotday:"monthly",recipes:"full",contacts:"full",attendance:"full",trades:"full",ohlc:"full",watch:"full",assets:"full",policies:"full",payroll:"full",clients:"full",bills:"full",kitchenusers:"full",staffcc:"full",paystatus:"full",feedback:"full",ccusers:"full",ppday:"full",cashday:"full",meta:"full"};
 const LIMIT={clients:5000,feedback:5000};
 const S={c:{},monthDocs:{},route:{mod:"home",tab:""},mode:"connecting",ready:false,ui:{},err:null,me:{role:"Super Admin",id:null,name:""}};
-for(const k in COLS)S.c[k]=new Map();S.c.kots=new Map();
+// Collections load on first use: the core (accounts, settings, entries, items) starts at sign-in; every other collection is
+// subscribed the first time any screen or calculation reads it, so opening the app no longer downloads the whole book.
+const LAZY=new Set(["ohlc","trades","watch","feedback","clients","cashday","ppday","recipes","policies","contacts","payroll","assets","bills","menu","attendance","moves","kotday"]);
+let lazyOn=false;const subd=new Set(),firstSnap=new Set(),lazyStore={};let startCol=()=>{};
+const ensure=col=>{if(!lazyOn||subd.has(col))return;subd.add(col);startCol(col)};
+for(const k in COLS){if(LAZY.has(k)){lazyStore[k]=new Map();Object.defineProperty(S.c,k,{enumerable:true,configurable:true,get(){ensure(k);return lazyStore[k]},set(v){lazyStore[k]=v}})}else S.c[k]=new Map()}
+{let kv=new Map();Object.defineProperty(S.c,"kots",{enumerable:true,configurable:true,get(){ensure("kotday");return kv},set(v){kv=v}})}
+// wait until every collection has arrived (backups and exports must not run on half-loaded data)
+J.loaded=col=>!LAZY.has(col)||firstSnap.has(col);
+J.loadAll=async()=>{for(const k of Object.keys(COLS))if(LAZY.has(k))void S.c[k];const need=[...LAZY].filter(k=>!["kitchenusers","staffcc","paystatus","ccusers"].includes(k));for(let i=0;i<80&&!need.every(k=>firstSnap.has(k));i++)await new Promise(r=>setTimeout(r,250));return need.every(k=>firstSnap.has(k))};
 // kots are stored grouped per day in `kotday` (one record per day keeps the book far under the 25,000-record cap)
 const DATA_KEYS=Object.keys(COLS).filter(k=>!["kotday","kitchenusers","staffcc","paystatus","ccusers"].includes(k)).concat("kots");
 J.S=S;J.COLS=COLS;J.DATA_KEYS=DATA_KEYS;
@@ -112,13 +121,15 @@ J.softRender=()=>{if(busyUI()){pend=true;return}pend=false;J._soft=true;J.render
 const BOOT0=Date.now();
 J.refresh=()=>{derive();if(renderQ)return;renderQ=true;const go=()=>{renderQ=false;J.softRender()};if(Date.now()-BOOT0<9000)setTimeout(go,300);else requestAnimationFrame(go)};
 let unsubs=[],mUnsubs=[];
+function subFull(col){const got=subFull.got||(subFull.got=new Set());
+  unsubs.push(db.collection(col).limit(LIMIT[col]||1000).onSnapshot(s=>{const prevStart=J.settings().startMonth;S.c[col]=new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));got.add(col);firstSnap.add(col);
+    if(col==="meta"&&prevStart!==J.settings().startMonth)subMonthly();
+    if(col==="accounts"&&!s.size&&!s.fromCache&&S.me.owner&&!J._seeded&&J.seedCloud){J._seeded=true;J.seedCloud()}if(got.has("accounts")&&got.has("meta"))S.ready=true;J.refresh()},onErr))}
 function subscribe(){
-  const got=new Set();
-  for(const [col,kind] of Object.entries(COLS)){if(kind!=="full")continue;
-    unsubs.push(db.collection(col).limit(LIMIT[col]||1000).onSnapshot(s=>{const prevStart=J.settings().startMonth;S.c[col]=new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));got.add(col);
-      if(col==="meta"&&prevStart!==J.settings().startMonth)subMonthly();
-      if(col==="accounts"&&!s.size&&!s.fromCache&&S.me.owner&&!J._seeded&&J.seedCloud){J._seeded=true;J.seedCloud()}if(got.has("accounts")&&got.has("meta"))S.ready=true;J.refresh()},onErr))}
-  subMonthly();
+  subFull.got=new Set();subd.clear();firstSnap.clear();mActive.clear();mActive.add("vouchers");
+  for(const [col,kind] of Object.entries(COLS)){if(kind!=="full"||LAZY.has(col))continue;subd.add(col);subFull(col)}
+  subd.add("vouchers");subMonthly(["vouchers"]);
+  startCol=col=>{if(COLS[col]==="full")subFull(col);else subMonthly([col])};lazyOn=true;
 }
 function subscribeKitchen(){let got=0;const done=()=>{if(++got>=2&&!S.ready){S.ready=true}J.refresh()};
   unsubs.push(fdb.collection("menu").limit(1000).onSnapshot(s=>{S.c.menu=new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));done()},onErr));
@@ -134,11 +145,12 @@ function subscribeCC(){let got=0;const need=4;const done=()=>{if(++got>=need&&!S
   for(const m of [J.monthId(0),J.monthId(-1)])unsubs.push(fdb.collection("attendance").doc(m).onSnapshot(d=>{if(d.exists)S.c.attendance.set(m,{id:m,...dec(d.data())});else S.c.attendance.delete(m);J.refresh()},onErr));
   unsubs.push(fdb.collection("ccusers").doc(S.me.email).onSnapshot(d=>{const k=d.exists?d.data():null;if(!k||k.active!==true||(S.me.method==="password"&&k.uid!==S.me.id)){J._gateMsg="The Customer Care login is switched off. Contact the owner.";J.signOut("revoked")}},()=>{}));
   db=fsAdapter(fdb)}
-function subMonthly(){mUnsubs.forEach(u=>u());mUnsubs=[];
+const mActive=new Set(["vouchers"]);
+function subMonthly(cols){const want=cols||[...mActive];if(!cols){mUnsubs.forEach(u=>u());mUnsubs=[]}
   const end=(()=>{const d=new Date();d.setMonth(d.getMonth()+2);return iso(d).slice(0,7)})();const months=monthsBetween(J.bookFrom(),end);
-  for(const [col,kind] of Object.entries(COLS)){if(kind!=="monthly")continue;S.monthDocs[col]={};const w=WINDOW[col]||1;
+  for(const col of want){if(COLS[col]!=="monthly")continue;mActive.add(col);S.monthDocs[col]={};const w=WINDOW[col]||1;
     for(let i=0;i<months.length;i+=w){const win=months.slice(i,i+w),key=win[0];const q=win.length===1?db.collection(col).where("m","==",win[0]):db.collection(col).where("m",">=",win[0]).where("m","<=",win.at(-1));
-      mUnsubs.push(q.limit(1000).onSnapshot(s=>{S.monthDocs[col][key]=s.docs.map(d=>({id:d.id,...d.data()}));if(s.size>=1000)toast("More than 1,000 "+col+" records in "+key+": some may not show. Archive older entries.");S.c[col]=new Map(Object.values(S.monthDocs[col]).flat().map(v=>[v.id,v]));if(col==="kotday")rebuildKots();J.refresh()},onErr))}}
+      mUnsubs.push(q.limit(1000).onSnapshot(s=>{S.monthDocs[col][key]=s.docs.map(d=>({id:d.id,...d.data()}));firstSnap.add(col);if(s.size>=1000)toast("More than 1,000 "+col+" records in "+key+": some may not show. Archive older entries.");S.c[col]=new Map(Object.values(S.monthDocs[col]).flat().map(v=>[v.id,v]));if(col==="kotday")rebuildKots();J.refresh()},onErr))}}
 }
 function onErr(e){S.err=e?.code||"unavailable";updateSync();if(e?.code==="not_allowed"){J.denied();return}toast(e?.code==="quota_exceeded"?"Storage is full. Download a backup and remove old records.":"Lost connection to the book. Reload the page to reconnect.")}
 function updateSync(){const el=$("#syncState");if(el)el.textContent=S.mode==="cloud"?(S.err?"Sync problem — reload":(navigator.onLine===false?"Offline — changes will sync":"Synced across your devices")):S.mode==="local"?"Saved on this device only":"Connecting…"}
