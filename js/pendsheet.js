@@ -33,7 +33,7 @@ function build(m){const t=today(),days=daysOf(m),R={};for(const d of days)R[d]={
   // dues / EMIs / licences coming due
   try{for(const a of J.duesAlerts?.()||[])if(a.d&&R[a.d])R[a.d].dues.push(String(a.text||"").replace(/\s+/g," ").slice(0,70))}catch(e){}
   // staff: attendance not marked, payroll not run once the month has ended
-  const att=J.get("attendance",m)?.days||{};for(const d of days){if(d>=t)continue;if(!att[d]||!Object.keys(att[d]).length)R[d].staff.push("Attendance")}
+  const att=J.get("attendance",m)?.days||{};for(const d of days){if(d>=t)continue;{const e=att[+d.slice(8)]||att[d]||{};if(!Object.values(e).some(x=>x&&x.s&&!x.auto))R[d].staff.push("Attendance")}}
   if(days.at(-1)<t&&!J.get("payroll",m))R[days.at(-1)].staff.push("Payroll not run");
   // staff KOT unpaid
   try{for(const x of J.skDueSummary?.()?.due||[])if(R[x.d])R[x.d].kot=r2(R[x.d].kot+x.a)}catch(e){}
