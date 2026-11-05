@@ -20,7 +20,8 @@ R.segsOf=s=>{const sh=s?.sal?.shift&&R.rules().shifts[s.sal.shift];if(sh)return 
   return rest&&en?[[st,rest[1].padStart(5,"0")],[rest[2].padStart(5,"0"),en]]:[[st,en||""]]};
 R.shiftLabel=s=>{const sh=s?.sal?.shift&&R.rules().shifts[s.sal.shift];const segs=R.segsOf(s);return (sh?sh.label+" · ":"")+segs.map(x=>x[0]+"–"+(x[1]||"?")).join(", ")};
 // the shift worked on a given day: the day's own shift (rec.sh) if set, otherwise the person's usual shift
-R.segsFor=(s,rec)=>{const sh=rec?.sh&&R.rules().shifts[rec.sh];return sh?sh.segs:R.segsOf(s)};
+// no shift recorded on the day → the shift whose start/finish is nearest to the day's actual punches (so a 11:40 arrival is Shift 2, not "late for Shift 1")
+R.segsFor=(s,rec)=>{let sh=rec?.sh&&R.rules().shifts[rec.sh];if(!sh&&rec?.in&&rec.sh!=="")try{const k=R.inferShift(rec,s);if(k)sh=R.rules().shifts[k];else if(k==="")return R.segsOf(s)}catch(e){}return sh?sh.segs:R.segsOf(s)};
 // reporting only after Shift 2's first spell has ended = second-spell (half-day) duty, timed against Shift 2's second spell
 R.secondSeg=()=>{const s2=R.rules().shifts.S2||Object.values(R.rules().shifts).at(-1);return s2?.segs?.[1]||null};
 R.secondOnly=(s,rec)=>{const seg=R.secondSeg();const i=toMin(rec?.in);if(!seg||i==null||rec?.st)return false;const s2=R.rules().shifts.S2||Object.values(R.rules().shifts).at(-1);return i>=toMin(s2.segs[0][1])};
