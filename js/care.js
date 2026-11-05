@@ -100,7 +100,7 @@ function vAttendanceCC(){const U=ui();const months=[J.monthId(0),J.monthId(-1)];
   <p class="hint">Changes save as you make them and are recorded with your name. Pay figures are worked out by the owner's payroll and are not shown here.</p>`}
 J.act("ccAttDay",el=>{ui().ad=el.value;J.render()});
 J.act("ccAttSet",async el=>{const [m,day,sid,f]=el.dataset.x.split("|");const ed=J.attEditable(m);if(!ed.ok){toast(ed.why);return J.render()}
-  const cur=J.get("attendance",m)||{};const prev=cur.days?.[day]?.[sid]?.[f]??"";const v=el.value||null;const patch={days:{[day]:{[sid]:{[f]:v,auto:null}}}};if(f==="in"&&v&&!cur.days?.[day]?.[sid]?.s)patch.days[day][sid].s="P";
+  const cur=J.get("attendance",m)||{};const prev=cur.days?.[day]?.[sid]?.[f]??"";const v=el.value||null;const patch={days:{[day]:{[sid]:{[f]:v,auto:null,autoT:null}}}};if(f==="in"&&v&&!cur.days?.[day]?.[sid]?.s)patch.days[day][sid].s="P";
   patch.cclog=[...arr(cur.cclog),{at:Date.now(),by:who(),sid,day:+day,f,from:prev,to:v||""}].slice(-300);
   const ok=J.get("attendance",m)?await J.safe(()=>J.store.patch("attendance",m,patch)):await J.safe(()=>J.store.put("attendance",{id:m,...patch}));if(!ok)J.render()});
 // ============ 5. clients: sales summary, Petpooja upload, points, reviews, feedback ============
