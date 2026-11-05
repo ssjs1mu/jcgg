@@ -158,7 +158,7 @@ H.fillAttendance=async(upto=today(),only,redo)=>{const byM={};let n=0;
     const T=s.terms?.auto?s.terms:null;const endT=T&&(!st.exit||st.exit>=today())?(st.exit&&st.exit<today()?st.exit:today()):end;
     for(let d=st.join<from0?from0:st.join;d<=endT;d=addDays(d,1)){const m=d.slice(0,7),day=String(+d.slice(8));const have=J.get("attendance",m)?.days?.[day]?.[s.id];
       const want=T&&!(T.days||[]).includes(J.parseISO(d).getDay())?"O":isWO(s,d)?"W":"P";if(have?.s&&!(have.auto&&have.s!==want&&(T||redo||(want!=="O"&&have.s!=="O"))))continue;((byM[m]??={})[day]??={})[s.id]={...(have||{}),s:want,auto:1};n++}}}
-  for(const [m,days] of Object.entries(byM))await J.store.patch("attendance",m,{days});return n};
+  for(const [m,days] of Object.entries(byM)){if(J.monthLocked(m))continue;await J.store.patch("attendance",m,{days})}return n};
 // One salary voucher per month (SA/…, dated the last day) carrying every person's breakup on its own lines:
 //   Dr Staff Salary (salary for paid days) · Dr Overtime Wages · Dr Staff Perks & Bonus
 //   Cr Late & Penalty Deductions · Cr PF/ESIC/PT/TDS payable · Cr each person's Advance and Loan ledgers (recovery) · Cr each person's salary ledger (net pay)
@@ -184,7 +184,7 @@ H.lastClosedMonth=()=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1
 // salaries up to this month were paid outside these books; the month just before the book start stays open so April bank payments clear it
 H.preBookCut=()=>{const st=J.settings();if(st.salSettledBefore)return st.salSettledBefore;const d=J.parseISO(st.startMonth+"-01");d.setMonth(d.getMonth()-1);return J.iso(d).slice(0,7)};
 H.salaryVoucher=m=>J.get("vouchers",vidOf(m));
-H.syncMonth=async(m,reason)=>{const st=J.settings();J.derive&&J.derive();if(m>=H.preBookCut()&&J.get("vouchers",preOf(m)))await J.store.del("vouchers",preOf(m));if(m>H.lastClosedMonth()||m<(st.payrollFrom||st.startMonth))return {main:0,adj:0};let main=0,adj=0;const log=[];
+H.syncMonth=async(m,reason)=>{if(J.monthLocked(m))return {main:0,adj:0};const st=J.settings();J.derive&&J.derive();if(m>=H.preBookCut()&&J.get("vouchers",preOf(m)))await J.store.del("vouchers",preOf(m));if(m>H.lastClosedMonth()||m<(st.payrollFrom||st.startMonth))return {main:0,adj:0};let main=0,adj=0;const log=[];
   // retire the older one-voucher-per-person entries for this month
   for(const v of J.all("vouchers").filter(v=>v.type==="salary"&&v.src?.col==="payroll"&&v.src?.id===m&&v.id!==vidOf(m)))await J.store.del("vouchers",v.id);
   const {L,per,old}=await build(m);

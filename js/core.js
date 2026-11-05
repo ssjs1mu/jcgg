@@ -90,11 +90,17 @@ const local={key:"jcgg-suite-local-v1",
   save(){try{const o={};for(const k of DATA_KEYS)o[k]=[...S.c[k].values()];localStorage.setItem(this.key,JSON.stringify(o))}catch(e){}}};
 const clean=o=>JSON.parse(JSON.stringify(o));
 function deepMerge(t,p){for(const k in p){if(p[k]&&typeof p[k]==="object"&&!Array.isArray(p[k])){t[k]=t[k]&&typeof t[k]==="object"?t[k]:{};deepMerge(t[k],p[k])}else t[k]=p[k]}return t}
+// Month lock (Staff & Payroll): a locked month refuses every change to its attendance, payroll overrides and salary entry — by hand or by the app
+const MRE=/^\d{4}-\d\d$/;J.monthLocked=m=>!!(m&&S.c.meta.get("attLock")?.months?.[m]);
+const lockHit=(col,id,d,del)=>{let m=null;if(col==="attendance")m=id;else if(col==="payroll"){if(del||d===undefined||Object.keys(d).some(k=>["ov","vid","calcAt","posted"].includes(k)))m=id}
+  else if(col==="vouchers"){if(del){if(/^salm-/.test(id))m=id.slice(5);else if(/^salpre-/.test(id))m=id.slice(7)}else if(d&&d.type==="salary"&&d.src?.col==="payroll")m=d.src.id}
+  return m&&MRE.test(m)&&J.monthLocked(m)?m:null};
+const lockErr=m=>{const e=new Error("🔒 "+m+" is locked — attendance and payroll cannot change until it is unlocked (Staff & Payroll → Employee month → Unlock).");e.locked=m;return e};
 const store={
-  async put(col,doc){doc=clean(doc);if(db&&col==="kots"){S.c.kots.set(doc.id,doc);return store.patch("kotday",doc.date,{m:doc.date.slice(0,7),date:doc.date,orders:{[doc.id]:doc}})}if(db)await db.collection(col).doc(doc.id).set(doc);else{S.c[col].set(doc.id,doc);local.save();J.refresh()}},
-  async patch(col,id,patch){patch=clean(patch);if(db){await db.collection(col).doc(id).update({id,...patch})}
+  async put(col,doc){doc=clean(doc);{const m=lockHit(col,doc.id,col==='payroll'?undefined:doc);if(m)throw lockErr(m)}if(db&&col==="kots"){S.c.kots.set(doc.id,doc);return store.patch("kotday",doc.date,{m:doc.date.slice(0,7),date:doc.date,orders:{[doc.id]:doc}})}if(db)await db.collection(col).doc(doc.id).set(doc);else{S.c[col].set(doc.id,doc);local.save();J.refresh()}},
+  async patch(col,id,patch){patch=clean(patch);{const m=lockHit(col,id,patch);if(m)throw lockErr(m)}if(db){await db.collection(col).doc(id).update({id,...patch})}
     else{const cur=S.c[col].get(id)||{id};S.c[col].set(id,deepMerge(cur,patch));local.save();J.refresh()}},
-  async del(col,id){if(db&&col==="kots"){const o=S.c.kots.get(id);if(o){S.c.kots.delete(id);return store.patch("kotday",o.date,{orders:{[id]:null}})}return}if(db)await db.collection(col).doc(id).delete();else{S.c[col].delete(id);local.save();J.refresh()}}
+  async del(col,id){{const m=lockHit(col,id,null,true);if(m)throw lockErr(m)}if(db&&col==="kots"){const o=S.c.kots.get(id);if(o){S.c.kots.delete(id);return store.patch("kotday",o.date,{orders:{[id]:null}})}return}if(db)await db.collection(col).doc(id).delete();else{S.c[col].delete(id);local.save();J.refresh()}}
 };
 J.store=store;
 // one-off read of records in a collection that is not kept in memory (e.g. attached files)

@@ -85,7 +85,7 @@ J.fileSrc&&(J.fileSrc.cc=id=>({rec:J.isCC()?J.get("staffcc",id):maskStaff(J.get(
 // ============ 4. attendance: this month and last month, last month only while salary is DRAFT ============
 const ST={P:"Present",H:"Half-day",A:"Absent",L:"Paid leave",W:"Week off",WW:"Worked on week off",O:"Not scheduled"};
 const statusOf=m=>J.isCC()?(J.get("paystatus",m)?.status||"DRAFT"):payStatus(m);
-J.attEditable=m=>{if(m===J.monthId(0))return {ok:true};if(m===J.monthId(-1)){const st=statusOf(m);return st==="DRAFT"?{ok:true}:{ok:false,why:`Salary for ${monthLabel(m)} is ${st} — attendance is locked.`}}return {ok:false,why:"Only this month and last month can be changed here."}};
+J.attEditable=m=>{if(J.monthLocked(m))return {ok:false,why:`${monthLabel(m)} is locked by the office — attendance cannot be changed.`};if(m===J.monthId(0))return {ok:true};if(m===J.monthId(-1)){const st=statusOf(m);return st==="DRAFT"?{ok:true}:{ok:false,why:`Salary for ${monthLabel(m)} is ${st} — attendance is locked.`}}return {ok:false,why:"Only this month and last month can be changed here."}};
 function vAttendanceCC(){const U=ui();const months=[J.monthId(0),J.monthId(-1)];const m=months.includes(U.am)?U.am:months[0];const days=new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();
   let d=U.ad&&U.ad.startsWith(m)?U.ad:(m===months[0]?today():m+"-"+String(days).padStart(2,"0"));if(d>today())d=today();
   const rec=(J.get("attendance",m)?.days||{})[String(+d.slice(8))]||{};const ed=J.attEditable(m);const can=ed.ok&&canStaffEdit()&&d<=today();
