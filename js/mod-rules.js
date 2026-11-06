@@ -41,8 +41,11 @@ R.workMin=(s,rec)=>{if(!rec)return 0;const i=toMin(rec.in),o=toMin(rec.out),i2=t
   if(i2!=null||o2!=null){return span(i,o)+span(i2,o2)}
   if(i==null||o==null)return 0;let w=span(i,o);const segs=R.segsFor(s,rec);for(let k=0;k+1<segs.length;k++){const ra=toMin(segs[k][1]),rb=toMin(segs[k+1][0]);if(ra==null||rb==null)continue;const ov=Math.max(0,Math.min(o>=i?o:o+1440,rb)-Math.max(i,ra));w-=ov}return Math.max(0,w)};
 // overtime hours: a number typed on the day wins; otherwise time worked beyond the daily limit
-R.otHours=(s,rec)=>{if(rec&&rec.ot!==""&&rec.ot!=null&&!isNaN(+rec.ot))return +rec.ot;const w=R.workMin(s,rec);const lim=(+R.rules().otAfter||10)*60;return w>lim?Math.round((w-lim)/60*100)/100:0};
-R.autoOT=(s,rec)=>{const w=R.workMin(s,rec);const lim=(+R.rules().otAfter||10)*60;return w>lim?Math.round((w-lim)/60*100)/100:0};
+// scheduled duty minutes of the shift that applies to the day (second-spell-only = that spell alone)
+R.dutyMin=(s,rec)=>{const sp=(a,b)=>{a=toMin(a);b=toMin(b);return a==null||b==null?0:(b>=a?b-a:b+1440-a)};if(R.secondOnly(s,rec)){const g=R.secondSeg();return g?sp(g[0],g[1]):0}return (R.segsFor(s,rec)||[]).reduce((t,g)=>t+sp(g[0],g[1]),0)};
+R.otLimit=(s,rec)=>R.dutyMin(s,rec)||(+R.rules().otAfter||10)*60;
+R.otHours=(s,rec)=>{if(rec&&rec.ot!==""&&rec.ot!=null&&!isNaN(+rec.ot))return +rec.ot;const w=R.workMin(s,rec);const lim=R.otLimit(s,rec);return w>lim?Math.round((w-lim)/60*100)/100:0};
+R.autoOT=(s,rec)=>{const w=R.workMin(s,rec);const lim=R.otLimit(s,rec);return w>lim?Math.round((w-lim)/60*100)/100:0};
 // weekly off: none during the waiting period after a joining or rejoining; may be moved to another day of the same week
 R.weekKey=date=>{const d=J.parseISO(date);const k=(d.getDay()+6)%7;return addDays(date,-k)};
 const addMonths=(date,n)=>{const d=J.parseISO(date);const day=d.getDate();d.setMonth(d.getMonth()+n);if(d.getDate()<day)d.setDate(0);return J.iso(d)};
