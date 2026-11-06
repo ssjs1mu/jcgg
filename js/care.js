@@ -85,7 +85,7 @@ J.fileSrc&&(J.fileSrc.cc=id=>({rec:J.isCC()?J.get("staffcc",id):maskStaff(J.get(
 // ============ 4. attendance: this month and last month, last month only while salary is DRAFT ============
 const ST={P:"Present",H:"Half-day",A:"Absent",L:"Paid leave",W:"Week off",WW:"Worked on week off",O:"Not scheduled"};
 const statusOf=m=>J.isCC()?(J.get("paystatus",m)?.status||"DRAFT"):payStatus(m);
-J.attEditable=m=>{if(J.monthLocked(m))return {ok:false,why:`${monthLabel(m)} is locked by the office — attendance cannot be changed.`};if(m===J.monthId(0))return {ok:true};if(m===J.monthId(-1)){const st=statusOf(m);return st==="DRAFT"?{ok:true}:{ok:false,why:`Salary for ${monthLabel(m)} is ${st} — attendance is locked.`}}return {ok:false,why:"Only this month and last month can be changed here."}};
+J.attEditable=(m,sid)=>{if(J.monthLocked(m,sid))return {ok:false,why:`${monthLabel(m)} is locked by the office — attendance cannot be changed.`};if(m===J.monthId(0))return {ok:true};if(m===J.monthId(-1)){const st=statusOf(m);return st==="DRAFT"?{ok:true}:{ok:false,why:`Salary for ${monthLabel(m)} is ${st} — attendance is locked.`}}return {ok:false,why:"Only this month and last month can be changed here."}};
 function vAttendanceCC(){const U=ui();const months=[J.monthId(0),J.monthId(-1)];const m=months.includes(U.am)?U.am:months[0];const days=new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();
   let d=U.ad&&U.ad.startsWith(m)?U.ad:(m===months[0]?today():m+"-"+String(days).padStart(2,"0"));if(d>today())d=today();
   const rec=(J.get("attendance",m)?.days||{})[String(+d.slice(8))]||{};const ed=J.attEditable(m);const can=ed.ok&&canStaffEdit()&&d<=today();
@@ -99,7 +99,7 @@ function vAttendanceCC(){const U=ui();const months=[J.monthId(0),J.monthId(-1)];
   ${ccStaff().filter(s=>arr(s.stints).length?arr(s.stints).some(x=>(!x.join||x.join<=m+"-"+days)&&(!x.exit||x.exit>=m+"-01")):s.active).map(s=>`<tr><td style="text-align:left;white-space:nowrap">${esc(s.name)}</td>${[...Array(days)].map((_,i)=>{const v=att[String(i+1)]?.[s.id]?.s||"";return `<td class="ag-${v||"x"}">${v}</td>`}).join("")}</tr>`).join("")}</tbody></table></div></div>
   <p class="hint">Changes save as you make them and are recorded with your name. Pay figures are worked out by the owner's payroll and are not shown here.</p>`}
 J.act("ccAttDay",el=>{ui().ad=el.value;J.render()});
-J.act("ccAttSet",async el=>{const [m,day,sid,f]=el.dataset.x.split("|");const ed=J.attEditable(m);if(!ed.ok){toast(ed.why);return J.render()}
+J.act("ccAttSet",async el=>{const [m,day,sid,f]=el.dataset.x.split("|");const ed=J.attEditable(m,sid);if(!ed.ok){toast(ed.why);return J.render()}
   const cur=J.get("attendance",m)||{};const prev=cur.days?.[day]?.[sid]?.[f]??"";const v=el.value||null;const patch={days:{[day]:{[sid]:{[f]:v,auto:null,autoT:null}}}};if(f==="in"&&v&&!cur.days?.[day]?.[sid]?.s)patch.days[day][sid].s="P";
   patch.cclog=[...arr(cur.cclog),{at:Date.now(),by:who(),sid,day:+day,f,from:prev,to:v||""}].slice(-300);
   const ok=J.get("attendance",m)?await J.safe(()=>J.store.patch("attendance",m,patch)):await J.safe(()=>J.store.put("attendance",{id:m,...patch}));if(!ok)J.render()});

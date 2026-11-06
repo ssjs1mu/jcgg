@@ -91,10 +91,15 @@ const local={key:"jcgg-suite-local-v1",
 const clean=o=>JSON.parse(JSON.stringify(o));
 function deepMerge(t,p){for(const k in p){if(p[k]&&typeof p[k]==="object"&&!Array.isArray(p[k])){t[k]=t[k]&&typeof t[k]==="object"?t[k]:{};deepMerge(t[k],p[k])}else t[k]=p[k]}return t}
 // Month lock (Staff & Payroll): a locked month refuses every change to its attendance, payroll overrides and salary entry — by hand or by the app
-const MRE=/^\d{4}-\d\d$/;J.monthLocked=m=>!!(m&&S.c.meta.get("attLock")?.months?.[m]);
-const lockHit=(col,id,d,del)=>{let m=null;if(col==="attendance")m=id;else if(col==="payroll"){if(del||d===undefined||Object.keys(d).some(k=>["ov","vid","calcAt","posted"].includes(k)))m=id}
+const MRE=/^\d{4}-\d\d$/;
+// lock: months[m] = whole month (older), staff["m|sid"] = one person's month
+J.monthLocked=(m,sid)=>{const L=S.c.meta.get("attLock");return !!(m&&L&&(L.months?.[m]||(sid&&L.staff?.[m+"|"+sid])))};
+const sidsOf=(col,d)=>{const o=new Set();if(col==="attendance")for(const v of Object.values(d?.days||{}))for(const k of Object.keys(v||{}))o.add(k);else if(col==="payroll")for(const k of Object.keys(d?.ov||{}))o.add(k);return [...o]};
+const lockHit=(col,id,d,del)=>{let m=null;if(col==="attendance")m=id;else if(col==="payroll"){if(del||d===undefined||Object.keys(d).some(k=>["vid","calcAt","posted"].includes(k)))m=id}
   else if(col==="vouchers"){if(del){if(/^salm-/.test(id))m=id.slice(5);else if(/^salpre-/.test(id))m=id.slice(7)}else if(d&&d.type==="salary"&&d.src?.col==="payroll")m=d.src.id}
-  return m&&MRE.test(m)&&J.monthLocked(m)?m:null};
+  if(m&&MRE.test(m)&&J.monthLocked(m))return m;
+  if((col==="attendance"||col==="payroll")&&MRE.test(id)&&d&&!del){const k=sidsOf(col,d).find(x=>J.monthLocked(id,x));if(k)return id+" · "+(J.get("accounts",k)?.name||k)}
+  return null};
 const lockErr=m=>{const e=new Error("🔒 "+m+" is locked — attendance and payroll cannot change until it is unlocked (Staff & Payroll → Employee month → Unlock).");e.locked=m;return e};
 const store={
   async put(col,doc){doc=clean(doc);{const m=lockHit(col,doc.id,col==='payroll'?undefined:doc);if(m)throw lockErr(m)}if(db&&col==="kots"){S.c.kots.set(doc.id,doc);return store.patch("kotday",doc.date,{m:doc.date.slice(0,7),date:doc.date,orders:{[doc.id]:doc}})}if(db)await db.collection(col).doc(doc.id).set(doc);else{S.c[col].set(doc.id,doc);local.save();J.refresh()}},

@@ -179,7 +179,7 @@ T.att={label:"Attendance",group:"People",desc:"Either one row per person per day
       if(ro&&ri){rec.out=ro;rec.in2=ri;rec.out2=ou||null}else rec.out=ou||null;if(i)rec.sh=J.R.inferShift(rec,s)||null;
       if(!rec.s&&!i)return r.skip=1;r.days[d]=rec;r.view=[str(r.code?r.code+" ":"")+str(r.name),d,rec.s||"",[i,ro&&ri?ro+" | "+ri:"",ou].filter(Boolean).join(" – ")+(rec.sh?" · "+rec.sh:"")+(rec.note?" · "+rec.note:"")]}},
   cols:["Staff","Date / month","Status","Detail"],
-  async commit(recs,o,log){const byM={};for(const r of recs)for(const [d,rec] of Object.entries(r.days))((byM[d.slice(0,7)]??={})[String(+d.slice(8))]??={})[r.sid]=rec;
+  async commit(recs,o,log){const byM={};for(const r of recs)for(const [d,rec] of Object.entries(r.days)){if(J.monthLocked(d.slice(0,7),r.sid)){log.note((J.get("accounts",r.sid)?.name||"")+" "+d.slice(0,7)+" skipped — locked");continue}((byM[d.slice(0,7)]??={})[String(+d.slice(8))]??={})[r.sid]=rec}
     for(const [m,days] of Object.entries(byM)){if(J.monthLocked(m)){log.note("attendance "+m+" skipped — month is locked");continue}await J.store.patch("attendance",m,{days});log.note("attendance "+m);const n=Object.values(days).reduce((t,x)=>t+Object.keys(x).length,0);
       await J.H.logChange(m,{type:"attendance",text:"Attendance uploaded from "+(ui().file||"sheet")+" · "+n+" staff-days for "+[...new Set(recs.map(r=>J.get("accounts",r.sid)?.name).filter(Boolean))].join(", ")}).catch(()=>{});if(m<=J.H.lastClosedMonth())J.H.syncSoon("attendance uploaded for "+J.monthLabel(m))}log.tick(recs.length)}};
 T.staff={label:"Staff master",group:"People",desc:"Your staff list with salary structure and bank details. Existing names are updated; new ones get their own ledger.",

@@ -156,7 +156,7 @@ const who=()=>S.me?.name||S.me?.email||"";
 H.fillAttendance=async(upto=today(),only,redo)=>{const byM={};let n=0;
   for(const s of J.staffList(true)){if(only&&!only.includes(s.id))continue;const from0=J.settings().bizStart||"2023-06-22";for(const st of H.stints(s)){if(!st.join)continue;const end=st.exit&&st.exit<upto?st.exit:upto;
     const T=s.terms?.auto?s.terms:null;const endT=T&&(!st.exit||st.exit>=today())?(st.exit&&st.exit<today()?st.exit:today()):end;
-    for(let d=st.join<from0?from0:st.join;d<=endT;d=addDays(d,1)){const m=d.slice(0,7),day=String(+d.slice(8));const have=J.get("attendance",m)?.days?.[day]?.[s.id];
+    for(let d=st.join<from0?from0:st.join;d<=endT;d=addDays(d,1)){const m=d.slice(0,7),day=String(+d.slice(8));if(J.monthLocked(m,s.id))continue;const have=J.get("attendance",m)?.days?.[day]?.[s.id];
       const want=T&&!(T.days||[]).includes(J.parseISO(d).getDay())?"O":isWO(s,d)?"W":"P";if(have?.s&&!(have.auto&&have.s!==want&&(T||redo||(want!=="O"&&have.s!=="O"))))continue;((byM[m]??={})[day]??={})[s.id]={...(have||{}),s:want,auto:1};n++}}}
   for(const [m,days] of Object.entries(byM)){if(J.monthLocked(m))continue;await J.store.patch("attendance",m,{days})}return n};
 // One salary voucher per month (SA/…, dated the last day) carrying every person's breakup on its own lines:
