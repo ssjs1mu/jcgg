@@ -30,7 +30,8 @@ R.startOf=(s,rec)=>toMin(rec?.st)??(R.secondOnly(s,rec)?toMin(R.secondSeg()[0]):
 // which rule shift a day's punches belong to (closest start and finish); null if no punches
 R.inferShift=(rec,s)=>{const i=toMin(rec?.in);if(i==null)return null;const SH=R.rules().shifts,f1=SH.S1&&toMin(SH.S1.segs[0][0]);if(SH.S2&&f1!=null&&i>=f1+(+R.rules().secondAfterHrs||4)*60)return "S2"; // reporting 4+ hours after the morning start = Shift 2 only
   const pun=rec.in2!=null&&rec.in2!==""?[rec.in,rec.out,rec.in2,rec.out2]:[rec.in,null,null,rec.out];let best=null,bd=1e9;
-  const cands=[...(s&&!s.sal?.shift&&R.segsOf(s).length?[["",{segs:R.segsOf(s)}]]:[]),...Object.entries(R.rules().shifts)];for(const [k,x] of cands){const bnd=x.segs.length>1?[x.segs[0][0],x.segs[0][1],x.segs[1][0],x.segs[1][1]]:[x.segs[0][0],null,null,x.segs[0][1]];let d=0;for(let j=0;j<4;j++){const a=toMin(pun[j]),b=toMin(bnd[j]);if(a!=null&&b!=null)d+=Math.abs(a-b)}if(d<bd){bd=d;best=k}}return best};
+  const cands=Object.entries(R.rules().shifts); // only the policy shifts: a person's own start/end must not outvote Shift 1 / Shift 2 (it made 06:22 look like an 11h30 duty day)
+  for(const [k,x] of cands){const bnd=x.segs.length>1?[x.segs[0][0],x.segs[0][1],x.segs[1][0],x.segs[1][1]]:[x.segs[0][0],null,null,x.segs[0][1]];let d=0;for(let j=0;j<4;j++){const a=toMin(pun[j]),b=toMin(bnd[j]);if(a!=null&&b!=null)d+=Math.abs(a-b)}if(d<bd){bd=d;best=k}}return best};
 // minutes late on the first punch-in of the day
 R.flexible=s=>/FLEX|EXEMPT|PART/i.test(s?.tracking||"");
 R.lateMin=(s,rec)=>{if(!rec?.in||R.flexible(s))return 0;const st=R.startOf(s,rec),i=toMin(rec.in);if(st==null||i==null)return 0;return Math.max(0,i-st)};
