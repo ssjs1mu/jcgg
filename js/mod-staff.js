@@ -111,7 +111,7 @@ J.act("attSet",async el=>{const [sid,f,dx]=el.dataset.x.split("|");const d=dx||u
       const rr=dayStatus(sid,reg);if(reg&&reg!==d&&(!rr?.s||rr.auto||rr.s==="W")){const mm=reg.slice(0,7);await J.store.patch("attendance",mm,{days:{[String(+reg.slice(8))]:{[sid]:{s:"P",auto:1}}}})}extra.push("weekly off moved from "+DOW[J.parseISO(reg).getDay()]+" "+fmtDate(reg)+" to "+DOW[J.parseISO(d).getDay()]+" "+fmtDate(d))}}
   const prev=dayStatus(sid,d)||{};const patch={days:{[day]:{[sid]:{[f]:v,auto:null,autoT:null}}}};if(["in","out","in2","out2"].includes(f))patch.days[day][sid].sh=null; // punches changed → shift is matched afresh
   if(f==="in"&&!prev.s)patch.days[day][sid].s="P";if(await J.safe(()=>J.store.patch("attendance",m,patch))){const nm=J.get("accounts",sid)?.name||"";const lbl={s:"status",in:"in time",out:"out time",in2:"second in time",out2:"second out time",ot:"OT",st:"shift start"}[f]||f;
-    if(String(prev[f]??"")!==String(v??""))await J.H.logChange(m,{type:"attendance",sid,date:d,text:nm+" · "+fmtDate(d)+" "+lbl+": "+(f==="s"?(ST[prev[f]]||"unmarked"):(prev[f]||"—"))+" → "+(f==="s"?(ST[v]||"unmarked"):(v||"—"))+(extra.length?" · "+extra.join("; "):"")}).catch(()=>{});if(m<=J.H.lastClosedMonth())J.H.syncSoon("attendance changed for "+nm+" on "+fmtDate(d))}});
+    if(String(prev[f]??"")!==String(v??""))await J.H.logChange(m,{type:"attendance",sid,date:d,text:nm+" · "+fmtDate(d)+" "+lbl+": "+(f==="s"?(ST[prev[f]]||"unmarked"):(prev[f]||"—"))+" → "+(f==="s"?(ST[v]||"unmarked"):(v||"—"))+(extra.length?" · "+extra.join("; "):"")}).catch(()=>{});if(f==="s"||f==="in"){try{const s1=J.get("accounts",sid);if(s1&&(J.R.hasWO(s1)||s1.terms?.auto))await J.H.fillAttendance(today(),[sid])}catch(e){console.warn(e)}}if(m<=J.H.lastClosedMonth())J.H.syncSoon("attendance changed for "+nm+" on "+fmtDate(d))}});
 J.act("allPresent",async()=>{const d=ui().attDate||today();const m=d.slice(0,7),day=String(+d.slice(8));if(J.monthLocked(m))return toast("🔒 "+monthLabel(m)+" is locked");const recs=att(m)[day]||{};const p={};for(const s of staff())if(!recs[s.id]?.s&&!J.monthLocked(m,s.id))p[s.id]={s:weekOff(s,d)?"W":"P"};if(!Object.keys(p).length)return toast("Everyone is already marked");await J.safe(()=>J.store.patch("attendance",m,{days:{[day]:p}}),"Marked "+Object.keys(p).length+" staff")});
 J.act("attImport",()=>J.openImport("att"));
 
@@ -179,15 +179,17 @@ J.act("eaLockTog",async el=>{const [m,sid]=el.dataset.x.split("|");const s0=J.ge
 J.act("eaRecalc",async el=>{const sid=el.dataset.x,m=WM();const s=J.get("accounts",sid);if(!s)return;let note0="";const before=J.get("payroll",m)?.calcAt;const c0=calc(s,m,J.get("payroll",m)?.ov?.[sid]||{});
   if(J.monthLocked(m,sid)){toast("🔒 "+s.name+" is locked for "+monthLabel(m)+" — tap the lock icon to unlock, then recalculate.");return}
   // present days with no punches: insert the shift's own timings (marked automatic; a day you type on is never touched again)
-  {const SH=J.R.rules().shifts;const p={};let fill=0,lastK="";const dd=att(m);const {rows:rs}=empMonth(s,m);
-    let fixed=0;
+  {const SH=J.R.rules().shifts;const p={};let fill=0,lastK="";const dd=att(m);let {rows:rs}=empMonth(s,m);
+    let swapped=0;try{if(J.R.hasWO(s)||s.terms?.auto){swapped=await J.H.fillAttendance(today(),[sid],true)}}catch(e){console.warn(e)}
+  ({rows:rs}=empMonth(s,m));
+  let fixed=0;
     for(const x of rs){if(!x.svc||x.fut)continue;const r=x.r;if(r.in&&!r.autoT){const k=J.R.inferShift(r,s)||null;const o={};if((r.sh||null)!==k)o.sh=k;if(r.st)o.st=null;if(r.ot!==""&&r.ot!=null)o.ot=null;if(Object.keys(o).length){(p[String(x.i)]??={})[sid]=o;fixed++}}if(r.in)lastK=r.sh||J.R.inferShift(r,s)||lastK;
       if(!["P","WW"].includes(r.s)||(r.in||r.out)&&!r.autoT)continue;if((r.in2||r.out2)&&!r.autoT)continue;
       let segs=r.sh&&SH[r.sh]?SH[r.sh].segs:J.R.segsOf(s);if(!segs.length){const k=SH[lastK]?lastK:(SH.S1?"S1":Object.keys(SH)[0]);segs=SH[k]?.segs||[]}
       if(!segs.length)continue;const i=r.st||segs[0][0],o=segs.length>1?segs[0][1]:segs[0][1],i2=segs.length>1?segs[1][0]:null,o2=segs.length>1?segs.at(-1)[1]:null;if(!i||!o)continue;if(r.in===i&&r.out===o&&(r.in2||null)===i2&&(r.out2||null)===o2&&r.autoT)continue;
       (p[String(x.i)]??={})[sid]={...(p[String(x.i)]?.[sid]||{}),in:i,out:o,in2:i2,out2:o2,autoT:1};fill++}
     if(fill||fixed){try{await J.store.patch("attendance",m,{days:p});await J.H.logChange(m,{type:"attendance",sid,text:s.name+" · recalculated: "+fill+" days given shift timings, "+fixed+" days re-matched to shift (typed OT / shift-start overrides cleared)"}).catch(()=>{})}catch(e){return toast(e.message||"Could not save")}}
-    note0=(fill?fill+" days given shift timings · ":"")+(fixed?fixed+" days re-matched to shift (typed OT / shift-start overrides cleared) · ":"")}
+    note0=(swapped?swapped+" attendance days re-set by week-off / service-day rules · ":"")+(fill?fill+" days given shift timings · ":"")+(fixed?fixed+" days re-matched to shift (typed OT / shift-start overrides cleared) · ":"")}
   let note="";if(m<=J.H.lastClosedMonth()){try{const r=await J.H.syncMonth(m,"recalculated for "+s.name);note=r.adj?" · salary entry updated":r.main?" · salary entry posted":" · salary entry already matches"}catch(e){note=" · salary entry not updated ("+(e.message||"error")+")"}}else note=" · salary entry is posted after month end";
   J.render();const wm=J.R.workMin;let hrs=0;const {rows}=empMonth(s,m);for(const x of rows)if(x.svc&&!x.fut)hrs+=wm(s,x.r);
   toast(note0+"Recalculated "+s.name+": "+J.R.hm(hrs)+" worked · "+c0.late+" late ("+c0.lateMin+" min) · "+c0.ot+" h OT · net "+money0(c0.net)+note)});

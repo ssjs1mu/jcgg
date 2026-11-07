@@ -153,12 +153,28 @@ const isWO=(s,date)=>J.R.isWeekOff(s,date);
 const canAuto=()=>S.mode==="cloud"&&S.ready&&!J.readOnly()&&["Super Admin","Admin","Accountant","Manager"].includes(J.myRole());
 const who=()=>S.me?.name||S.me?.email||"";
 // mark every unmarked day inside each stint (up to `upto`) as Present, or Week off on the weekly-off day
+// weekly off that actually moved: worked on the fixed off day but took leave/absent on another day of the same week → that leave day becomes the week's off, the fixed day an ordinary working day
+H.autoSwapWO=async(s0,wk)=>{const s=J.get("accounts",s0.id)||s0;if(!J.R.hasWO(s)||s.woSwap?.[wk])return 0;const fixed=addDays(wk,((+s.sal.weekOff)+6)%7);const rec=x=>J.get("attendance",x.slice(0,7))?.days?.[String(+x.slice(8))]?.[s.id]||{};const rf=rec(fixed);
+  if(!(["P","WW"].includes(rf.s)||rf.in)||J.R.inWait(s,fixed)||fixed>today())return 0;
+  for(let k=0;k<7;k++){const x=addDays(wk,k);if(x===fixed||x>today())continue;const r=rec(x);if(!["A","L"].includes(r.s)||r.in)continue;if(H.stints(s).length&&!H.inService(s,x))continue;
+    if(J.monthLocked(x.slice(0,7),s.id)||J.monthLocked(fixed.slice(0,7),s.id))return 0;
+    await J.store.put("accounts",{...s,woSwap:{...(s.woSwap||{}),[wk]:x}});
+    await J.store.patch("attendance",x.slice(0,7),{days:{[String(+x.slice(8))]:{[s.id]:{s:"W",auto:1}}}});
+    if(rf.s==="WW")await J.store.patch("attendance",fixed.slice(0,7),{days:{[String(+fixed.slice(8))]:{[s.id]:{s:"P",auto:1}}}});
+    await H.logChange?.(x.slice(0,7),{type:"attendance",sid:s.id,date:x,text:s.name+" · weekly off moved from "+fixed+" to "+x+" (leave taken, worked on the fixed day)"}).catch(()=>{});return 1}
+  return 0};
+// service-terms staff (fixed attendance days): coming on a non-scheduled day counts as that week's duty — the scheduled day then becomes "not scheduled"
+const absorbed=(s,T,d)=>{const wk=J.R.weekKey(d);const rec=x=>J.get("attendance",x.slice(0,7))?.days?.[String(+x.slice(8))]?.[s.id];let extra=0;const elig=[];
+  for(let k=0;k<7;k++){const x=addDays(wk,k);const sched=(T.days||[]).includes(J.parseISO(x).getDay());const r=rec(x);if(!sched){if(r&&!r.auto&&(["P","H","WW"].includes(r.s)||r.in))extra++}else if(!r||(r.auto&&!r.in))elig.push(x)}
+  const i=elig.indexOf(d);return extra>0&&i>=0&&i<extra};
 H.fillAttendance=async(upto=today(),only,redo)=>{const byM={};let n=0;
   for(const s of J.staffList(true)){if(only&&!only.includes(s.id))continue;const from0=J.settings().bizStart||"2023-06-22";for(const st of H.stints(s)){if(!st.join)continue;const end=st.exit&&st.exit<upto?st.exit:upto;
     const T=s.terms?.auto?s.terms:null;const endT=T&&(!st.exit||st.exit>=today())?(st.exit&&st.exit<today()?st.exit:today()):end;
     for(let d=st.join<from0?from0:st.join;d<=endT;d=addDays(d,1)){const m=d.slice(0,7),day=String(+d.slice(8));if(J.monthLocked(m,s.id))continue;const have=J.get("attendance",m)?.days?.[day]?.[s.id];
-      const want=T&&!(T.days||[]).includes(J.parseISO(d).getDay())?"O":isWO(s,d)?"W":"P";if(have?.s&&!(have.auto&&have.s!==want&&(T||redo||(want!=="O"&&have.s!=="O"))))continue;((byM[m]??={})[day]??={})[s.id]={...(have||{}),s:want,auto:1};n++}}}
-  for(const [m,days] of Object.entries(byM)){if(J.monthLocked(m))continue;await J.store.patch("attendance",m,{days})}return n};
+      const want=T&&!(T.days||[]).includes(J.parseISO(d).getDay())?"O":T&&absorbed(s,T,d)?"O":isWO(s,d)?"W":"P";if(have?.s&&!(have.auto&&have.s!==want&&(T||redo||(want!=="O"&&have.s!=="O"))))continue;((byM[m]??={})[day]??={})[s.id]={...(have||{}),s:want,auto:1};n++}}}
+  for(const [m,days] of Object.entries(byM)){if(J.monthLocked(m))continue;await J.store.patch("attendance",m,{days})}
+  for(const s of J.staffList(true)){if(only&&!only.includes(s.id)||!J.R.hasWO(s))continue;for(let w=J.R.weekKey(addDays(upto,-70));w<=upto;w=addDays(w,7)){try{n+=await H.autoSwapWO(s,w)}catch(e){console.warn(e)}}}
+  return n};
 // One salary voucher per month (SA/…, dated the last day) carrying every person's breakup on its own lines:
 //   Dr Staff Salary (salary for paid days) · Dr Overtime Wages · Dr Staff Perks & Bonus
 //   Cr Late & Penalty Deductions · Cr PF/ESIC/PT/TDS payable · Cr each person's Advance and Loan ledgers (recovery) · Cr each person's salary ledger (net pay)
