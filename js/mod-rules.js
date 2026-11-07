@@ -39,7 +39,7 @@ R.slabText=mins=>{const f=R.lateFrac(mins);return f?Math.round(f*100)+"% of a da
 // minutes worked: two punch pairs if given, otherwise first-in to last-out less the scheduled rest break
 R.workMin=(s,rec)=>{if(!rec)return 0;const i=toMin(rec.in),o=toMin(rec.out),i2=toMin(rec.in2),o2=toMin(rec.out2);const span=(a,b)=>a==null||b==null?0:(b>=a?b-a:b+1440-a);
   if(i2!=null||o2!=null){return span(i,o)+span(i2,o2)}
-  if(i==null||o==null)return 0;let w=span(i,o);const segs=R.segsFor(s,rec);for(let k=0;k+1<segs.length;k++){const ra=toMin(segs[k][1]),rb=toMin(segs[k+1][0]);if(ra==null||rb==null)continue;const ov=Math.max(0,Math.min(o>=i?o:o+1440,rb)-Math.max(i,ra));w-=ov}return Math.max(0,w)};
+  if(i==null||o==null)return 0;return span(i,o)}; // no rest punches (out/in) recorded = no rest taken: the whole stretch counts as work
 // overtime hours: a number typed on the day wins; otherwise time worked beyond the daily limit
 // scheduled duty minutes of the shift that applies to the day (second-spell-only = that spell alone)
 R.dutyMin=(s,rec)=>{const sp=(a,b)=>{a=toMin(a);b=toMin(b);return a==null||b==null?0:(b>=a?b-a:b+1440-a)};if(R.secondOnly(s,rec)){const g=R.secondSeg();return g?sp(g[0],g[1]):0}return (R.segsFor(s,rec)||[]).reduce((t,g)=>t+sp(g[0],g[1]),0)};

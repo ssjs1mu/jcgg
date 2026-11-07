@@ -182,10 +182,10 @@ J.act("eaRecalc",async el=>{const sid=el.dataset.x,m=WM();const s=J.get("account
   {const SH=J.R.rules().shifts;const p={};let fill=0,lastK="";const dd=att(m);const {rows:rs}=empMonth(s,m);
     let fixed=0;
     for(const x of rs){if(!x.svc||x.fut)continue;const r=x.r;if(r.in&&!r.autoT){const k=J.R.inferShift(r,s)||null;const o={};if((r.sh||null)!==k)o.sh=k;if(r.st)o.st=null;if(r.ot!==""&&r.ot!=null)o.ot=null;if(Object.keys(o).length){(p[String(x.i)]??={})[sid]=o;fixed++}}if(r.in)lastK=r.sh||J.R.inferShift(r,s)||lastK;
-      if(!["P","WW"].includes(r.s)||(r.in||r.out)&&!r.autoT)continue;if(r.in2||r.out2)continue;
+      if(!["P","WW"].includes(r.s)||(r.in||r.out)&&!r.autoT)continue;if((r.in2||r.out2)&&!r.autoT)continue;
       let segs=r.sh&&SH[r.sh]?SH[r.sh].segs:J.R.segsOf(s);if(!segs.length){const k=SH[lastK]?lastK:(SH.S1?"S1":Object.keys(SH)[0]);segs=SH[k]?.segs||[]}
-      if(!segs.length)continue;const i=r.st||segs[0][0],o=segs.at(-1)[1];if(!i||!o)continue;if(r.in===i&&r.out===o&&r.autoT)continue;
-      (p[String(x.i)]??={})[sid]={...(p[String(x.i)]?.[sid]||{}),in:i,out:o,autoT:1};fill++}
+      if(!segs.length)continue;const i=r.st||segs[0][0],o=segs.length>1?segs[0][1]:segs[0][1],i2=segs.length>1?segs[1][0]:null,o2=segs.length>1?segs.at(-1)[1]:null;if(!i||!o)continue;if(r.in===i&&r.out===o&&(r.in2||null)===i2&&(r.out2||null)===o2&&r.autoT)continue;
+      (p[String(x.i)]??={})[sid]={...(p[String(x.i)]?.[sid]||{}),in:i,out:o,in2:i2,out2:o2,autoT:1};fill++}
     if(fill||fixed){try{await J.store.patch("attendance",m,{days:p});await J.H.logChange(m,{type:"attendance",sid,text:s.name+" · recalculated: "+fill+" days given shift timings, "+fixed+" days re-matched to shift (typed OT / shift-start overrides cleared)"}).catch(()=>{})}catch(e){return toast(e.message||"Could not save")}}
     note0=(fill?fill+" days given shift timings · ":"")+(fixed?fixed+" days re-matched to shift (typed OT / shift-start overrides cleared) · ":"")}
   let note="";if(m<=J.H.lastClosedMonth()){try{const r=await J.H.syncMonth(m,"recalculated for "+s.name);note=r.adj?" · salary entry updated":r.main?" · salary entry posted":" · salary entry already matches"}catch(e){note=" · salary entry not updated ("+(e.message||"error")+")"}}else note=" · salary entry is posted after month end";
