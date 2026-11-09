@@ -266,7 +266,7 @@ function vPayroll(){const U=ui();if(U.pview==="staff")return vPayStaff();const m
 // ---------- view switch: month-wise (everyone, one month) or staff-wise (one person, all months of the FY) ----------
 function payViewCtl(){const U=ui();const v=U.pview==="staff"?"staff":"month";return `<div class="seg" role="group" aria-label="Payroll view" style="margin-bottom:10px;align-self:flex-start;width:max-content"><button aria-pressed="${v==="month"}" data-set="staff.pview=month">Month-wise · all staff</button><button aria-pressed="${v==="staff"}" data-set="staff.pview=staff">Staff-wise · whole year</button></div>`}
 function vPayStaff(){const U=ui();
-  const fy0=J.fyOf(today()).start;const fys=[0,1,2].map(i=>J.fyOf(J.addDays(fy0,-1-365*i+(i?0:1))));const fy=fys.find(f=>f.start===U.pfy)||fys[0];
+  const fy0=J.fyOf(today()).start;const fys=[];{let d=today();for(let i=0;i<3;i++){const f=J.fyOf(d);fys.push(f);d=J.addDays(f.start,-1)}}const fy=fys.find(f=>f.start===U.pfy)||fys[0];
   const last=today().slice(0,7);const fyM=J.monthsBetween(fy.start.slice(0,7),fy.end.slice(0,7)).filter(m=>m<=last);
   const all=staff(true).filter(x=>fyM.some(m=>inSvc(x,m))); // only people who worked (or work) in the chosen year
   if(!U.psid||!all.some(x=>x.id===U.psid))U.psid=all.find(s=>s.active!==false)?.id||all[0]?.id||"";const s=J.get("accounts",U.psid);
