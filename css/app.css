@@ -70,7 +70,10 @@ td{padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
 tr.click{cursor:pointer}
 tr.click:hover td{background:var(--wash)}
 td.num,th.num{text-align:right;white-space:nowrap}
-td.dr{color:var(--dr)} td.cr{color:var(--cr)}
+td.dr{color:var(--bad)} td.cr{color:#1d4ed8} /* entry columns: debit red, credit blue (money-out red, money-in blue); balances keep Dr blue / Cr red */
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) td.cr{color:#7aa7ff}}
+:root[data-theme="dark"] td.cr{color:#7aa7ff}
+.nl a{display:inline-block;padding:8px 0;min-height:32px;line-height:1.35}
 tfoot td{font-weight:600;border-top:1px solid var(--rule-2);border-bottom:0}
 .mono{font-family:var(--f-mono);font-size:12.5px}
 .muted{color:var(--ink-3)}
