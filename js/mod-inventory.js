@@ -166,9 +166,11 @@ J.act("exportPurch",()=>{const U=ui(),[f,t]=periodRange(U.period,U);const rows=[
 // ---- how long an item keeps, and what kind of item it is (drives expiry from the purchase date and the details reminders) ----
 const LEAFY=/palak|spinach|methi|fenugreek|coriander|dhania|mint|pudina|curry ?leaf|leaf|leaves|saag|sag\b|dill|lettuce|spring onion|shak\b/i,KEEP30=/potato|aloo|onion|pyaz|garlic|lahsun/i,HARDY=/carrot|beetroot|pumpkin|kaddu|radish|mooli|sweet potato|yam|suran|ginger|adrak|turnip/i;
 const KIND_BY_CAT={Vegetables:"fresh",Fruits:"fresh",Dairy:"packaged","Oils & Ghee":"packaged","Spices & Masala":"packaged","Flour & Atta":"packaged","Grains & Pulses":"packaged",Beverages:"packaged","Dry Fruits":"packaged",Sweeteners:"packaged",Cleaning:"noexp"};
-J.itemKind=it=>it.kind||KIND_BY_CAT[it.cat]||""; // "" = not known yet → the app asks
+const PACKW=/ketchup|sauce|sachet|chana|chick ?peas|rajma|dal\b|powder|masala|pickle|jam\b|puree|paste|canned|\btin\b|chips|noodle|pasta|chutney|syrup|juice/i;
+J.itemKind=it=>it.kind||((it.cat==="Vegetables"||it.cat==="Fruits")&&PACKW.test(it.name||"")?"":KEEP_BY(it));
+const KEEP_BY=it=>KIND_BY_CAT[it.cat]||""; // "" = not known yet → the app asks
 J.keepDays=it=>{if(+it.shelf>0)return +it.shelf;if(it.kind||J.itemKind(it)!=="fresh")return 0;const n=it.name||"";
-  if(it.cat==="Fruits")return 4;if(it.cat==="Vegetables")return KEEP30.test(n)?30:LEAFY.test(n)?2:HARDY.test(n)?15:5;return 0};
+  if(it.cat==="Fruits")return 4;if(it.cat==="Vegetables")return LEAFY.test(n)?2:KEEP30.test(n)?30:HARDY.test(n)?15:5;return 0};
 J.autoDates=(it,date)=>{const d=it?J.keepDays(it):0;return d>0&&date?{mfg:date,exp:J.addDays(date,d),days:d}:null};
 function vItems(){const U=ui();const items=J.all("items").filter(it=>!U.q||(it.name+" "+(it.sub||"")+" "+(it.cat||"")).toLowerCase().includes(U.q.toLowerCase())).sort((a,b)=>(a.cat||"").localeCompare(b.cat||"")||a.name.localeCompare(b.name));
   const unk=J.all("items").filter(it=>it.active!==false&&!J.itemKind(it)).sort((a,b)=>a.name.localeCompare(b.name));
