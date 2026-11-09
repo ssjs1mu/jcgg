@@ -146,8 +146,8 @@ J.act("dueBill",el=>{const [cid,m]=el.dataset.x.split("|");const c=items().find(
   J.drawer({title:(so?"Statement · ":"Bill · ")+c.name+" · "+monthLabel(m),submit:"Save",body:`<div class="form">${fld(so?"Statement amount ₹":"Bill amount ₹",num("amt",o.bill??""))}${fld("Due date",`<input type="date" name="due" value="${o.due}" disabled>`)}</div><p class="hint">${so?"Recorded for the reminder and the payment only — the expenses are already on "+esc(J.accName(c.party))+".":"Posts Dr "+esc(J.accName(c.exp))+", Cr "+esc(J.accName(c.party))+" on "+fmtDate(billDate(c,m))+"."}</p>`,
     onSubmit:async fd=>{const A=r2(+fd.amt||0);if(so){const st={...(doc().stmt||{})};if(A>0)st[o.k]=A;else delete st[o.k];await save({stmt:st})}else{if(!c.exp)return "Set the expense head on the commitment first.";await postBill(c,m,A)}toast("Saved")}})});
 // ---------- pay with split sources ----------
-J.act("duePopPay",el=>{J.closeDrawer?.();setTimeout(()=>J.run("duePay",el.dataset.x),150)});
-J.act("duePopEmi",el=>{J.closeDrawer?.();setTimeout(()=>J.run("emiPostOne",el.dataset.x),150)});
+J.act("duePopPay",el=>{const fromPop=!!el.closest?.("#overlay");J.closeDrawer?.();window.__popBack=fromPop;setTimeout(()=>J.run("duePay",el.dataset.x),150)});
+J.act("duePopEmi",el=>{const fromPop=!!el.closest?.("#overlay");J.closeDrawer?.();setTimeout(async()=>{await J.run("emiPostOne",el.dataset.x);if(fromPop)setTimeout(()=>J.duesPopup(true),600)},150)});
 J.act("duePay",el=>{const [cid,m]=el.dataset.x.split("|");const c=items().find(x=>x.id===cid);const o=occ(c,m);const left=o.bill!=null?r2(o.bill-o.paid):"";const src=J.accsOf(["bank"])[0]?.id||"";
   const row=(i,a,v)=>`<tr><td>${J.selA("s"+i,J.MONEY,a,"—")}</td><td><input type="number" step="any" name="v${i}" value="${v??""}" style="width:110px" data-paysum></td></tr>`;
   J.drawer({title:"Pay · "+o.label,submit:"Post payment",body:`<div class="form">${fld("Date",`<input type="date" name="date" value="${today()}">`)}${fld("Reference / UTR",txt("ref",""))}</div>
@@ -158,7 +158,7 @@ J.act("duePay",el=>{const [cid,m]=el.dataset.x.split("|");const c=items().find(x
       const rew=r2(+fd.rew||0);if(rew>0){L.push({a:await J.ensureAcc("Reward points & cashback redeemed","income"),dr:0,cr:rew,n:"Points / cashback used · "+o.label});tot=r2(tot+rew)}
       if(!(tot>0))return "Enter the amount paid from at least one source.";L.unshift({a:c.party,dr:tot,cr:0,n:"Paid · "+o.label});
       const fee=r2(+fd.fee||0);if(fee>0){const fa=await J.ensureAcc("Bank charges & convenience fees","expense");L.push({a:fa,dr:fee,cr:0,n:"Fee · "+o.label},{a:fd.feeFrom||L[1].a,dr:0,cr:fee,n:"Fee · "+o.label})}
-      await J.postVoucher({type:"payment",date:fd.date,lines:L,party:c.party,narr:"Paid "+o.label+(fd.ref?" · "+fd.ref:""),ref:fd.ref||"",src:{col:"dues",id:c.id,label:"Bill payment"},f:{occ:o.k}});toast("Payment posted "+money(tot))}});
+      await J.postVoucher({type:"payment",date:fd.date,lines:L,party:c.party,narr:"Paid "+o.label+(fd.ref?" · "+fd.ref:""),ref:fd.ref||"",src:{col:"dues",id:c.id,label:"Bill payment"},f:{occ:o.k}});toast("Payment posted "+money(tot));if(window.__popBack){window.__popBack=false;setTimeout(()=>J.duesPopup(true),600)}}});
 });
 // ---------- EMI purchases ----------
 J.act("emiEdit",el=>{const id=el.dataset.x;const e=emis().find(x=>x.id===id)||{rate:15,n:6,gst:18,first:addDays(today(),30)};
