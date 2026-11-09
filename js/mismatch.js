@@ -10,6 +10,8 @@ J.mismatches=()=>{const out=[];const t=today();const fy=J.fyOf(t);const add=(sco
   const pp=J.all("ppday").sort((a,b)=>a.id.localeCompare(b.id));const V=id=>J.get("vouchers",id);const kindOf=id=>J.get("accounts",id)?.kind;
   const win=addDays(t,-45);const win14=addDays(t,-14);
   // ---------- DAILY ----------
+  // days with no sales at all: no Petpooja file and no manual day-sales entry
+  for(let i=1;i<=7;i++){const dd=addDays(t,-i);if(pp.some(x=>x.id===dd)||V("ppsale-"+dd))continue;add("daily",dd+"nosales",`${fmtDate(dd)}: no sales entered`,"There is no Petpooja file and no manual day-sales entry for this day, so Sales, cash and the counter tally are blank.","Open Sales & Cash → Cash tallies for that date, press + Day sales (manual) and enter cash / UPI / card / online. The Petpooja upload replaces it later.",0,"sales","cash")}
   for(const d of pp){if(d.id<win||d.id>t)continue;const live=d.orders.filter(o=>!/cancel|saved/i.test(o.status||""));if(!live.length)continue;
     const v=d.vid?V(d.vid):null;
     if(!v){add("daily",d.id,`${fmtDate(d.id)}: Petpooja sales not posted`,`Orders for the day are uploaded (${live.length} bills) but there is no sales entry in Accounts, so Sales, GST and the settlement ledgers are short.`,"Open Sales & Cash → Petpooja, select the day and press Post.",live.reduce((s,o)=>s+o.net,0),"sales","petpooja","bad");continue}
