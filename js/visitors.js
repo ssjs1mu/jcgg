@@ -44,8 +44,8 @@
 
   /* ---- widget ---- */
   const css = '#jcvc{position:fixed;right:12px;bottom:12px;z-index:40;font-family:Inter,"Segoe UI",Arial,sans-serif;color:#14306e}' +
-    '#jcvc .pill{display:flex;align-items:baseline;gap:7px;background:#fffdf5;border:1.5px solid #c99a1c;border-radius:22px;padding:4px 14px 5px;cursor:pointer;box-shadow:0 4px 14px -6px rgba(0,0,0,.35);user-select:none}' +
-    '#jcvc .n{font-size:26px;font-weight:900;line-height:1}#jcvc .l{font-size:11px;font-weight:700;color:#5b6b8c}' +
+    '#jcvc .pill{display:flex;align-items:baseline;gap:7px;background:#fffdf5;border:1.5px solid #c99a1c;border-radius:22px;padding:2px 9px 3px;cursor:pointer;box-shadow:0 4px 14px -6px rgba(0,0,0,.35);user-select:none}' +
+    '#jcvc .n{font-size:15px;font-weight:900;line-height:1}#jcvc .l{font-size:10px;font-weight:700;color:#5b6b8c}#jcvc{opacity:.55;transition:opacity .2s}#jcvc:hover,#jcvc.open{opacity:1}@media(max-width:820px){#jcvc{bottom:68px}}' +
     '#jcvc .pan{display:none;position:absolute;right:0;bottom:46px;width:310px;max-width:calc(100vw - 24px);background:#fff;border:1.5px solid #c99a1c;border-radius:12px;padding:10px 12px;box-shadow:0 14px 34px -12px rgba(0,0,0,.45);font-size:11px}' +
     '#jcvc.open .pan{display:block}#jcvc table{width:100%;border-collapse:collapse;margin:4px 0}#jcvc td{padding:2px 3px;border-bottom:1px solid #eef1f8;font-size:11px}#jcvc td.r{text-align:right;font-weight:700}' +
     '#jcvc h6{margin:6px 0 2px;font-size:10px;letter-spacing:.6px;color:#8a6a10;text-transform:uppercase}#jcvc .qb{height:5px;border-radius:3px;background:#e6ebf5;overflow:hidden;margin:2px 0 5px}#jcvc .qb i{display:block;height:100%;background:#2f8f5b}' +
