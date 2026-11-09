@@ -4,7 +4,7 @@
   --paper:#F3F5F2; --sheet:#FFFFFF; --ink:#18212B; --ink-2:#4A5562; --ink-3:#5E6A77;
   --rule:#DCE1DC; --rule-2:#C9D0CA; --wash:#E9EDE8;
   --bahi:#A3242F; --bahi-wash:#F6E3E4; --bahi-ink:#FFFFFF;
-  --dr:#1F5F8B; --cr:#8A5A12; --ok:#2E7D4F; --ok-wash:#E1F1E7; --warn:#A86A00; --warn-wash:#FBF0DA; --bad:#B3261E; --bad-wash:#FBE4E2;
+  --dr:#1F5F8B; --cr:#8A5A12; --ok:#256B42; --ok-wash:#E1F1E7; --warn:#8A5200; --warn-wash:#FBF0DA; --bad:#B3261E; --bad-wash:#FBE4E2;
   --f-display:"Newsreader",Georgia,"Times New Roman",serif;
   --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
