@@ -60,7 +60,7 @@ J.mismatches=()=>{const out=[];const t=today();const fy=J.fyOf(t);const add=(sco
       if(bs.some(b=>!b.mfg)&&!loose)miss.push("mfg date");
       if(!it.vendor)miss.push("default vendor");if(!(+it.reorder>0))miss.push("reorder level");if(!loose&&!it.brand)miss.push("brand");if(!loose&&!it.pack)miss.push("pack size");if(!(+it.gst>=0)||it.gst===undefined)miss.push("GST %");
       if(miss.length)L.push({it,miss,crit:miss.some(x=>/expiry|MRP|mfg/.test(x))})}
-    L.sort((a,b)=>b.crit-a.crit||b.miss.length-a.miss.length).slice(0,40).forEach(x=>add("stock",x.it.id,`${x.it.name}: ${x.miss.join(", ")} missing`,"Essential items need these details so expiry alerts, price checks and costing work.","Open Inventory → Item master, edit the item (and add MFG / expiry on the next purchase line).",0,"inventory","items",x.crit?"warn":"info"));
+    L.sort((a,b)=>b.crit-a.crit||b.miss.length-a.miss.length).slice(0,40).forEach(x=>add("stock",x.it.id,`${x.it.name}: ${x.miss.join(", ")} missing`,"Essential items need these details so expiry alerts, price checks and costing work.","Open Inventory → Item master, edit the item (add MFG / expiry on the next purchase line). Fresh or loose produce: set Package type to Loose and MRP, dates, brand and pack size are no longer asked.",0,"inventory","items",x.crit?"warn":"info"));
     if(L.length>40)add("stock","more","+"+(L.length-40)+" more essential items with missing details","Only the 40 most important are listed.","Work through the list above, then this one grows back.",0,"inventory","items","info")}catch(e){console.warn("stock reminders",e)}
   const rk={bad:0,warn:1,info:2};return out.sort((a,b)=>rk[a.sev]-rk[b.sev]||b.amt-a.amt)};
 })();
