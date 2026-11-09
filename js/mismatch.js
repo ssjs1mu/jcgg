@@ -52,15 +52,19 @@ J.mismatches=()=>{const out=[];const t=today();const fy=J.fyOf(t);const add=(sco
     let unc=0,n=0;for(const a of J.accsOf(["bank","card","aggregator"]))for(const p of J.D.post?.get(a.id)||[])if(inFy(p.date)&&!J.isCleared(p.v,a.id)){unc+=Math.abs(p.dr-p.cr);n++}
     if(n>10)add("yearly","unc",`${fy.label}: ${n} bank / wallet entries still unmatched (gross ${m0(unc)})`,"A large unmatched pile means the year's books have never been agreed with the bank — errors, missing receipts and double entries hide in it.","Reconcile each account month by month; unmatched statement lines are the missing entries.",unc,"accounts","recon");
     const kh=J.kotHouse?.();if(kh){const b=J.balanceOf(kh.acc);if(Math.abs(b)>=1)add("yearly","house",`${J.accName(kh.acc)}: ${m0(Math.abs(b))} ${b>0?"Dr":"Cr"} not cleared this year`,"Staff-food bills from Petpooja are higher than staff KOTs (or the reverse); the balance is exactly the KOTs missing or extra, day by day.","KOT → Daily tally: days marked in red show the KOT or bill to fix; clear the old balance with a journal once verified.",Math.abs(b),"kot","food")}}
-  // ---------- STOCK: missing details on essential items ----------
-  // essential = ticked "Essential item" on the item master, or an active item with a reorder level or bought 3+ times in the last 120 days (untick to opt out). One reminder per item, listing what is missing.
-  try{const inv=J.D.inv?.items||{};const L=[];for(const it of J.all("items")){if(it.active===false)continue;const I=inv[it.id];const regular=(I?.buys||[]).filter(b=>b.date>=addDays(t,-120)).length>=3;const ess=it.essential===true||(it.essential!==false&&(+it.reorder>0||regular));if(!ess)continue;const bs=(I?.batches||[]).filter(b=>(+b.qty||0)>0);const loose=/loose/i.test(it.ptype||"")||/^(vegetable|fruit|leafy)/i.test(it.cat||"");const miss=[];
-      if(!loose&&!(+it.mrp>0)&&!bs.some(b=>+b.mrp>0))miss.push("MRP");
-      if(!(+it.shelf>0)&&bs.length&&bs.some(b=>!b.exp))miss.push("expiry date");
-      if(bs.some(b=>!b.mfg)&&!loose)miss.push("mfg date");
-      if(!it.vendor)miss.push("default vendor");if(!(+it.reorder>0))miss.push("reorder level");if(!loose&&!it.brand)miss.push("brand");if(!loose&&!it.pack)miss.push("pack size");if(!(+it.gst>=0)||it.gst===undefined)miss.push("GST %");
-      if(miss.length)L.push({it,miss,crit:miss.some(x=>/expiry|MRP|mfg/.test(x))})}
-    L.sort((a,b)=>b.crit-a.crit||b.miss.length-a.miss.length).slice(0,40).forEach(x=>add("stock",x.it.id,`${x.it.name}: ${x.miss.join(", ")} missing`,"Essential items need these details so expiry alerts, price checks and costing work.","Open Inventory → Item master, edit the item (add MFG / expiry on the next purchase line). Fresh or loose produce: set Package type to Loose and MRP, dates, brand and pack size are no longer asked.",0,"inventory","items",x.crit?"warn":"info"));
+  // ---------- STOCK: item type + missing details ----------
+  // Every item must be Fresh / Packaged / No expiry (set from its category when obvious; "Other" items are asked, never guessed).
+  // Details are then asked only where they apply: fresh → keeps-for days; packaged → MRP, mfg, expiry, brand, pack; all → vendor, reorder level.
+  // Essential = ticked Essential, or reorder level set, or bought 3+ times in the last 120 days (untick to opt out).
+  try{const inv=J.D.inv?.items||{};const unk=J.all("items").filter(it=>it.active!==false&&!J.itemKind?.(it));
+    if(unk.length)add("stock","kind",`${unk.length} items need an item type (Fresh / Packaged / No expiry)`,"The app does not guess for items in Other or with no category. Without a type it cannot ask for the right details or work out expiry.","Open Inventory → Item master → Item type needed, and choose a type for each (give Keeps-for days for fresh items).",0,"inventory","items","warn");
+    const L=[];for(const it of J.all("items")){if(it.active===false)continue;const kind=J.itemKind?.(it);if(!kind)continue;const I=inv[it.id];const regular=(I?.buys||[]).filter(b=>b.date>=addDays(t,-120)).length>=3;const ess=it.essential===true||(it.essential!==false&&(+it.reorder>0||regular));if(!ess)continue;
+      const bs=(I?.batches||[]).filter(b=>(+b.qty||0)>0);const miss=[];
+      if(kind==="fresh"){if(!(J.keepDays?.(it)>0))miss.push("keeps-for days")}
+      else if(kind==="packaged"){if(!(+it.mrp>0)&&!bs.some(b=>+b.mrp>0))miss.push("MRP");if(bs.some(b=>!b.exp))miss.push("expiry date");if(bs.some(b=>!b.mfg))miss.push("mfg date");if(!it.brand)miss.push("brand");if(!it.pack)miss.push("pack size")}
+      if(!it.vendor)miss.push("default vendor");if(!(+it.reorder>0))miss.push("reorder level");
+      if(miss.length)L.push({it,miss,crit:miss.some(x=>/expiry|MRP|mfg|days/.test(x))})}
+    L.sort((a,b)=>b.crit-a.crit||b.miss.length-a.miss.length).slice(0,40).forEach(x=>add("stock",x.it.id,`${x.it.name}: ${x.miss.join(", ")} missing`,"Essential items need these details so expiry alerts, price checks and costing work.","Open Inventory → Item master and edit the item (printed MFG / expiry go on the purchase line).",0,"inventory","items",x.crit?"warn":"info"));
     if(L.length>40)add("stock","more","+"+(L.length-40)+" more essential items with missing details","Only the 40 most important are listed.","Work through the list above, then this one grows back.",0,"inventory","items","info")}catch(e){console.warn("stock reminders",e)}
   const rk={bad:0,warn:1,info:2};return out.sort((a,b)=>rk[a.sev]-rk[b.sev]||b.amt-a.amt)};
 })();
