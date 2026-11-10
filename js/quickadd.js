@@ -50,6 +50,7 @@ function open(type,key,id,origin){close();const isItem=type==="item";const rec=i
   const setCache=d=>{try{J.S.c[col].set(d.id,d)}catch(e){}};
   ov.querySelector("#qa-ok").onclick=async()=>{const name=ov.querySelector("#qa-name").value.trim();if(!name){toast("Enter a name.");return}
     const dup=J.all(col).find(x=>x.name.toLowerCase()===name.toLowerCase()&&x.id!==id);if(dup&&!rec){refreshPickers(type,key,dup.id,origin);close();toast("“"+dup.name+"” already exists — selected it.");return}
+    if(!rec){const nl=J.nameLike?.(col,name,id);if(nl){toast("Looks like “"+nl.name+"” which already exists. Use that one, or press Add again to create a separate "+(isItem?"item":"ledger")+".");return}}
     let d;if(isItem){d={...(rec||{id:uid(),active:true,reorder:0}),name,unit:ov.querySelector("#qa-unit").value,cat:ov.querySelector("#qa-cat").value,gst:+ov.querySelector("#qa-gst").value}}
     else{const kind=sys?rec.kind:ov.querySelector("#qa-kind").value;const ref=ov.querySelector("#qa-ref").value.trim();const cat=["expense","income"].includes(kind)?(ov.querySelector("#qa-cat2")?.value||"").trim():"";d={...(rec||{id:kind+"-"+uid(),opening:+(ov.querySelector("#qa-open")?.value)||0,active:true}),name,kind,...(ref?{ref}:{}),...(["expense","income"].includes(kind)?{cat}:{})};if(cat)await J.catEnsure?.(kind,cat)}
     const ok=await J.safe(()=>J.store.put(col,d));if(!ok)return;setCache(d);close();refreshPickers(type,key,d.id,origin);toast((rec?"Updated ":"Added ")+"“"+name+"”")};

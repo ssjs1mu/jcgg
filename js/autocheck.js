@@ -17,4 +17,14 @@ J.errPanel=()=>{const L=read();return `<section class="panel"><div class="row" s
 // health check that runs by itself
 let hc=null,hcAt=0;
 J.hcAuto=()=>{if(!J.healthCheck||!J.S?.ready)return hc||[];const now=Date.now();if(!hc||now-hcAt>30000){try{hc=J.healthCheck();hcAt=now}catch(e){J.logErr(e,"health check");hc=hc||[]}}return hc};
+// ---- look-alike guards (warn once at save time; saving again goes through) ----
+const amtOf=ls=>Math.round((ls||[]).reduce((t,l)=>t+(+l.dr||0),0)*100)/100;
+J.dupLike=spec=>{const amt=amtOf(spec.lines);if(!(amt>0)||!spec.date)return [];const acs=new Set((spec.lines||[]).map(l=>l.a));const lo=J.addDays(spec.date,-3),hi=J.addDays(spec.date,3);
+  return J.all("vouchers").filter(v=>v.id!==spec.id&&v.date>=lo&&v.date<=hi&&Math.abs(amtOf(v.lines)-amt)<0.01&&((spec.party&&v.party===spec.party)||(v.lines||[]).filter(l=>acs.has(l.a)).length>=2)).slice(0,5)};
+let okKey="";
+J.dupGuard=spec=>{if(spec.id)return null;const L=J.dupLike(spec);if(!L.length)return null;const key=[spec.date,amtOf(spec.lines),(spec.lines||[]).map(l=>l.a).sort().join()].join("|");if(okKey===key){okKey="";return null}okKey=key;return {list:L,
+  text:"Looks like an entry already in the books: "+L.map(v=>v.no+" · "+J.fmtDate(v.date)+" · ₹"+J.inr0.format(amtOf(v.lines))+(v.narr?" · "+String(v.narr).slice(0,40):"")).join("; ")+". If this is a separate entry, press Save / Post again."}};
+const nk=n=>String(n||"").toLowerCase().replace(/\b(pvt|private|ltd|limited|llp|and|the|m\/s|co|company|enterprises?|traders?|stores?)\b/g,"").replace(/[^a-z0-9]/g,"").replace(/s$/,"");
+let okName="";
+J.nameLike=(col,name,id)=>{const k=nk(name);if(k.length<4)return null;if(okName===col+k){okName="";return null}const hit=J.all(col).find(x=>x.id!==id&&x.active!==false&&(()=>{const y=nk(x.name);return y.length>=4&&(y===k||(Math.min(y.length,k.length)>=6&&(y.includes(k)||k.includes(y))))})());if(hit)okName=col+k;return hit||null};
 })();

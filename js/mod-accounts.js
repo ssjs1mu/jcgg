@@ -124,6 +124,7 @@ J.holdRefresh.push(()=>{if(S.route.mod==="accounts"&&S.route.tab==="entry")refre
 function wireEntry(){refreshSide();const fm=document.getElementById("entryForm");fm.addEventListener("change",refreshSide);fm.addEventListener("submit",ev=>{ev.preventDefault();saveEntry(false)})}
 async function saveEntry(another){const E=ui().entry,f=readForm(),b=build(E.type,f,E.editId),err=document.getElementById("entryErr");if(b.err){err.innerHTML=`<div class="err">${esc(b.err)}</div>`;return}
   const {narr,ref,...rest}=f;const old=E.editId?J.get("vouchers",E.editId):null;
+  if(!old){const g=J.dupGuard?.({date:f.date,lines:b.lines,party:b.party});if(g){err.innerHTML=`<div class="note"><b>Possible duplicate.</b> ${esc(g.text)}</div>`;err.scrollIntoView?.({block:"center"});return}}
   try{const v=await J.postVoucher({id:old?.id,type:E.type,date:f.date,lines:b.lines,party:b.party,narr,ref,f:{...rest},gst:b.gst});toast((old?"Updated ":"Posted ")+v.no);E.lastId=v.id;S.hold=null;
     if(old){E.editId=null;E.f={};J.go("accounts",S.ui.returnTab||"book")}else if(another){E.f={...defaults(E.type),date:f.date};J.render();document.getElementById("f-amount")?.focus()}else{E.f={};J.go("accounts","book")}}
   catch(e){err.innerHTML=`<div class="err">${esc(e.message||"Could not save ("+(e.code||"error")+")")}</div>`}}
