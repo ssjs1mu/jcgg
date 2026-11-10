@@ -27,4 +27,9 @@ J.dupGuard=spec=>{if(spec.id)return null;const L=J.dupLike(spec);if(!L.length)re
 const nk=n=>String(n||"").toLowerCase().replace(/\b(pvt|private|ltd|limited|llp|and|the|m\/s|co|company|enterprises?|traders?|stores?)\b/g,"").replace(/[^a-z0-9]/g,"").replace(/s$/,"");
 let okName="";
 J.nameLike=(col,name,id)=>{const k=nk(name);if(k.length<4)return null;if(okName===col+k){okName="";return null}const hit=J.all(col).find(x=>x.id!==id&&x.active!==false&&(()=>{const y=nk(x.name);return y.length>=4&&(y===k||(Math.min(y.length,k.length)>=6&&(y.includes(k)||k.includes(y))))})());if(hit)okName=col+k;return hit||null};
+// ---- count-up numbers: any element with data-count animates from 0 to its value when a screen is drawn ----
+let cuKey="";
+J.afterRender?.push(()=>{const els=[...document.querySelectorAll("#view [data-count]")];if(!els.length){cuKey="";return}const key=location.hash+els.map(e=>e.dataset.count).join();if(key===cuKey)return;cuKey=key;
+  if(window.matchMedia?.("(prefers-reduced-motion:reduce)").matches)return;const t0=performance.now(),D=700;const fin=els.map(e=>e.textContent);
+  const step=now=>{const k=Math.min(1,(now-t0)/D),ez=1-Math.pow(1-k,3);els.forEach((e,i)=>{if(!e.isConnected)return;e.textContent=k>=1?fin[i]:"₹"+J.inr0.format(Math.round((+e.dataset.count||0)*ez))});if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)});
 })();
