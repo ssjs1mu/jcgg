@@ -9,6 +9,8 @@ const LAG=3;// days a UPI / card settlement can take before it is called late
 J.mismatches=()=>{const out=[];const t=today();const fy=J.fyOf(t);const add=(scope,key,title,reason,fix,amt,go,tab,sev)=>out.push({scope,key,title,reason,fix,amt:amt||0,go,tab,sev:sev||"warn"});
   const pp=J.all("ppday").sort((a,b)=>a.id.localeCompare(b.id));const V=id=>J.get("vouchers",id);const kindOf=id=>J.get("accounts",id)?.kind;
   const win=addDays(t,-45);const win14=addDays(t,-14);
+  // ---------- BOOKS HEALTH (auto-run health check) ----------
+  for(const h of J.hcAuto?.()||[]){if(h.ok)continue;add("books",h.t,h.t+" — failed",h.remark+(h.list?.length?" · "+h.list.slice(0,4).join(" · "):""),"Open Accounts → Freeze & checks → Health check for the list"+(h.fix?" and the one-tap fix.":"."),0,"accounts","controls",/balance|missing ledger/i.test(h.t)?"bad":"warn")}
   // ---------- DAILY ----------
   // days with no sales at all: no Petpooja file and no manual day-sales entry
   for(let i=1;i<=7;i++){const dd=addDays(t,-i);if(pp.some(x=>x.id===dd)||V("ppsale-"+dd))continue;add("daily",dd+"nosales",`${fmtDate(dd)}: no sales entered`,"There is no Petpooja file and no manual day-sales entry for this day, so Sales, cash and the counter tally are blank.","Open Sales & Cash → Cash tallies for that date, press + Day sales (manual) and enter cash / UPI / card / online. The Petpooja upload replaces it later.",0,"sales","cash")}
