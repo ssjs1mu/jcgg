@@ -51,3 +51,14 @@ print("app", app, "modules", {k: v["v"] for k, v in out.items()})
 
 _sp.run(["python3","tools/check_map.py"])
 if _sp.run(["python3","tools/smoke.py"]).returncode: print("SELF-TEST FAILED — fix the errors above before pushing")
+
+# open every tab in a headless browser with a small test book (skipped if the browser is not installed)
+try:
+    import socket, time
+    srv=None
+    with socket.socket() as k:
+        if k.connect_ex(("127.0.0.1",8765)): srv=_sp.Popen(["python3","-m","http.server","8765"],stdout=_sp.DEVNULL,stderr=_sp.DEVNULL); time.sleep(1)
+    r=_sp.run(["node","tools/tabtest.js"],timeout=180)
+    if r.returncode: print("TAB TEST FAILED — a screen does not open; fix before pushing")
+    if srv: srv.terminate()
+except Exception as e: print("tab test skipped:",e)
