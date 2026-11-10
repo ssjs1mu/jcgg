@@ -1,11 +1,11 @@
-/* Review double entries: lists every group of entries with the same date, amount, party, reference and type,
+/* Review double entries: lists every group of entries with the same date, amount, party, reference, type and the same ledgers (same bank, same head),
    side by side, so the extra one can be ticked and deleted, or the group marked "not a duplicate" (remembered).
    The Books health check uses the same grouping (J.dupGroups). */
 (()=>{
 const J=window.J,{esc,toast,fmtDate}=J;const inr=x=>"₹"+Number(x).toLocaleString("en-IN",{maximumFractionDigits:2});
 const SKIP=/^(ppsale|skh|skc|salm|bill-|aggc)/;
 const ok=()=>new Set((J.get("meta","dupok")?.list)||[]);
-J.dupGroups=(all)=>{const g={},okk=ok();for(const v of J.all("vouchers")){if(SKIP.test(v.id))continue;const amt=J.vAmount(v);if(!(amt>0))continue;(g[[v.date,amt,v.party||"",v.ref||"",v.type].join("~")]??=[]).push(v)}
+J.dupGroups=(all)=>{const g={},okk=ok();for(const v of J.all("vouchers")){if(SKIP.test(v.id))continue;const amt=J.vAmount(v);if(!(amt>0))continue;(g[[v.date,amt,v.party||"",v.ref||"",v.type,(v.lines||[]).map(l=>l.a+(+l.dr?"d":"c")).sort().join(",")].join("~")]??=[]).push(v)}
   return Object.entries(g).filter(([k,a])=>a.length>1&&(all||!okk.has(k))).map(([k,a])=>({key:k,list:a.sort((x,y)=>String(x.no).localeCompare(String(y.no)))})).sort((a,b)=>a.list[0].date<b.list[0].date?-1:1)};
 const nm=id=>J.get("accounts",id)?.name||"?";
 const side=(v,k)=>[...new Set((v.lines||[]).filter(l=>+l[k]>0).map(l=>nm(l.a)))].join(", ");
