@@ -396,6 +396,8 @@ function vAdvances(){const U=ui();const m=WM();const end=J.monthEnd(m),from=m+"-
     <td class="num">${r.sal<-0.004?`<span class="chip bad">Due ${money(-r.sal)}</span>`:r.sal>0.004?`<span class="chip warn">Overpaid ${money(r.sal)}</span>`:"Settled"}</td>
     <td style="white-space:nowrap"><button class="btn small w" data-a="giveAdv" data-x="${r.s.id}">Advance</button> <button class="btn small w" data-a="giveLoan" data-x="${r.s.id}">Loan</button> <button class="btn small" data-a="openLedger" data-x="adv-${r.s.id}">Adv. ledger</button> <button class="btn small" data-a="openLedger" data-x="loan-${r.s.id}">Loan ledger</button> <button class="btn small" data-a="openLedger" data-x="${r.s.id}">Salary ledger</button></td></tr>`).join(""):J.emptyRow(9,"Nobody in service in "+monthLabel(m))}
   </tbody></table></div></div><p class="hint">Only staff who were in service during the selected month are listed. A new advance or loan is dated in this month (today if it is the current month). Each person has separate salary, advance and loan ledgers; recoveries come through the monthly salary entry. Perks, bonus, penalties and recovery changes for the month are entered on the Payroll tab.</p>`}
+// one tab for both views: give / recover for the month, and the dated statement with balances
+function vLA(){const U=ui();const w=U.laView==="stmt"?"stmt":"month";return `<div class="seg" role="tablist" style="margin-bottom:10px"><button data-set="staff.laView=month" aria-pressed="${w==="month"}">This month — give &amp; recover</button><button data-set="staff.laView=stmt" aria-pressed="${w==="stmt"}">Statement &amp; balances</button></div>${w==="stmt"?vLoanAdv():vAdvances()}`}
 // ---------- Loans & advances: statement with dates, balances and a notional (dummy) interest ----------
 const dDiff=(a,b)=>Math.max(0,Math.round((J.parseISO(b)-J.parseISO(a))/864e5));
 function laStmt(id,rate,upto){const P=J.D.post?.get(id)||[];let b=+(J.get("accounts",id)?.opening||0),rows=[],int=0;
@@ -426,5 +428,5 @@ J.act("delNote",async el=>{const [sid,at]=el.dataset.x.split("|");const s=J.get(
 
 J.mod({id:"staff",label:"Staff & Payroll",group:"Operations",icon:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3 3 0 0 1 0 6M21 20c0-2.6-1.6-4.8-4-5.6"/>',sub:"People, attendance and payroll. Each person has a salary ledger plus separate advance and loan ledgers.",
   badge:()=>{const t=today();return staff().filter(s=>!dayStatus(s.id,t)&&!weekOff(s,t)).length&&new Date().getHours()>=11?staff().filter(s=>!dayStatus(s.id,t)&&!weekOff(s,t)).length:0},
-  tabs:[["team","Team",vStaff],["attendance","Attendance",vAttendance],["empatt","Employee month",vEmpAtt],["payroll","Payroll",vPayroll],["advances","Advances",vAdvances],["loanadv","Loans & advances",vLoanAdv],["notebook","Notebook",vNotebook],["policy","Policies & rules",()=>J.R.vPolicy()]]});
+  tabs:[["team","Team",vStaff],["attendance","Attendance",vAttendance],["empatt","Employee month",vEmpAtt],["payroll","Payroll",vPayroll],["advances","Loans & advances",vLA],["notebook","Notebook",vNotebook],["policy","Policies & rules",()=>J.R.vPolicy()]]});
 })();

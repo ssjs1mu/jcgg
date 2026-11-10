@@ -116,8 +116,7 @@ function purchaseDrawer(old,preItem){const n=Math.max(5,(old?.lines?.length||0)+
 
 // bill from an online platform (Flipkart, Amazon, Instamart, Zepto, Blinkit…): pick the file, the platform / invoice no. / date are read when possible, and the purchase form opens with the bill already attached
 const PLAT_RE=[["Flipkart Minutes",/flipkart\s*minutes/i],["Flipkart",/flipkart|ekart/i],["Amazon",/amazon|amzn/i],["Instamart",/instamart|swiggy/i],["Zepto",/zepto|kiranakart/i],["Blinkit",/blinkit|grofers/i],["BigBasket",/big\s*basket|innovative retail/i],["Zomato Hyperpure",/hyperpure/i]];
-J.act("platBill",()=>{const i=document.createElement("input");i.type="file";i.multiple=true;i.accept="image/*,application/pdf,.xls,.xlsx,.xlsm,.ods,.csv";
-  i.onchange=async()=>{const files=[...i.files];if(!files.length)return;
+J.platBillFiles=async files=>{if(!files.length)return;
     // Flipkart / Flipkart Minutes tax-invoice PDFs are read in full (items, GST, Flipkart vs Flipkart Minutes) and go to the bill review
     try{const pf=files.filter(x=>/pdf/i.test(x.type)||/\.pdf$/i.test(x.name));if(pf.length===files.length&&J.billParseFile){const ps=await Promise.all(pf.map(f=>J.billParseFile(f).catch(()=>null)));if(ps.every(b=>b&&b.vendorKey==="flipkart")){await J.billStage(pf);return}}}catch(e){console.warn("flipkart parse",e)}
     let txt=files.map(f=>f.name).join(" ");
@@ -126,7 +125,7 @@ J.act("platBill",()=>{const i=document.createElement("input");i.type="file";i.mu
     const dm=txt.match(/\b(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2})\b/);const date=dm?dm[3]+"-"+dm[2].padStart(2,"0")+"-"+dm[1].padStart(2,"0"):"";
     purchaseDrawer(null);setTimeout(()=>{const dt=new DataTransfer();files.forEach(f=>dt.items.add(f));const inp=document.getElementById("pur-bill");if(inp)inp.files=dt.files;
       const set=(id,v)=>{const e=document.getElementById(id);if(e&&v)e.value=v};set("f-plat",plat);set("f-inv",inv);if(date&&date<=today())set("f-date",date);
-      toast(files.length+" bill file"+(files.length>1?"s":"")+" attached"+(plat?" · "+plat:"")+" — add the items and save")},150)};i.click()});
+      toast(files.length+" bill file"+(files.length>1?"s":"")+" attached"+(plat?" · "+plat:"")+" — add the items and save")},150)};
 async function saveSimple(type,fd,old){const lines=readLines(fd,type);if(!lines.length)return "Add at least one line with item and quantity.";if(type==="adjust"&&lines.some(l=>l.qty>0&&!(l.rate>0)))return "Lines that add stock need a rate.";
   const id=old?.id||uid();await J.store.put("moves",{id,type,date:fd.date,m:fd.date.slice(0,7),dept:fd.dept||"",note:fd.note||"",lines,createdAt:old?.createdAt||Date.now()});toast(type==="consume"?"Consumption logged":"Stock adjusted")}
 function consumeDrawer(old,pre){const n=Math.max(6,(old?.lines?.length||0)+1);const lines=old?.lines||(pre?[pre]:[]);
@@ -230,7 +229,7 @@ function recipeDrawer(id){const rc=id?J.get("recipes",id):{yield:1,lines:[]};con
 J.act("newRecipe",()=>recipeDrawer(null));J.act("editRecipe",el=>recipeDrawer(el.dataset.x));
 
 J.mod({id:"inventory",label:"Inventory",group:"Operations",icon:'<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/>',sub:"Pure-vegetarian stores: batches, expiry, purchases and costing.",
-  headBtns:()=>`<button class="btn w" data-a="billUpload">Upload bills</button><button class="btn w" data-a="platBill">Upload Flipkart / Amazon / Zepto… bill</button><button class="btn w" data-a="impOpen" data-x="purch">Import</button><button class="btn w" data-a="newConsume">Log consumption</button><button class="btn primary w" data-a="newPurchase">New purchase</button>`,
+  headBtns:()=>`<button class="btn w" data-a="billUpload">Upload bill</button><button class="btn w" data-a="impOpen" data-x="purch">Import</button><button class="btn w" data-a="newConsume">Log consumption</button><button class="btn primary w" data-a="newPurchase">New purchase</button>`,
   badge:()=>{const inv=J.D.inv;if(!inv)return 0;return J.all("items").flatMap(it=>inv.items[it.id]?.batches||[]).filter(b=>["bad","crit"].includes(expState(b.exp)?.[0])).length},
   tabs:[["stock","Stock in hand",vStock],["expiry","Expiry audit",vExpiry],["purchases","Purchases",vPurch],["consumption","Consumption",vCons],["returns","Returns",vRet],["adjust","Adjustments",vAdj],["bills","Bills",()=>J.vBills?.()||""],["items","Item master",vItems],["pics","Pictures",vPics],["best","Best price",vBest],["recipes","Recipe costing",vRecipes]]});
 })();
