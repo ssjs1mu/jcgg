@@ -5,6 +5,7 @@ const J=window.J,{esc,fmtDate,today}=J;
 const inr=x=>Number(x).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
 const r2=x=>Math.round(x*100)/100;
 J.ledLink=(id,name,from,to)=>`<button type="button" class="linkbtn" data-a="ledPop" data-x="${esc(id)}|${from||""}|${to||""}">${esc(name)}</button>`;
+J.ledAmt=(id,html,from,to,tip)=>id?`<button type="button" class="linkbtn" title="${esc(tip||"Open ledger")}" data-a="ledPop" data-x="${esc(id)}|${from||""}|${to||""}">${html}</button>`:html;
 J.ledPop=(id,from,to)=>{const a=J.get("accounts",id);if(!a)return;const fy=J.fyOf(today()).start;from=from||fy;to=to||today();
   const day=J.addDays?J.addDays(from,-1):from;const open=r2(J.balanceOf(id,day));let run=open,tdr=0,tcr=0;
   const rows=(J.D.post?.get(id)||[]).filter(p=>p.date>=from&&p.date<=to).sort((x,y)=>x.date.localeCompare(y.date)).map(p=>{run=r2(run+p.dr-p.cr);tdr+=p.dr;tcr+=p.cr;return {p,run}});
