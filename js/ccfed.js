@@ -10,7 +10,10 @@ const r2=x=>Math.round(x*100)/100;
 const DEC=/-?\d[\d,]*\.\d{2}(?!\d)/g;
 const dmy=(d,m,y)=>y+"-"+pad(MON[m.toLowerCase().slice(0,3)])+"-"+pad(+d);
 const is=T=>/federal\s+bank\s+one|one\s+credit\s+card|getonecard/i.test(T);
-function parse(lines){const L=lines.map(x=>String(x).replace(/\s+/g," ").trim()).filter(Boolean);const T=L.join("\n");
+function parse(lines){const L0=lines.map(x=>String(x).replace(/\s+/g," ").trim()).filter(Boolean);const L=[];
+  // a row whose reward-points figure landed on the next text row is joined back: “01 May Paid With Points 100.00” + “-1000.00”
+  for(let i=0;i<L0.length;i++){const m=/^(\d{1,2}\s+[A-Za-z]{3}\s+Paid\s+With\s+Points)\s+(\d[\d,]*\.\d{2})$/i.exec(L0[i]);if(m&&/^-?\d[\d,]*\.\d{2}$/.test(L0[i+1]||"")){L.push(m[1]+" "+L0[i+1]+" "+m[2]);i++}else L.push(L0[i])}
+  const T=L.join("\n");
   const last=s=>{const m=(s||"").match(DEC);return m?nn(m[m.length-1]):null};
   // value of a summary line: decimals on the label's own row (after the label), else the row just above
   const val=re=>{const i=L.findIndex(l=>re.test(l));if(i<0)return null;const own=L[i].replace(re,"").replace(/\(as on[^)]*\)/i,"");const a=last(own.replace(/\d{1,2}\s+[A-Za-z]{3}\s+\d{4}/g,""));return a!=null?a:last(L[i-1]||"")};
@@ -43,7 +46,7 @@ function parse(lines){const L=lines.map(x=>String(x).replace(/\s+/g," ").trim())
     if(!/\d/.test(l)&&!NOISE.test(l)&&l.length<60&&!/^Repayments$/i.test(l))pend.push(l);else if(/\d/.test(l))pend=[]}
   // paid-with-points rows are separate lines of the same kind: fold them into one line so the list stays short
   const pr=tx.filter(t=>t.type==="POINTS");let out=tx.filter(t=>t.type!=="POINTS");
-  if(pr.length){const seen=r2(pr.reduce((s,t)=>s+t.amt,0));out.push({d:pr[0].d,t:"",desc:"Paid with reward points (redeemed)",amt:pts>0?pts:seen,cr:true,type:"POINTS"})};
+  if(pr.length){const seen=r2(pr.reduce((s,t)=>s+t.amt,0));out.push({d:pr[0].d,t:"",desc:"Paid with reward points ("+pr.length+" redemptions)",amt:pts>0?pts:seen,cr:true,type:"POINTS"})};
   out.sort((a,b)=>a.d.localeCompare(b.d));o.tx=out;
   o.prev=open;o.credits=r2(repay+pts+emi);o.purch=spends;o.fin=r2(interest+fees);o.interest=interest;o.fees=fees;o.pointsPaid=pts;o.repay=repay;o.emi=emi;
   const earned=r2(out.filter(t=>!t.cr).reduce((s,t)=>s+(t.pts||0),0)),used=pts>0?r2(pts*10):r2(pr.reduce((s,t)=>s+t.pts,0));o.rp={earned,used,open:null,bal:null};
