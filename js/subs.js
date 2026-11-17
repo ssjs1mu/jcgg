@@ -1,0 +1,22 @@
+/* Bills, taxes & dues → Subscriptions: one row per subscription commitment (kind "Subscription") — plan, amount, cycle,
+   paid from, next renewal, last bill and what it has cost this financial year. Click a row for every bill and payment.
+   Reads the commitments in meta/dues and the bills / payments they posted; add or edit a subscription from Commitments (kind: Subscription). */
+(()=>{
+const J=window.J,{esc,fmtDate,today,money0}=J;
+const FQ={1:"Monthly",2:"Every 2 months",3:"Quarterly",6:"Half-yearly",12:"Yearly"};
+const items=()=>(J.get("meta","dues")?.items||[]).filter(c=>c.kind==="sub");
+const posts=c=>J.all("vouchers").filter(v=>v.src?.col==="dues"&&v.src.id===c.id).sort((a,b)=>a.date.localeCompare(b.date));
+const nextOn=c=>{const t=today();let m=t.slice(0,7);const step=+c.freq||1;for(let i=0;i<60;i++){const d=m+"-"+String(Math.min(+c.billDay||1,28)).padStart(2,"0");if(d>t&&m>=c.start.slice(0,7))return d;let [y,mo]=m.split("-").map(Number);mo+=1;if(mo>12){mo=1;y++}m=y+"-"+String(mo).padStart(2,"0")}return ""};
+function row(c){const P=posts(c);const bills=P.filter(v=>v.type==="journal"),pays=P.filter(v=>v.type==="payment");const fy=J.fyOf(today()).start;
+  const last=bills.at(-1);const spent=pays.filter(v=>v.date>=fy).reduce((s,v)=>s+v.lines.filter(l=>l.a===c.party).reduce((a,l)=>a+l.dr,0),0);
+  const owed=J.balanceOf(c.party);return {c,bills,pays,last,spent,owed,next:c.active===false?"":nextOn(c)}}
+function vSubs(){const R=items().map(row);const tot=R.filter(r=>r.c.active!==false).reduce((s,r)=>s+r.spent,0);
+  return `<div class="filters"><span class="hint">${R.length} subscription${R.length===1?"":"s"} · paid this FY ${money0(tot)} · add or edit under Commitments (kind: Subscription)</span></div>
+  <div class="tbl-wrap"><table class="sheet"><thead><tr><th>Subscription</th><th>Plan / account</th><th class="num">Amount</th><th>Cycle</th><th>Paid from</th><th>Next renewal</th><th>Last bill</th><th class="num">Paid this FY</th><th class="num">Balance</th><th>Status</th></tr></thead><tbody>
+  ${R.map(r=>`<tr><td><button type="button" class="linkbtn" data-a="subOpen" data-x="${esc(r.c.id)}"><b>${esc(r.c.name)}</b></button></td><td>${esc(r.c.plan||"")}</td><td class="num">${r.c.basis==="actual"?"actual":money0(r.c.amt)}</td><td>${FQ[r.c.freq||1]||"Monthly"}</td><td>${esc(J.get("accounts",r.c.payFrom)?.name||"—")}</td><td>${r.next?fmtDate(r.next):"—"}</td><td>${r.last?fmtDate(r.last.date):"—"}</td><td class="num">${money0(r.spent)}</td><td class="num">${J.bal(r.owed)}</td><td>${r.c.active===false?'<span class="chip">stopped</span>':'<span class="chip ok">active</span>'}</td></tr>`).join("")||'<tr><td colspan="10" class="muted">No subscriptions yet. Commitments → New → Kind “Subscription”.</td></tr>'}</tbody></table></div>`}
+J.act("subOpen",el=>{const c=items().find(x=>x.id===el.dataset.x);if(!c)return;const P=posts(c);
+  J.drawer({title:c.name,wide:true,submit:"Close",onSubmit:()=>{},body:`<p class="hint" style="margin:0 0 8px">${esc(c.plan||"")}${c.note?" · "+esc(c.note):""} · <button type="button" class="linkbtn" data-a="dueEdit" data-x="${esc(c.id)}">Edit</button> · <button type="button" class="linkbtn" data-a="ledPop" data-x="${esc(c.party)}||">Ledger</button></p>
+  <div class="tbl-wrap"><table class="sheet"><thead><tr><th>Date</th><th>Entry</th><th>What</th><th class="num">Bill (Dr expense)</th><th class="num">Paid</th><th>Paid from</th></tr></thead><tbody>
+  ${P.map(v=>{const pay=v.type==="payment";const amt=v.lines.filter(l=>l.a===c.party).reduce((s,l)=>s+(pay?l.dr:l.cr),0);const src=pay?v.lines.filter(l=>l.cr>0&&l.a!==c.party).map(l=>J.get("accounts",l.a)?.name).join(", "):"";return `<tr><td>${fmtDate(v.date)}</td><td class="mono">${esc(v.no||"")}</td><td>${esc((v.narr||"").slice(0,70))}</td><td class="num">${pay?"":J.inr?J.inr.format(amt):amt}</td><td class="num">${pay?(J.inr?J.inr.format(amt):amt):""}</td><td>${esc(src)}</td></tr>`}).join("")||'<tr><td colspan="6" class="muted">No bills or payments posted yet.</td></tr>'}</tbody></table></div>`})});
+let k=0;const add=()=>{const m=J.MODS.find(x=>x.id==="dues");if(m){if(!m.tabs.some(t=>t[0]==="subs")){const i=m.tabs.findIndex(t=>t[0]==="list");m.tabs.splice(i<0?m.tabs.length:i+1,0,["subs","Subscriptions",vSubs])}}else if(k++<50)setTimeout(add,200)};add();
+})();
