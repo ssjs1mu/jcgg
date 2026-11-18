@@ -12,7 +12,7 @@ const kind=a=>J.get("accounts",a)?.kind;const loose=a=>kind(a)==="suspense";
 const days=(a,b)=>Math.abs((new Date(a)-new Date(b))/864e5);
 const shape=J.bankShape,xfer=J.bankXfer;
 const texts=v=>[v.narr,v.ref,v.bank?.narr,v.bank?.ref,...arr(v.lines).map(l=>l.n)].join(" ");
-const toks=v=>[...new Set(texts(v).match(/\d{10,16}/g)||[])];
+const toks=v=>[...new Set(texts(v).match(/\d{12,16}/g)||[])];
 const rec=(a,b)=>({...(a||{}),...(b||{})});
 async function put(v,over){const m={...v,...over};await J.postVoucher({id:m.id,type:m.type,date:m.date,lines:m.lines,party:m.party,narr:m.narr,ref:m.ref,f:m.f,rec:m.rec,gst:m.gst,src:m.src,imp:m.imp,bank:m.bank})}
 J.matchAllPlan=()=>{const P=[];const used=new Set();const V=J.all("vouchers");
