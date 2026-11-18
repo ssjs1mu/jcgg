@@ -47,6 +47,10 @@ J.duesAlerts=()=>{const out=[];const t=today();const from=mAdd(ym(t),-3),to=mAdd
   for(const e of emis().filter(x=>x.active!==false))for(const r of emiRows(e))if(!J.get("vouchers",emiVid(e,r.i))&&r.date<=addDays(t,5))out.push({lvl:r.date<t?"bad":"crit",text:"EMI "+r.i+"/"+e.n+" "+e.item+" "+money(r.emi+r.gst)+" due "+fmtDate(r.date),go:"dues",tab:"emi",d:r.date,amt:r2(r.emi+r.gst),nm:"EMI "+r.i+"/"+e.n+" "+e.item,emi:e.id+"|"+r.i});
   for(const l of lics().filter(x=>x.active!==false&&x.till)){const d=daysBetween(t,l.till);if(d<=(+l.remind||30))out.push({lvl:d<0?"bad":d<=7?"crit":"warn",text:l.name+(l.no?" ("+l.no+")":"")+(d<0?" expired / overdue since ":l.kind==="tax"?" due ":" valid till ")+fmtDate(l.till)+(l.consultant?" · "+l.consultant+(l.phone?" "+l.phone:""):""),go:"dues",tab:"lic",d:l.till,amt:null,nm:l.name})}
   return out};
+// open bills (bill entered, not fully paid) — used by Accounts → Bank check → Match everything to find the bank payment that settles each
+J.duesOpen=()=>{const out=[];const t=today();const from=mAdd(ym(t),-8),to=mAdd(ym(t),1);
+  for(const c of items().filter(x=>x.active!==false&&x.party))for(const m of occMonths(c,from,to)){const o=occ(c,m);if(o.done||o.bill==null||!(o.bill>0))continue;const left=r2(o.bill-o.paid);if(left>0.5)out.push({c:c.id,k:o.k,m,party:c.party,label:o.label,due:o.due,left,bill:o.bill})}
+  return out};
 // popup: anything due today, or past its due date and still unpaid, is shown on opening the app and again every 2 hours while it stays open
 let popAt=0;
 J.duesPopup=force=>{try{if(!S.me||J.limited?.()||J.isCC?.())return;const t=today();const L=J.duesAlerts().filter(x=>x.d&&x.d<=t).sort((a,b)=>a.d.localeCompare(b.d));if(!L.length)return;
