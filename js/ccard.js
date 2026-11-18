@@ -41,6 +41,7 @@ function pointsOf(lines,T){let rp=null;
   if(sb>=0){let cb=null;for(let j=sb;j<=sb+12;j++){const m=/Cash\s*Back[^\d]*([\d,]+\.\d{2})/i.exec(lines[j]||"");if(m){cb=nn(m[1]);break}}if(cb!=null&&rp)rp.cashback=cb}
   return rp}
 function parseStmt(lines){const T=lines.join("\n");if(T.replace(/\s/g,"").length<200)throw new Error("NOTEXT");
+  if(J._ccAxis&&J._ccAxis.is(T)){const f=J._ccAxis.parse(lines);if(f.warn)console.warn("Axis Bank:",f.warn);return f}
   if(J._ccFed&&J._ccFed.is(T)){const f=J._ccFed.parse(lines);if(f.warn)console.warn("Federal One:",f.warn);return f}
   const aft=(lab,val,span=90)=>{const m=new RegExp(lab,"i").exec(T);if(!m)return null;const rest=T.slice(m.index+m[0].length,m.index+m[0].length+span);const v=new RegExp(val).exec(rest);return v?v:null};
   const money=lab=>{const v=aft(lab,"([\\d,]*\\d\\.\\d{2})");return v?nn(v[1]):null};
