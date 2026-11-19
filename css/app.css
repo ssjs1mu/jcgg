@@ -630,3 +630,4 @@ html.split #splitFab{display:flex;align-items:center;gap:6px;position:fixed;top:
 html.split.menu-show .rail{display:flex;position:fixed;left:0;top:0;bottom:0;height:auto;width:240px;z-index:40;overflow:auto;box-shadow:6px 0 28px rgba(0,0,0,.3)}
 html.split.menu-show #splitScrim{display:block}
 #splitScrim{display:none;position:fixed;inset:0;z-index:39;background:rgba(0,0,0,.25)}
+html.split.menu-show #splitFab{left:248px}
