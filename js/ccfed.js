@@ -30,24 +30,29 @@ function parse(lines){const L0=lines.map(x=>String(x).replace(/\s+/g," ").trim()
   const calc=r2(open+spends+interest+fees-repay-emi-pts);o.total=tots.find(t=>Math.abs(t-calc)<0.02)??tots[tots.length-1]??calc;
   // transactions
   const NOISE=/^(Transaction|Reward|Date|Merchant Name|Type|Points|Amount \(Rs\.\)|TRANSACTION HISTORY|SUMMARY|IMPORTANT)/i;
-  const tx=[];let pend=[];
-  for(let i=0;i<L.length;i++){const l=L[i];const m=/^(\d{1,2})\s+([A-Za-z]{3})\s*(.*?)\s*(-?\d[\d,]*\.\d{2})\s+(\d[\d,]*\.\d{2})$/.exec(l);
-    if(m&&MON[m[2].toLowerCase()]&&!/Opening|Statement|Due/i.test(l)){const mid=m[3].trim();const yr=(o.from&&+m[2]&&0)||0;
+  const tx=[];let pend=[],inRep=false;
+  for(let i=0;i<L.length;i++){const l=L[i];const m=/^(\d{1,2})\s+([A-Za-z]{3})\s*(.*?)\s*(?:(-?\d[\d,]*\.\d{2})\s+)?(\d[\d,]*\.\d{2})$/.exec(l);
+    if(m&&MON[m[2].toLowerCase()]&&!/Opening|Statement|Due/i.test(l)&&!/^\d{4}$/.test(m[3].trim())&&m[3].trim()){const mid=m[3].trim();const yr=(o.from&&+m[2]&&0)||0;
       const mn=MON[m[2].toLowerCase()];let y=+o.to.slice(0,4);if(o.from&&mn>+o.to.slice(5,7)&&+o.from.slice(5,7)>+o.to.slice(5,7)||(mn>+o.to.slice(5,7)&&!o.from))y--;
-      const d=y+"-"+pad(mn)+"-"+pad(+m[1]);const pts=nn(m[4]),amt=nn(m[5]);
+      const d=y+"-"+pad(mn)+"-"+pad(+m[1]);const pts=m[4]!=null?nn(m[4]):0,amt=nn(m[5]);
       const tm=/\b(TOKEN_ECOM|ECOM|POS|ECOMM?|CONTACTLESS|NFC|UPI|ATM)\b/.exec(mid);const type=tm?tm[1]:"";let rest=mid.replace(type,"").trim();
       if(/Paid\s+With\s+Points/i.test(mid)){tx.push({d,t:"",desc:"Paid with reward points",amt,cr:true,pts:Math.abs(pts),type:"POINTS"});pend=[];continue}
+      // rows under the “Repayments” heading: bank payments, and refunds of an earlier identical debit (no points column)
+      if(inRep){const dn=r2(amt);const ref=!pts&&tx.find(t=>!t.cr&&!t._m&&Math.abs(t.amt-dn)<0.005&&rest.replace(/Bills and Utilities/i,"").trim().toLowerCase().startsWith((t.desc||"").toLowerCase().slice(0,6)));
+        if(/Paid\s+Via|UPI|BBPS|Payment/i.test(rest)||ref){if(ref)ref._m=1;tx.push({d,t:"",desc:/Paid\s+Via|Payment/i.test(rest)?rest.replace(/\s+/g," "):"Refund — "+rest.replace(/Bills and Utilities/i,"").trim(),amt,cr:true,type:/Paid\s+Via|Payment/i.test(rest)?"PAYMENT":"REFUND"});pend=[];continue}
+        inRep=false}
       // merchant: text on the row, else the text-only rows just above (wrapped names)
       let cat="";const cm2=/(Bills and Utilities|Insurance|Repayments|Fuel|Food|Shopping|Travel|Entertainment|Grocery|Health)\s*$/i.exec(rest);if(cm2){cat=cm2[1];rest=rest.slice(0,cm2.index).trim()}
       const above=pend.slice(-3).filter(x=>!NOISE.test(x));let desc=(above.join(" ")+" "+rest).replace(/\s+/g," ").trim();
       // a trailing one-word row right after (e.g. “Insurance”) is the category of the line above
-      const nx=L[i+1]&&!/\d/.test(L[i+1])&&!NOISE.test(L[i+1])&&L[i+1].split(" ").length<=2&&/^(Insurance|Shopping|Travel|Fuel|Food|Grocery|Health|Entertainment)$/i.test(L[i+1])?L[i+1]:"";if(nx&&!cat)cat=nx;
+      const nx=L[i+1]&&!/\d/.test(L[i+1])&&!NOISE.test(L[i+1])&&L[i+1].split(" ").length<=3&&/^(Bills and Utilities|Insurance|Shopping|Travel|Fuel|Food|Grocery|Health|Entertainment)$/i.test(L[i+1])?L[i+1]:"";if(nx&&!cat)cat=nx;if(nx)i++;
       tx.push({d,t:"",desc:desc||type||"Card transaction",amt,cr:false,pts,type,cat});pend=[];continue}
-    if(!/\d/.test(l)&&!NOISE.test(l)&&l.length<60&&!/^Repayments$/i.test(l))pend.push(l);else if(/\d/.test(l))pend=[]}
+    if(/^Repayments$/i.test(l)){inRep=true;pend=[];continue}
+    if(!/\d/.test(l)&&!NOISE.test(l)&&l.length<60)pend.push(l);else if(/\d/.test(l))pend=[]}
   // paid-with-points rows are separate lines of the same kind: fold them into one line so the list stays short
   const pr=tx.filter(t=>t.type==="POINTS");let out=tx.filter(t=>t.type!=="POINTS");
   if(pr.length){const seen=r2(pr.reduce((s,t)=>s+t.amt,0));out.push({d:pr[0].d,t:"",desc:"Paid with reward points ("+pr.length+" redemptions)",amt:pts>0?pts:seen,cr:true,type:"POINTS"})};
-  out.sort((a,b)=>a.d.localeCompare(b.d));o.tx=out;
+  out.forEach(t=>{delete t._m});out.sort((a,b)=>a.d.localeCompare(b.d));o.tx=out;
   o.prev=open;o.credits=r2(repay+pts+emi);o.purch=spends;o.fin=r2(interest+fees);o.interest=interest;o.fees=fees;o.pointsPaid=pts;o.repay=repay;o.emi=emi;
   const earned=r2(out.filter(t=>!t.cr).reduce((s,t)=>s+(t.pts||0),0)),used=pts>0?r2(pts*10):r2(pr.reduce((s,t)=>s+t.pts,0));o.rp={earned,used,open:null,bal:null};
   const iv=/Invoice\s+No\.?\s*-?\s*([A-Za-z0-9\/]+)/i.exec(T);if(iv)o.invoice=iv[1];
