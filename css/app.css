@@ -647,7 +647,8 @@ html.split .tbl-wrap{margin-left:-4px;margin-right:-4px}
 html.split .tbl-wrap th,html.split .tbl-wrap td,html.split table.sheet th,html.split table.sheet td{padding:3px 5px;font-size:12px}
 html.split table.ledtbl .fit-hide{display:none}
 html.split table.ledtbl td,html.split table.ledtbl th{white-space:normal;overflow-wrap:break-word}
-html.split table.ledtbl .fit-part{min-width:118px}
+html.split table.ledtbl .fit-part{min-width:100px;max-width:120px;overflow-wrap:anywhere;word-break:break-word;font-size:11.5px}
+html.split table.ledtbl td.num,html.split table.ledtbl th.num{padding-left:2px;padding-right:2px;font-size:11px}
 html.split table.ledtbl td:first-child{padding-left:2px;padding-right:2px}
 html.split table.ledtbl td.num,html.split table.ledtbl th.num{white-space:nowrap;font-size:11.5px}
 html.split .fit-no{font-size:10.5px;opacity:.85;white-space:nowrap}
