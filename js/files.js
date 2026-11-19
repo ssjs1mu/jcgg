@@ -40,7 +40,7 @@ J.docsPanel=(col,id,title)=>{if(J.limited?.()||J.isCC?.())return "";const r=getR
 const repaint=(col,id)=>{const dom=("dp-"+col+"-"+id).replace(/[^\w-]/g,"_");const el=document.getElementById(dom);if(el)el.outerHTML=J.docsPanel(col,id,el.querySelector("h3")?.firstChild?.textContent?.trim());J.render()};
 const splitKey=k=>{const i=k.indexOf("|");return [k.slice(0,i),k.slice(i+1)]};
 J.act("docAdd",async el=>{const fs=[...(el.files||[])];if(!fs.length)return;const [col,id]=splitKey(el.dataset.x);const dom=("dp-"+col+"-"+id).replace(/[^\w-]/g,"_");const cat=(document.getElementById(dom+"-cat")?.value||"").trim();const prog=document.getElementById(dom+"-p");const add=[];
-  const ok=await J.safe(async()=>{for(const f of fs){const x=await J.fileSave(f,"files",(i,n)=>{if(prog)prog.textContent="Saving "+f.name+" ("+i+"/"+n+")…"});add.push({...x,cat:cat||(/^image/.test(x.type)?"Photo":"Document")})}
+  const ok=await J.safe(async()=>{for(const f of fs){const x=await J.fileSave(f,"files",(i,n)=>{if(prog)prog.textContent="Saving "+f.name+" ("+i+"/"+n+")…"},J.docHosts[col]?.folder?.(id));add.push({...x,cat:cat||(/^image/.test(x.type)?"Photo":"Document")})}
     const cur=getR(col,id);const docs=[...(cur?.docs||[]),...add];await patchR(col,id,{docs,docsAt:Date.now()})},add.length>1?add.length+" files attached":"Attached");
   if(ok)repaint(col,id)});
 J.act("docDel",async el=>{if(!el.dataset.armed){el.dataset.armed="1";el.textContent="Tap again to remove";return}const [col,id]=splitKey(el.dataset.x);const cur=getR(col,id);const i=+el.dataset.i;const f=cur?.docs?.[i];if(!f)return;await J.fileDrop(f);const docs=cur.docs.filter((_,k)=>k!==i);
@@ -139,8 +139,8 @@ async function upload(blob,name,type,folderPath,onStep){const parent=await dir(f
 const fileSave0=J.fileSave;let warned=false;
 J.fileSave=async(file,col="files",onStep,folder)=>{if(!tok()){if(!warned&&!(J.limited?.()||J.isCC?.())){warned=true;toast("Saved in the app. Connect Google Drive (Settings → Data) to keep attachments in Drive instead.")}return fileSave0(file,col,onStep)}
   // same preparation as before (resize big photos, thumbnails), but the file itself goes to Drive
-  const x=await prepare(file);const sub=folder||modFolder();const id=await upload(x.blob,file.name,x.type,[ROOT,"Files",sub],onStep);
-  return {drive:id,dfolder:sub,name:file.name,type:x.type,size:x.blob.size,thumb:x.thumb,pages:x.pages,at:Date.now(),by:S.me?.name||S.me?.email||""}};
+  const x=await prepare(file);const sub=folder||modFolder();const id=await upload(x.blob,file.name,x.type,[ROOT,"Files",...[].concat(sub)],onStep);
+  return {drive:id,dfolder:[].concat(sub).join("/"),name:file.name,type:x.type,size:x.blob.size,thumb:x.thumb,pages:x.pages,at:Date.now(),by:S.me?.name||S.me?.email||""}};
 async function prepare(file){if(file.size>15e6)throw new Error(file.name+" is over 15 MB");let url=await readB64(file);let type=file.type||"application/octet-stream";let thumb="",pages=0;
   if(/^image\//.test(type)){const img=await loadImg(url);thumb=scaleTo(img,320,0.7);if(file.size>600e3||!/jpe?g|png/.test(type)){url=scaleTo(img,2000,0.85);type="image/jpeg";return {blob:dataUrlBlob(url,type),type,thumb,pages}}}
   else if(type==="application/pdf"){const t=await pdfThumb(url);thumb=t.thumb;pages=t.pages}
