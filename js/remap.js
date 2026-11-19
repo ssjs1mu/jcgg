@@ -8,7 +8,7 @@ const arr=x=>Array.isArray(x)?x:[];
 const norm=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
 const inr=new Intl.NumberFormat("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
 const title=s=>String(s||"").trim().replace(/\s+/g," ").replace(/\b\w/g,c=>c.toUpperCase());
-const NEWC="__new__";
+const NEWC="__rmnew__";
 const R={q:"",amt:"",scope:"all",cat:"",sub:"",micro:"",ncat:"",nsub:"",nmicro:"",rows:[]};
 const KINDS=["expense","suspense"];
 const subsOf=cat=>J.all("accounts").filter(a=>a.kind==="expense"&&a.active!==false&&J.expCatOf(a)===cat).sort((a,b)=>a.name.localeCompare(b.name));
