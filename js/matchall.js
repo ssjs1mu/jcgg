@@ -60,7 +60,7 @@ J.matchAllPlan=()=>{const P=[];const used=new Set();const V=J.all("vouchers");
     for(const p of pays){const c=dues.filter(o=>Math.abs(o.left-p.s.amt)<0.01&&days(o.due,p.v.date)<=30);if(c.length!==1)continue;const o=c[0];
       if(pays.filter(q=>Math.abs(q.s.amt-p.s.amt)<0.01&&days(o.due,q.v.date)<=30).length!==1)continue;
       add({ids:[p.v.id],tag:"Pending bill",title:`${p.v.no} · ${fmtDate(p.v.date)} · ${inr.format(p.s.amt)} from ${J.accName(p.s.acc)}`,what:`Same amount as the pending bill “${o.label}” (due ${fmtDate(o.due)}): posted to ${J.accName(o.party)} instead of Suspense, so the bill shows paid.`,
-        run:async()=>{const v=J.get("vouchers",p.v.id);await put(v,{lines:arr(v.lines).map(l=>l.a===p.s.others[0]?{...l,a:o.party}:l),party:o.party})}})}}
+        run:async()=>{const v=J.get("vouchers",p.v.id);await put(v,{lines:arr(v.lines).map(l=>l.a===p.s.others[0]?{...l,a:o.party}:l),party:o.party,f:{...(v.f||{}),occ:o.k}})}})}}
   return P};
 function panel(){let P=[];try{P=J.matchAllPlan()}catch(e){console.warn("matchAll",e)}
   const head=`<section class="panel"><h2>Match everything</h2><div class="pb"><p class="hint" style="margin:0 0 8px">One press checks every bank statement, hand entry and pending bill together: the same UTR booked twice, both halves of a transfer, doubles, and Suspense payments that settle a pending bill. Nothing changes until you press Apply.</p>`;
