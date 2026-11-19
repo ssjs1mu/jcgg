@@ -20,7 +20,7 @@ function plan(c){const L=c.ledger;const out={items:[],personal:{},cnt:{posted:0,
   const days=(a,b)=>Math.abs((new Date(a)-new Date(b))/864e5);
   for(const per of Object.keys(c.stmts||{}).sort()){const st=c.stmts[per];const occ={};
     arr(st.tx).forEach((t,i)=>{if(t.cr&&isPay(t.desc))return;const key=C.mkey(t.desc);const sig=t.d+"|"+(t.t||"")+"|"+t.amt+"|"+t.desc;occ[sig]=(occ[sig]||0)+1;const id="cct-"+c.last4+"-"+hsh(sig)+"-"+occ[sig];
-      const rule=t.map||R[key]||null;const own=t.own||rule?.own||"";const sign=t.cr?-1:1;
+      let rule=t.map||R[key]||null;if(!rule&&!t.cr){const sv=J.svcMatch?.(t.desc);if(sv&&J.get("accounts",sv.a))rule={a:sv.a,s:sv.svc,own:"biz"}}const own=t.own||rule?.own||"";const sign=t.cr?-1:1;
       let ex=null;if(!t.cr){ex=cand.find(v=>!claimed.has(v.id)&&Math.abs(v.lines.filter(l=>l.a===L).reduce((a,l)=>a+l.cr-l.dr,0)-t.amt)<0.011&&days(v.date,t.d)<=4)||null;if(ex)claimed.add(ex.id)}
       const cur=J.get("vouchers",id);let state=ex?"matched":cur?"posted":"fresh";let tgt="";
       if(own==="per")tgt="personal";else if(rule?.a)tgt=rule.a;else tgt="classify";
