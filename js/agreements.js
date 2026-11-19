@@ -71,11 +71,12 @@ const RULES=[
  {t:"renew",k:"trick",re:/auto(?:matically)?[\s-]*renew|renew(?:ed|s)?\s+automatically|deemed\s+(?:to\s+be\s+)?renewed|successive\s+(?:terms|periods)/i,why:"Rolls into another term unless notice is given in time — diarise the notice date."},
  {t:"lock",k:"trick",re:/lock[\s-]?in|minimum\s+(?:term|period|commitment|guarantee)/i,why:"We cannot exit before this period without paying."},
  {t:"notice",k:"bind",re:/terminat[^.]{0,160}(?:\d+\s*\(?\d*\)?\s*(?:days|months)|without\s+cause|for\s+convenience|sole\s+discretion|at\s+any\s+time)/i,why:"Check who can end the agreement, with how much notice, and whether it is the same for both sides."},
+ {t:"notice",k:"bind",re:/\d+\s*(?:\(\d+\)\s*)?(?:days|months)['’]?\s*(?:prior\s+)?(?:written\s+)?notice/i,why:"Notice period — diarise the last date to act."},
  {t:"penalty",k:"trick",re:/liquidated\s+damages|penalt(?:y|ies)|forfeit|early\s+termination\s+(?:fee|charge)|termination\s+(?:fee|charge)/i,why:"Money payable if we breach or leave early."},
  {t:"unil",k:"trick",re:/sole\s+(?:and\s+absolute\s+)?discretion|(?:modify|amend|revise|change|vary)[^.]{0,90}(?:at\s+any\s+time|without\s+(?:prior\s+)?(?:notice|consent))|unilateral/i,why:"One-sided right: terms, rates or policies can change without our consent."},
  {t:"indem",k:"trick",re:/indemnif|hold\s+harmless/i,why:"We may have to pay the other side's losses and claims."},
  {t:"liab",k:"trick",re:/limitation\s+of\s+liability|liability\s+shall\s+not\s+exceed|aggregate\s+liability|shall\s+not\s+be\s+liable|no\s+liability/i,why:"Check whose liability is capped — often only the other side's."},
- {t:"excl",k:"trick",re:/exclusiv|price\s+parity|most\s+favou?red|not\s+(?:to\s+)?(?:offer|list|sell)[^.]{0,80}(?:lower|other\s+(?:platform|channel)|competitor)/i,why:"Restricts where or at what price we can sell."},
+ {t:"excl",k:"trick",re:/exclusiv(?:e|ity)(?!\s+jurisdiction)(?=\s+(?:right|supplier|vendor|partner|arrangement|basis|platform|listing|dealing|rights)|\b[^.]{0,40}(?:supply|sell|list|offer))|exclusively|price\s+parity|most\s+favou?red|not\s+(?:to\s+)?(?:offer|list|sell)[^.]{0,80}(?:lower|other\s+(?:platform|channel)|competitor)/i,why:"Restricts where or at what price we can sell."},
  {t:"setoff",k:"trick",re:/set[\s-]?off|deduct[^.]{0,100}(?:payout|payment|settlement|amount)|withhold|hold\s+back|charge[\s-]?back/i,why:"Amounts can be deducted from what we are owed."},
  {t:"late",k:"bind",re:/interest\s+(?:at|@|of)[^.]{0,50}%|late\s+(?:payment\s+)?(?:fee|charge)/i,why:"Cost of paying late."},
  {t:"fee",k:"bind",re:/(?:commission|service\s+fee|platform\s+fee|convenience\s+fee|royalt\w+|revenue\s+share|licen[sc]e\s+fee|rent)[^.]{0,140}?\d+(?:\.\d+)?\s*%/i,why:"Headline rate — also check which amount it is charged on (with or without GST, before or after discounts)."},
@@ -94,11 +95,11 @@ async function pdfPlain(blob){const lib=await J.loadPdfJs();const pdf=await lib.
   for(let p=1;p<=pdf.numPages;p++){const tc=await (await pdf.getPage(p)).getTextContent();let y=null;for(const it of tc.items){if(!it.str)continue;const yy=Math.round(it.transform[5]);if(y!==null&&Math.abs(yy-y)>3)out+="\n";else if(out&&!/\s$/.test(out))out+=" ";out+=it.str;y=yy}out+="\n\n"}
   return out.replace(/[ \t]+/g," ").replace(/\n{3,}/g,"\n\n")}
 function sentenceAt(T,i){let s=i,e=i;const stop=/[.;]\s+(?=[A-Z(0-9])|\n\n/g;let m,last=0;while((m=stop.exec(T))){if(m.index+m[0].length<=i)last=m.index+m[0].length;else{e=m.index+1;break}}s=last;if(e<=i)e=Math.min(T.length,i+300);
-  return T.slice(s,e).replace(/\s+/g," ").trim().slice(0,460)}
+  return T.slice(s,e).replace(/^\s*[A-Z][A-Za-z &\/,-]{2,45}\n/,"").replace(/\s+/g," ").trim().slice(0,460)}
 const refOf=(T,i)=>{const h=T.slice(Math.max(0,i-500),i);const m=[...h.matchAll(/(?:^|\n)\s*((?:clause\s+)?\d+(?:\.\d+)*\.?)\s+[A-Z]/gi)].pop();return m?m[1].replace(/^clause\s+/i,"").replace(/\.$/,""):""};
 J.agreementAnalyze=T=>{const terms={},clauses=[],seen=new Set();
-  for(const r of RULES){const re=new RegExp(r.re.source,r.re.flags.includes("g")?r.re.flags:r.re.flags+"g");let m,n=0;while((m=re.exec(T))&&n<3){const s=sentenceAt(T,m.index);const key=s.slice(0,60);if(seen.has(key)){continue}seen.add(key);n++;
-    if(r.t&&!terms[r.t])terms[r.t]="(auto) "+s.slice(0,300);clauses.push({k:r.k,ref:refOf(T,m.index),text:s,why:r.why,auto:true})}}
+  for(const r of RULES){const re=new RegExp(r.re.source,r.re.flags.includes("g")?r.re.flags:r.re.flags+"g");let m,n=0;while((m=re.exec(T))&&n<3){const s=sentenceAt(T,m.index);const key=s.slice(0,60);n++;
+    if(r.t&&!terms[r.t])terms[r.t]="(auto) "+s.slice(0,300);if(seen.has(key))continue;seen.add(key);clauses.push({k:r.k,ref:refOf(T,m.index),text:s,why:r.why,auto:true})}}
   return {terms,clauses:clauses.slice(0,45)}};
 J.act("agrScan",async el=>{const a=get(el.dataset.x);const st=document.getElementById("agr-scan");const say=t=>{if(st)st.textContent=t};
   const pdfs=arr(a.docs).filter(f=>/pdf/i.test(f.type||f.name));if(!pdfs.length)return say("Attach the signed PDF first.");say("Reading…");
