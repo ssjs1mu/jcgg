@@ -23,7 +23,7 @@ async function save(id,p){const d={...(get(id)||{}),...p,id,kind:"agr",at:Date.n
 const short=t=>String(t||"Other").replace(/\s*\(.*\)/,"").replace(/[\/]/g,"-");
 J.docHosts=J.docHosts||{};
 J.docHosts.agr={get:id=>get(id),patch:(id,p)=>save(id,p),folder:id=>{const a=get(id)||{};return ["Agreements",short(a.type),(a.party||"Unnamed").replace(/[\/\\]/g,"-")]}};
-const U={open:"",sel:[]};
+const U={open:"",sel:[],edit:false};
 const tricky=a=>arr(a.clauses).filter(c=>c.k==="trick").length;
 const exp=a=>{if(!a.till||a.status==="Terminated")return ["plain",""];const d=daysBetween(today(),a.till);return d<0?["bad","Expired "+(-d)+" d ago"]:d<=90?["warn","Ends in "+d+" d"]:["ok",""]};
 const noticeBy=a=>{if(!a.till||!+a.noticeDays)return "";const d=new Date(a.till);d.setDate(d.getDate()-(+a.noticeDays));return d.toISOString().slice(0,10)};
@@ -31,7 +31,7 @@ J.agreementAlerts=()=>all().filter(a=>a.status==="Active"&&a.till).map(a=>{const
   if(d!==null&&d<=30&&d>=-30&&/yes|auto/i.test(a.t?.renew||""))return {lvl:d<0?"bad":"crit",text:a.party+" — auto-renews: give notice by "+fmtDate(nb)};
   if(e[0]==="bad"||e[0]==="warn")return {lvl:e[0]==="bad"?"bad":"warn",text:a.party+" agreement — "+e[1].toLowerCase()};return null}).filter(Boolean);
 // ---------- list ----------
-function vList(){if(U.open&&get(U.open))return vDetail(get(U.open));U.open="";
+function vList(){if(U.open&&get(U.open))return U.edit?vEdit(get(U.open)):vRead(get(U.open));U.open="";
   const L=all();
   return `<div class="row" style="gap:8px;margin:0 0 10px;flex-wrap:wrap"><button class="btn primary w" data-a="agrNew">＋ New agreement</button>${L.length>1?`<button class="btn w" data-a="agrCmp">Compare agreements</button>`:""}<span class="hint">Upload the signed copy inside each agreement: it is filed to its own Google Drive folder, and its key terms, binding and tricky clauses stay here, ready to print or compare.</span></div>
   ${L.length?`<div class="tbl-wrap"><table class="sheet"><thead><tr><th>Party</th><th>Type</th><th>Status</th><th>Valid till</th><th class="num">Notice (days)</th><th>Auto-renew</th><th class="num">Files</th><th class="num">Tricky</th><th></th></tr></thead><tbody>${L.map(a=>{const e=exp(a),tr=tricky(a),nb=noticeBy(a);return `<tr><td><button class="linkbtn" data-a="agrOpen" data-x="${esc(a.id)}"><b>${esc(a.party||"(unnamed)")}</b></button><div class="hint">${esc(a.title||"")}</div></td><td>${esc(a.type||"")}</td><td>${esc(a.status||"")}</td>
@@ -39,14 +39,27 @@ function vList(){if(U.open&&get(U.open))return vDetail(get(U.open));U.open="";
    <td style="white-space:nowrap"><button class="btn small" data-a="agrOpen" data-x="${esc(a.id)}">Open</button> <button class="btn small" data-a="agrPrint" data-x="${esc(a.id)}">PDF</button></td></tr>`}).join("")}</tbody></table></div>`
    :`<div class="panel"><div class="empty"><strong>No agreements yet</strong><span>Press “＋ New agreement”, choose the type and party, then attach the signed PDF.</span></div></div>`}`}
 J.act("agrNew",()=>J.drawer({title:"New agreement",submit:"Create",body:`<div class="form">${fld("Party (vendor, aggregator, landlord…)",`<input name="party" placeholder="e.g. Zomato, ABC Traders" autocomplete="off">`)}${fld("Type",`<select name="type">${TYPES.map(t=>`<option>${esc(t)}</option>`).join("")}</select>`)}${fld("What it covers (optional)",`<input name="title" placeholder="e.g. Marketplace services agreement 2026">`)}</div>`,
-  onSubmit:async fd=>{const p=(fd.party||"").trim();if(!p)return "Type the party name.";const id="agr-"+J.uid();await save(id,{party:p,type:fd.type,title:(fd.title||"").trim(),status:"Active",t:{},f:{},clauses:[],docs:[]});U.open=id;J.go("agreements","list");J.render()}}));
-J.act("agrOpen",el=>{U.open=el.dataset.x;J.render()});
-J.act("agrBack",()=>{U.open="";J.go("agreements","list")});
+  onSubmit:async fd=>{const p=(fd.party||"").trim();if(!p)return "Type the party name.";const id="agr-"+J.uid();await save(id,{party:p,type:fd.type,title:(fd.title||"").trim(),status:"Active",t:{},f:{},clauses:[],docs:[]});U.open=id;U.edit=true;J.go("agreements","list");J.render()}}));
+J.act("agrOpen",el=>{U.open=el.dataset.x;U.edit=false;J.render()});
+J.act("agrEdit",()=>{U.edit=true;J.render()});J.act("agrView",()=>{U.edit=false;J.render()});
+J.act("agrBack",()=>{U.open="";U.edit=false;J.go("agreements","list")});
 J.act("agrDel",async el=>{if(!el.dataset.armed){el.dataset.armed="1";el.textContent="Tap again to delete";setTimeout(()=>{if(el.isConnected)delete el.dataset.armed},4000);return}const a=get(el.dataset.x);if(!a)return;for(const f of arr(a.docs))try{await J.fileDrop(f)}catch(e){}await J.store.del("meta",a.id);U.open="";J.render()});
+// ---------- readable summary (default view) ----------
+const card=(c,col)=>`<div style="border-left:4px solid ${col};padding:8px 12px;margin:0 0 10px;background:var(--surface,rgba(127,127,127,.06));border-radius:0 8px 8px 0"><div style="font-weight:600">${c.ref?`<span style="color:${col}">Clause ${esc(c.ref)}</span> · `:""}${esc(c.text||"")}</div>${c.why?`<div style="margin-top:4px;font-size:.92em;opacity:.85"><b>Why it matters:</b> ${esc(c.why)}</div>`:""}</div>`;
+function vRead(a){const id=a.id;const cl=k=>arr(a.clauses).filter(c=>c.k===k&&(c.text||"").trim());const nb=noticeBy(a),e=exp(a);
+  const kt=TERMS.map(([g,rows])=>{const L=rows.filter(([k])=>String(a.t?.[k]||"").trim());return L.length?`<h4 style="margin:12px 0 4px">${esc(g)}</h4>`+L.map(([k,l])=>`<div style="padding:5px 0;border-bottom:1px solid rgba(127,127,127,.18)"><div style="font-weight:600;${a.f?.[k]?"color:#c92a2a":""}">${a.f?.[k]?"⚑ ":""}${esc(l)}</div><div>${esc(String(a.t[k]).replace(/^\(auto\)\s*/,""))}</div></div>`).join(""):""}).join("");
+  const sec=(t,col,L)=>L.length?`<section class="panel pb"><h3 style="margin:0 0 8px;color:${col}">${t} (${L.length})</h3>${L.map(c=>card(c,col)).join("")}</section>`:"";
+  return `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px"><button class="btn w" data-a="agrBack">← All agreements</button><button class="btn primary w" data-a="agrPrint" data-x="${esc(id)}">Print / PDF summary</button><button class="btn w" data-a="agrEdit">Edit</button><button class="btn w" data-a="agrScan" data-x="${esc(id)}">Read the attached PDF</button><span id="agr-scan" class="hint"></span></div>
+  <section class="panel pb"><h2 style="margin:0 0 2px">${esc(a.party||"")}</h2><div class="hint">${esc(a.type||"")}${a.title?" · "+esc(a.title):""}</div>
+   <div style="display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:10px"><span><b>Status</b> ${esc(a.status||"")}</span><span><b>Signed</b> ${a.signed?fmtDate(a.signed):"—"}</span><span><b>From</b> ${a.from?fmtDate(a.from):"—"}</span><span><b>Till</b> ${a.till?fmtDate(a.till):"—"}${e[1]?` <span class="chip ${e[0]==="bad"?"bad":"warn"}">${esc(e[1])}</span>`:""}</span>${a.noticeDays?`<span><b>Notice</b> ${esc(a.noticeDays)} days${nb?" · by "+fmtDate(nb):""}</span>`:""}</div></section>
+  ${sec("⚠ Watch out — tricky or hidden","#c92a2a",cl("trick"))}
+  <section class="panel pb"><h3 style="margin:0 0 4px">Key terms</h3>${kt||`<p class="hint">No terms recorded yet.</p>`}</section>
+  ${sec("What binds us","#1d4ed8",cl("bind"))}${sec("In our favour","#1b8a5a",cl("fav"))}${sec("Other points","#6b7280",cl("info"))}
+  ${J.docsPanel?J.docsPanel("agr",id,"Signed agreement and papers (saved to Google Drive)"):""}`}
 // ---------- detail ----------
 const ta=(k,v,rows)=>`<textarea data-ach="agrSet" data-k="${esc(k)}" rows="${rows||1}" style="width:100%;min-height:30px">${esc(v||"")}</textarea>`;
-function vDetail(a){const id=a.id;
-  return `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px"><button class="btn w" data-a="agrBack">← All agreements</button><button class="btn primary w" data-a="agrPrint" data-x="${esc(id)}">Print / PDF summary</button><button class="btn w" data-a="agrScan" data-x="${esc(id)}">Read the attached PDF</button><span id="agr-scan" class="hint"></span><span style="margin-left:auto"><button class="btn small danger" data-a="agrDel" data-x="${esc(id)}">Delete</button></span></div>
+function vEdit(a){const id=a.id;
+  return `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px"><button class="btn w" data-a="agrBack">← All agreements</button><button class="btn primary w" data-a="agrView">Done editing — back to the readable summary</button><button class="btn w" data-a="agrPrint" data-x="${esc(id)}">Print / PDF summary</button><button class="btn w" data-a="agrScan" data-x="${esc(id)}">Read the attached PDF</button><span id="agr-scan" class="hint"></span><span style="margin-left:auto"><button class="btn small danger" data-a="agrDel" data-x="${esc(id)}">Delete</button></span></div>
   <section class="panel pb"><div class="form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px">
    ${fld("Party",`<input data-ach="agrSet" data-k="party" value="${esc(a.party||"")}">`)}
    ${fld("Type",`<select data-ach="agrSet" data-k="type">${TYPES.map(t=>`<option ${t===a.type?"selected":""}>${esc(t)}</option>`).join("")}</select>`)}
