@@ -126,11 +126,11 @@ J.act("ccCopy",el=>{try{navigator.clipboard.writeText(el.dataset.x);toast("Copie
 const kv=(k,v)=>`<tr><td class="muted" style="width:40%">${k}</td><td>${v||"—"}</td></tr>`;
 // ---------- all cards: facilities & benefits summary (every card, including ones added later) ----------
 function allCards(L,A){const col=x=>x.color||"#555";const bar=`<div class="row" style="gap:10px;flex-wrap:wrap;margin:8px 0"><button class="card" data-a="ccPick" data-x="${L[0].id}" style="text-align:left;min-width:170px;border:2px solid #888"><b>← Single card view</b></button><button class="card" data-a="ccPick" data-x="__all__" style="text-align:left;min-width:170px;background:#333;color:#fff;border:2px solid #333"><b>All cards</b><div class="hint" style="color:inherit;opacity:.85">Facilities &amp; benefits</div></button></div>`;
-  const last=c=>{const p=Object.keys(c.stmts||{}).sort().reverse();return p.map(k=>c.stmts[k]).find(x=>x&&x.rp)||c.stmts?.[p[0]]||{}};
+  const last=c=>{const p=Object.keys(c.stmts||{}).sort().reverse();const a=p.map(k=>c.stmts[k]);const w=a.find(x=>x&&x.rp)||a[0]||{};return {...w,limit:a.find(x=>x&&x.limit)?.limit,cashLimit:a.find(x=>x&&x.cashLimit)?.cashLimit}};
   const rows=L.map(c=>{const s=last(c);const ben=arr(c.benefits);const prog=arr(c.programs);const ch=arr(c.printedCharges).length?arr(c.printedCharges):arr(c.typicalCharges);
     const bal=s.rp?.bal!=null?s.rp.bal:s.rp?.year!=null?"yr "+s.rp.year:"";
     return `<tr><td style="white-space:normal;min-width:150px;border-left:6px solid ${col(c)}"><b>${esc(c.name)}</b><div class="hint">${esc(c.product||"")} · …${esc(c.last4)}</div><div class="hint">${esc(c.holder||"")}</div></td>
-    <td class="num">${c.limit?money0(c.limit):"—"}<div class="hint">cash ${c.cashLimit?money0(c.cashLimit):"—"}</div></td>
+    <td class="num">${(c.limit||s.limit)?money0(c.limit||s.limit):"—"}<div class="hint">cash ${(c.cashLimit||s.cashLimit)?money0(c.cashLimit||s.cashLimit):"—"}</div></td>
     <td>${c.finRate?esc(c.finRate)+"% p.m.":"—"}<div class="hint">stmt ${c.billDay||"—"} · due ${c.dueDay||"—"}</div></td>
     <td style="white-space:normal;min-width:120px">${esc(c.ptName||"Reward points")}${bal!==""?`<div class="hint">balance ${esc(bal)}</div>`:""}${prog.map(x=>`<div class="hint">${esc(x.name)}${x.note?" — "+esc(x.note):""}</div>`).join("")}</td>
     <td style="white-space:normal;min-width:260px">${ben.length?`<ul style="margin:0 0 0 16px;padding:0">${ben.map(b=>`<li>${esc(b)}</li>`).join("")}</ul>`:`<span class="muted">Not entered</span>${A?` <button class="btn small" data-a="ccEdit" data-x="${c.id}">Add</button>`:""}`}</td>
