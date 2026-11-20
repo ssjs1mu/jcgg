@@ -6,7 +6,7 @@ const root=document.documentElement;
 const mq=window.matchMedia?matchMedia("(max-width:1000px) and (hover:hover) and (pointer:fine)"):null;
 const mq2=window.matchMedia?matchMedia("(max-height:600px) and (max-width:1000px)"):null;
 const forced=()=>{try{return localStorage.getItem("jcgg.focus")==="1"}catch(e){return false}};
-const apply=()=>{const on=!!(mq&&mq.matches)||!!(mq2&&mq2.matches)||forced();root.classList.toggle("split",on);if(!on)root.classList.remove("menu-show")};
+const apply=()=>{const on=!!(mq&&mq.matches)||!!(mq2&&mq2.matches)||forced();root.classList.toggle("splitmode",on);if(!on)root.classList.remove("menu-show")};
 const fab=document.createElement("button");fab.id="splitFab";fab.type="button";fab.setAttribute("aria-label","Menu");fab.innerHTML="☰ Menu";
 const scrim=document.createElement("div");scrim.id="splitScrim";
 const add=()=>{document.body.append(fab,scrim);apply()};

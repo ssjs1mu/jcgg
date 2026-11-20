@@ -619,15 +619,15 @@ table.pj tr.g th{border-left:3px solid var(--ok)}table.pj tr.b th{border-left:3p
 
 /* ---- split-screen / narrow desktop window: menus hidden, the page uses the whole width (☰ opens the menu on demand) ---- */
 #splitFab{display:none}
-html.split .app{grid-template-columns:minmax(0,1fr)}
-html.split .rail{display:none}
-html.split #mnav{display:none!important}
-html.split .mtop{display:none}
-html.split .main{padding:34px 8px 24px}
-html.split .wrap{gap:14px}
-html.split .head{padding-left:12px;padding-right:12px}
-html.split #splitFab{display:flex;align-items:center;gap:6px;position:fixed;top:4px;left:6px;z-index:41;border:1px solid var(--rule-2);background:var(--sheet);color:var(--ink);border-radius:16px;height:28px;padding:0 10px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15)}
-html.split.menu-show .rail{display:flex;position:fixed;left:0;top:0;bottom:0;height:auto;width:240px;z-index:40;overflow:auto;box-shadow:6px 0 28px rgba(0,0,0,.3)}
-html.split.menu-show #splitScrim{display:block}
+html.splitmode .app{grid-template-columns:minmax(0,1fr)}
+html.splitmode .rail{display:none}
+html.splitmode #mnav{display:none!important}
+html.splitmode .mtop{display:none}
+html.splitmode .main{padding:34px 8px 24px}
+html.splitmode .wrap{gap:14px}
+html.splitmode .head{padding-left:12px;padding-right:12px}
+html.splitmode #splitFab{display:flex;align-items:center;gap:6px;position:fixed;top:4px;left:6px;z-index:41;border:1px solid var(--rule-2);background:var(--sheet);color:var(--ink);border-radius:16px;height:28px;padding:0 10px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+html.splitmode.menu-show .rail{display:flex;position:fixed;left:0;top:0;bottom:0;height:auto;width:240px;z-index:40;overflow:auto;box-shadow:6px 0 28px rgba(0,0,0,.3)}
+html.splitmode.menu-show #splitScrim{display:block}
 #splitScrim{display:none;position:fixed;inset:0;z-index:39;background:rgba(0,0,0,.25)}
-html.split.menu-show #splitFab{left:248px}
+html.splitmode.menu-show #splitFab{left:248px}
