@@ -9,7 +9,7 @@ const nn=s=>{const v=parseFloat(String(s==null?"":s).replace(/[,₹`\s]/g,""));r
 const r2=x=>Math.round(x*100)/100;
 const DEC=/-?\d[\d,]*\.\d{2}(?!\d)/g;
 const dmy=(d,m,y)=>y+"-"+pad(MON[m.toLowerCase().slice(0,3)])+"-"+pad(+d);
-const is=T=>/federal\s+bank\s+one|one\s+credit\s+card|getonecard/i.test(T);
+const is=T=>!/sbi\s*card|irctc\s*sbi|sbicard|sbi\s+credit/i.test(T)&&/federal\s+bank\s+one|one\s+credit\s+card|getonecard/i.test(T);
 function parse(lines){const L0=lines.map(x=>String(x).replace(/\s+/g," ").trim()).filter(Boolean);const L=[];
   // a row whose reward-points figure landed on the next text row is joined back: “01 May Paid With Points 100.00” + “-1000.00”
   for(let i=0;i<L0.length;i++){const m=/^(\d{1,2}\s+[A-Za-z]{3}\s+Paid\s+With\s+Points)\s+(\d[\d,]*\.\d{2})$/i.exec(L0[i]);if(m&&/^-?\d[\d,]*\.\d{2}$/.test(L0[i+1]||"")){L.push(m[1]+" "+L0[i+1]+" "+m[2]);i++}else L.push(L0[i])}
