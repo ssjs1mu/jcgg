@@ -631,3 +631,5 @@ html.splitmode.menu-show .rail{display:flex;position:fixed;left:0;top:0;bottom:0
 html.splitmode.menu-show #splitScrim{display:block}
 #splitScrim{display:none;position:fixed;inset:0;z-index:39;background:rgba(0,0,0,.25)}
 html.splitmode.menu-show #splitFab{left:248px}
+
+.sheet .skb{border-left:2px solid var(--ink,#222)}
