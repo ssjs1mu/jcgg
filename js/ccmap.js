@@ -10,7 +10,7 @@ const J=window.J,{S,esc,money,money0,fmtDate,toast,fld}=J;const C=J._cc;const ar
 const RID="maprules";const rules=()=>J.get("meta",RID)?.rules||{};
 const saveRules=async r=>{const d={id:RID,kind:"maprules",rules:r,at:Date.now()};await J.store.put("meta",d);S.c.meta.set(RID,d)};
 const hsh=s=>{let x=7;for(const ch of s)x=(x*31+ch.charCodeAt(0))>>>0;return x.toString(36)};
-const isPay=d=>/PAYMENT|BPPY|CC PAY|AUTOPAY|NEFT|IMPS/i.test(d)&&!/REFUND|REVERS/i.test(d);
+const isPay=d=>/PAYMENT|BPPY|CC PAY|AUTOPAY|NEFT|IMPS|UPICC/i.test(d)&&!/REFUND|REVERS/i.test(d);
 const cards=()=>C.docs();
 // statement lines dated before the books start (Settings → start month) are carried in the card's opening balance, not posted
 const BOOKS=()=>(J.get("meta","settings")?.startMonth||"2000-01")+"-01";
@@ -24,7 +24,7 @@ function plan(c){const L=c.ledger;const out={items:[],personal:{},cnt:{posted:0,
   for(const per of Object.keys(c.stmts||{}).sort()){const st=c.stmts[per];const occ={};
     arr(st.tx).forEach((t,i)=>{if(t.d<BOOKS())return;const key=C.mkey(t.desc);const sig=t.d+"|"+(t.t||"")+"|"+t.amt+"|"+t.desc;occ[sig]=(occ[sig]||0)+1;const id="cct-"+c.last4+"-"+hsh(sig)+"-"+occ[sig];
       let rule=t.map||R[key]||null;if(!rule&&!t.cr){const sv=J.svcMatch?.(t.desc);if(sv&&J.get("accounts",sv.a))rule={a:sv.a,s:sv.svc,own:"biz"}}const own=t.own||rule?.own||"";const sign=t.cr?-1:1;
-      let ex=null;if(t.cr){ex=candPay.find(v=>!claimed.has(v.id)&&Math.abs(v.lines.filter(l=>l.a===L).reduce((a,l)=>a+l.dr-l.cr,0)-t.amt)<0.51&&days(v.date,t.d)<=5)||null;if(ex)claimed.add(ex.id)}
+      let ex=null;if(t.cr){ex=candPay.find(v=>!claimed.has(v.id)&&Math.abs(v.lines.filter(l=>l.a===L).reduce((a,l)=>a+l.dr-l.cr,0)-t.amt)<=12&&days(v.date,t.d)<=5)||null;if(ex)claimed.add(ex.id)}
       if(!t.cr){ex=cand.find(v=>!claimed.has(v.id)&&Math.abs(v.lines.filter(l=>l.a===L).reduce((a,l)=>a+l.cr-l.dr,0)-t.amt)<0.011&&days(v.date,t.d)<=4)||null;if(ex)claimed.add(ex.id)}
       const cur=J.get("vouchers",id);let state=ex?"matched":cur?"posted":"fresh";let tgt="";
       if(own==="per")tgt="personal";else if(rule?.a)tgt=rule.a;else tgt="classify";
