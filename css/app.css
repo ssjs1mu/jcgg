@@ -633,3 +633,4 @@ html.splitmode.menu-show #splitScrim{display:block}
 html.splitmode.menu-show #splitFab{left:248px}
 
 .sheet .skb{border-left:2px solid var(--ink,#222)}
+.sk14 td,.sk14 th{overflow-wrap:anywhere;padding-left:4px;padding-right:4px}
