@@ -35,7 +35,7 @@ const vendorOf=n=>{const d=String(n||"").replace(/^Card …\d+ · /,"").replace(
 const cardRow=(v,id,p)=>{const o=(v.lines||[]).filter(l=>l.a!==id);const oa=o.length?J.get("accounts",o[0].a):null;
   if(!oa)return esc(p.n||"");
   if(v.type==="payment"||v.type==="contra"||oa.kind==="bank"||oa.kind==="wallet"||oa.kind==="cash"||oa.kind==="card")return `<b>${p.dr?"Payment received — dues":"Transfer"}</b> <span class="hint">${p.dr?"from":"to"} ${esc(oa.name)}</span>`;
-  if(oa.kind==="suspense"&&p.dr&&/^Payment received/i.test(p.n||""))return `<b>Payment received — dues</b> <span class="hint" style="color:#b7791f">paying account not found in the books yet (${esc(oa.name)}); upload that bank statement and it replaces this</span>`;
+  if(oa.kind==="suspense"&&p.dr&&/payment|upicc|bppy/i.test((p.n||"")+" "+(v.narr||"")))return `<b>Payment received — dues</b> <span class="hint" style="color:#b7791f">paying account not found in the books yet (${esc(oa.name)}); upload that bank statement and it replaces this</span>`;
   const sv=o[0].s&&J.svcById?J.svcById(o[0].s):null;const sus=oa.kind==="suspense";
   const path=sus?`<span style="color:#b7791f">To classify — ${esc(oa.name)}</span>`:oa.kind==="capital"?`Personal — ${esc(oa.name)}`:[oa.cat,oa.name,sv?.name].filter(Boolean).map(esc).join(" › ");
   return `<b>${esc(vendorOf(p.n||v.narr))}</b>${p.dr&&oa.kind!=="bank"?` <span class="hint">(refund)</span>`:""}<div class="hint" style="font-size:12px">${path}</div>`};
