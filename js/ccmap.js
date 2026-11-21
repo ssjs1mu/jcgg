@@ -19,11 +19,13 @@ function plan(c){const L=c.ledger;const out={items:[],personal:{},cnt:{posted:0,
   const R=rules();const claimed=new Set();
   const mine=id=>String(id).startsWith("cct-"+c.last4+"-")||String(id).startsWith("cc-p-"+c.last4+"-");
   const cand=J.all("vouchers").filter(v=>!mine(v.id)&&v.lines.some(l=>l.a===L&&l.cr>0));
+  const candPay=J.all("vouchers").filter(v=>!mine(v.id)&&v.lines.some(l=>l.a===L&&l.dr>0));
   const days=(a,b)=>Math.abs((new Date(a)-new Date(b))/864e5);
   for(const per of Object.keys(c.stmts||{}).sort()){const st=c.stmts[per];const occ={};
-    arr(st.tx).forEach((t,i)=>{if(t.cr&&isPay(t.desc))return;if(t.d<BOOKS())return;const key=C.mkey(t.desc);const sig=t.d+"|"+(t.t||"")+"|"+t.amt+"|"+t.desc;occ[sig]=(occ[sig]||0)+1;const id="cct-"+c.last4+"-"+hsh(sig)+"-"+occ[sig];
+    arr(st.tx).forEach((t,i)=>{if(t.d<BOOKS())return;const key=C.mkey(t.desc);const sig=t.d+"|"+(t.t||"")+"|"+t.amt+"|"+t.desc;occ[sig]=(occ[sig]||0)+1;const id="cct-"+c.last4+"-"+hsh(sig)+"-"+occ[sig];
       let rule=t.map||R[key]||null;if(!rule&&!t.cr){const sv=J.svcMatch?.(t.desc);if(sv&&J.get("accounts",sv.a))rule={a:sv.a,s:sv.svc,own:"biz"}}const own=t.own||rule?.own||"";const sign=t.cr?-1:1;
-      let ex=null;if(!t.cr){ex=cand.find(v=>!claimed.has(v.id)&&Math.abs(v.lines.filter(l=>l.a===L).reduce((a,l)=>a+l.cr-l.dr,0)-t.amt)<0.011&&days(v.date,t.d)<=4)||null;if(ex)claimed.add(ex.id)}
+      let ex=null;if(t.cr){ex=candPay.find(v=>!claimed.has(v.id)&&Math.abs(v.lines.filter(l=>l.a===L).reduce((a,l)=>a+l.dr-l.cr,0)-t.amt)<0.51&&days(v.date,t.d)<=5)||null;if(ex)claimed.add(ex.id)}
+      if(!t.cr){ex=cand.find(v=>!claimed.has(v.id)&&Math.abs(v.lines.filter(l=>l.a===L).reduce((a,l)=>a+l.cr-l.dr,0)-t.amt)<0.011&&days(v.date,t.d)<=4)||null;if(ex)claimed.add(ex.id)}
       const cur=J.get("vouchers",id);let state=ex?"matched":cur?"posted":"fresh";let tgt="";
       if(own==="per")tgt="personal";else if(rule?.a)tgt=rule.a;else tgt="classify";
       const it={per,i,t,id,key,rule,own,tgt,state,ex:ex?.id||"",sign};out.items.push(it);
@@ -34,7 +36,7 @@ async function push(c){const L=c.ledger;const P=plan(c);const keep=new Set();let
   const sus=P.items.some(x=>!x.ex&&x.tgt==="classify")?await J.ensureAcc("Card spends to classify","suspense"):"";
   for(const it of P.items){if(it.ex||it.tgt==="personal")continue;const acc=it.tgt==="classify"?sus:it.tgt;if(!J.get("accounts",acc))continue;keep.add(it.id);
     const s=it.tgt==="classify"?"":(it.t.map?.s||it.rule?.s||"");const cur=J.get("vouchers",it.id);
-    const dl=it.sign>0?{a:acc,dr:it.t.amt,cr:0,n:it.t.desc,...(s?{s}:{})}:{a:L,dr:it.t.amt,cr:0,n:"Refund · "+it.t.desc};const cl=it.sign>0?{a:L,dr:0,cr:it.t.amt,n:it.t.desc}:{a:acc,dr:0,cr:it.t.amt,n:it.t.desc,...(s?{s}:{})};
+    const pay=it.sign<0&&isPay(it.t.desc);const dl=it.sign>0?{a:acc,dr:it.t.amt,cr:0,n:it.t.desc,...(s?{s}:{})}:{a:L,dr:it.t.amt,cr:0,n:(pay?"Payment received · ":"Refund · ")+(it.t.desc||"credit")};const cl=it.sign>0?{a:L,dr:0,cr:it.t.amt,n:it.t.desc}:{a:acc,dr:0,cr:it.t.amt,n:it.t.desc,...(s?{s}:{})};
     const same=cur&&cur.date===it.t.d&&cur.lines.some(l=>l.a===acc&&(s?l.s===s:!l.s))&&cur.lines.some(l=>l.a===L)&&Math.abs(J.vAmount(cur)-it.t.amt)<0.011;if(same)continue;
     await J.postVoucher({id:it.id,type:"journal",noTwin:true,date:it.t.d,lines:[dl,cl],party:L,narr:"Card …"+c.last4+" · "+it.t.desc,ref:it.per,src:{col:"meta",id:c.id,label:"Card statement"}});wrote++}
   const pa=Object.keys(P.personal).length?await J.ensureAcc("Owner's drawings – personal card spends","capital"):"";
