@@ -3,10 +3,10 @@
    Reads the commitments in meta/dues and the bills / payments they posted; add or edit a subscription from Commitments (kind: Subscription). */
 (()=>{
 const J=window.J,{esc,fmtDate,today,money0}=J;
-const FQ={1:"Monthly",2:"Every 2 months",3:"Quarterly",6:"Half-yearly",12:"Yearly"};
+const FQ={1:"Monthly",2:"Every 2 months",3:"Quarterly",6:"Half-yearly",12:"Yearly",1200:"Lifetime"};
 const items=()=>(J.get("meta","dues")?.items||[]).filter(c=>c.kind==="sub");
 const posts=c=>J.all("vouchers").filter(v=>v.src?.col==="dues"&&v.src.id===c.id).sort((a,b)=>a.date.localeCompare(b.date));
-const nextOn=c=>{const t=today();let m=t.slice(0,7);const step=+c.freq||1;for(let i=0;i<60;i++){const d=m+"-"+String(Math.min(+c.billDay||1,28)).padStart(2,"0");if(d>t&&m>=c.start.slice(0,7))return d;let [y,mo]=m.split("-").map(Number);mo+=1;if(mo>12){mo=1;y++}m=y+"-"+String(mo).padStart(2,"0")}return ""};
+const nextOn=c=>{if((+c.freq||1)>=1200)return "";const t=today();let m=t.slice(0,7);const step=+c.freq||1;for(let i=0;i<60;i++){const d=m+"-"+String(Math.min(+c.billDay||1,28)).padStart(2,"0");if(d>t&&m>=c.start.slice(0,7))return d;let [y,mo]=m.split("-").map(Number);mo+=1;if(mo>12){mo=1;y++}m=y+"-"+String(mo).padStart(2,"0")}return ""};
 function row(c){const P=posts(c);const bills=P.filter(v=>v.type==="journal"),pays=P.filter(v=>v.type==="payment");const fy=J.fyOf(today()).start;
   const last=bills.at(-1);const spent=pays.filter(v=>v.date>=fy).reduce((s,v)=>s+v.lines.filter(l=>l.a===c.party).reduce((a,l)=>a+l.dr,0),0);
   const owed=J.balanceOf(c.party);return {c,bills,pays,last,spent,owed,next:c.active===false?"":nextOn(c)}}

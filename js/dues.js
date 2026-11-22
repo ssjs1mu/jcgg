@@ -10,7 +10,7 @@ const arr=x=>Array.isArray(x)?x:[];
 const pad=n=>String(n).padStart(2,"0");
 const KINDS=[["rent","Rent"],["maint","Maintenance"],["elec","Electricity"],["tel","Telecom & internet"],["card","Credit card bill"],["sub","Subscription"],["salary","Salaries (from payroll)"],["other","Other"]];
 const BASIS=[["fixed","Fixed amount"],["inc","Fixed, increasing (incremental)"],["actual","Actual — enter each bill"]];
-const FREQ=[["1","Monthly"],["2","Every 2 months"],["3","Quarterly"],["6","Half-yearly"],["12","Yearly"]];
+const FREQ=[["1","Monthly"],["2","Every 2 months"],["3","Quarterly"],["6","Half-yearly"],["12","Yearly"],["1200","Lifetime (one-time)"]];
 const doc=()=>J.get("meta","dues")||{id:"dues",items:[],emis:[],stmt:{}};
 const items=()=>doc().items||[],emis=()=>doc().emis||[],lics=()=>doc().lics||[];
 async function save(p){const d={...doc(),...p,id:"dues"};await J.store.put("meta",d);J.S.c.meta.set("dues",d)}
