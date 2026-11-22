@@ -85,6 +85,7 @@ function view(){const U=ui();const pm=paidMap();const all=kots();
   const needLed=sel.filter(k=>!ledgerOf(k));const post=U.post==null?(gsel.length>0||!J.kotHouse()):U.post;
   const who=[...new Set(sel.map(k=>k.staffName||k.staff))];const allP=proposals();const pend=allP.filter(x=>!frozenOn(x.pay)&&!x.g.days.some(frozenOn));const sugg=suggestions(allP).slice(0,12);
   if(pend.length)setTimeout(autoMatch,250);
+  if(!J.readOnly?.()&&!J._skHeal&&J.skLegFix().length){J._skHeal=true;setTimeout(()=>J.skHouseFix(true,true).then(()=>J.render()).finally(()=>{J._skHeal=false}),400)}
   const candHint=g=>{const cs=free.filter(c=>c.d===g.d);return cs.length?`<div class="hint">Personal payment that day, unmatched: ${cs.map(c=>"₹"+c.a).join(", ")}</div>`:""};
   return `${pend.length?`<p class="note">Matching ${pend.length} personal payment${pend.length>1?"s":""} with KOT days…</p>`:""}
   <div class="filters">${fld("Person",`<select data-ui="skm.staff"><option value="">Everyone</option>${staff.map(([id,n])=>`<option value="${id}" ${U.staff===id?"selected":""}>${esc(n)}</option>`).join("")}</select>`)}${fld("From date",`<input type="date" data-ui="skm.from" value="${esc(U.from)}">`)}${fld("Show days",`<select data-ui="skm.show"><option value="unpaid" ${U.show==="unpaid"?"selected":""}>Unpaid</option><option value="paid" ${U.show==="paid"?"selected":""}>Paid / matched</option><option value="all" ${U.show==="all"?"selected":""}>All</option></select>`)}<button class="btn" data-a="skmAll">Tick all shown unpaid days</button><button class="btn" data-a="skmNone">Clear ticks</button></div>
@@ -183,4 +184,40 @@ J.act("skClub",()=>{const P=J.skClubPlan();if(!P)return;const f=J.fmtDate||(d=>d
        await saveDoc([...items(),{id,date,amt:acc,total:need,diff:r2(acc+fromLump.reduce((t,f)=>t+f.amt,0)-need),club:true,fromLump,...tie(used),days:Q.cover.map(r=>r.d),kots:[],nos:"",who:"",vid,note:"Clubbed to oldest dues: "+Q.cover.length+" day"+(Q.cover.length>1?"s":"")+" "+fmtDate(Q.cover[0].d)+" – "+fmtDate(Q.cover.at(-1).d)+" · "+used.length+" Google Pay collection"+(used.length===1?"":"s")+(fromLump.length?" + leftover of earlier payment "+money0(fromLump.reduce((t,f)=>t+f.amt,0)):""),by:S.me.email||"",at:Date.now()}]);
        {const s2=J.skDueSummary();const left=(s2?.due||[]).filter(r=>Q.cover.some(c=>c.d===r.d));if(left.length){const it=items().find(x=>x.id===id);if(it)await saveDoc(items().map(x=>x.id===id?{...x,holdDays:Object.fromEntries(left.map(r=>[r.d,r.a]))}:x))}}
        J.ppLogAdd?.({kind:"other",date,note:"Club payments",after:"Applied "+money0(need)+" to "+Q.cover.length+" oldest unpaid KOT days"})},"Payments clubbed");J.ui("skm",{}).fifo=false;J.closeDrawer();J.render();return false}})});
+
+// ---------- Staff Welfare & Meals guard ----------
+// 1) A payment to Joshi's Corner from a personal bank / card is the owner moving his own money into the business — it is Owner's Capital /
+//    Drawings, never a Staff Welfare expense (the restaurant side is booked by Petpooja / Google Pay and the KOT receipt).
+// 2) A KOT receipt (Dr Google Pay, Cr house) is only posted for what the Petpooja day entry has NOT already credited — otherwise Google Pay
+//    and the house ledger are both counted twice.
+const hAcc=()=>J.kotHouse()?.acc||"";
+const OWN=/okbizaxis|98500@|josh\/utib|joshis? ?corner/i;
+const isMon=a=>["bank","card","wallet"].includes(J.get("accounts",a)?.kind);
+const capAcc=()=>J.sysAcc?.("capital")?.id||"";
+const cardDraw=()=>J.all("accounts").find(a=>a.kind==="capital"&&/personal card/i.test(a.name))?.id||capAcc();
+const sale=()=>{const a=hAcc(),d={};if(!a)return d;for(const v of J.all("vouchers")){const c=v.src?.col;if(c!=="kots"&&c!=="ppday")continue;for(const l of arr(v.lines))if(l.a===a)d[v.date]=r2((d[v.date]||0)+(+l.dr||0)-(+l.cr||0))}return d};
+const rcptOf=v=>r2(arr(v.lines).filter(l=>l.a===hAcc()).reduce((t,l)=>t+(+l.cr||0)-(+l.dr||0),0));
+J.skRecvCap=()=>{const res=Object.values(sale()).reduce((t,x)=>t+Math.max(0,x),0);const got=J.all("vouchers").filter(v=>v.src?.col==="kotPay").reduce((t,v)=>t+rcptOf(v),0);return Math.max(0,r2(res-got))};
+const legTo=(v,l)=>{const L=arr(v.lines);const o=L.find(x=>x!==l&&+x.cr>0);const k=J.get("accounts",o?.a)?.kind;if(k==="card")return cardDraw();
+  const m=(v.narr||"").match(/[A-Z0-9]{14,}/g)||[];for(const t of m){const w=J.all("vouchers").find(x=>x.id!==v.id&&(x.narr||"").includes(t)&&arr(x.lines).some(y=>+y.cr>0&&J.get("accounts",y.a)?.kind==="capital"));if(w)return arr(w.lines).find(y=>+y.cr>0&&J.get("accounts",y.a)?.kind==="capital").a}
+  return capAcc()};
+J.skLegFix=()=>{const a=hAcc();if(!a)return [];const out=[];for(const v of J.all("vouchers")){const c=v.src?.col;if(c==="kots"||c==="ppday"||c==="kotPay"||c==="payroll")continue;const L=arr(v.lines);if(L.length!==2)continue;const d=L.find(l=>l.a===a&&+l.dr>0),cr=L.find(l=>+l.cr>0&&l.a!==a);if(!d||!cr||!isMon(cr.a))continue;
+  if(!OWN.test((v.narr||"")+" "+L.map(l=>l.n||"").join(" ")))continue;out.push({v,d,to:legTo(v,d)})}return out};
+async function patchLines(id,lines){const v=J.get("vouchers",id);await J.store.patch("vouchers",id,{lines});J.S.c.vouchers.set(id,{...v,lines})}
+J.skHouseFix=async(apply,legsOnly)=>{const hk=J.kotHouse();if(!hk)return null;const rep={legs:[],trim:[],del:[],before:J.balanceOf(hk.acc)};const bk={at:Date.now(),lines:{},del:{}};
+  for(const x of J.skLegFix()){if(!x.to)continue;rep.legs.push({id:x.v.id,d:x.v.date,a:r2(+x.d.dr),to:J.accName(x.to)});bk.lines[x.v.id]=x.v.lines;if(apply)await patchLines(x.v.id,arr(x.v.lines).map(l=>l===x.d||(l.a===x.d.a&&l.dr===x.d.dr&&l.cr===x.d.cr)?{...l,a:x.to}:l))}
+  const res={};for(const [d,x] of Object.entries(sale()))if(x>0)res[d]=x;
+  let list=items().slice();if(legsOnly){rep.after=apply?J.balanceOf(hk.acc):null;if(apply){const b=J.get("meta","skHouseBackup")||{id:"skHouseBackup",runs:[]};const nb={id:"skHouseBackup",runs:[...arr(b.runs),bk]};await J.store.put("meta",nb);J.S.c.meta.set("skHouseBackup",nb)}return rep}const gp=gpAcc();
+  for(const it of list.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)))){if(!it.vid)continue;const v=J.get("vouchers",it.vid);if(!v||v.src?.col!=="kotPay")continue;const A=rcptOf(v);if(!(A>0))continue;
+    const days=arr(it.days).length?arr(it.days):arr(it.kots).map(id=>J.get("kots",id)?.date).filter(Boolean);let need=0;for(const d of [...new Set(days)]){need=r2(need+(res[d]||0));res[d]=0}
+    const T=Math.min(A,need);if(T>=A-0.5)continue;
+    if(T<1){rep.del.push({id:v.id,d:v.date,a:A});bk.del[v.id]=v;if(apply){await J.store.del("vouchers",v.id);list=list.map(z=>z.id===it.id?{...z,vid:"",note:(z.note||"")+" · no receipt posted: Petpooja already credited these days"}:z)}}
+    else{rep.trim.push({id:v.id,d:v.date,from:A,to:T});bk.lines[v.id]=v.lines;if(apply){const f=T/A;const L=arr(v.lines);let used=0;const crs=L.filter(l=>l.a===hk.acc&&+l.cr>0);const nl=L.map(l=>{if(l.a===hk.acc&&+l.cr>0){const isLast=l===crs.at(-1);const x=isLast?r2(T-used):r2(l.cr*f);used=r2(used+x);return {...l,cr:x}}if(+l.dr>0)return {...l,dr:T};return l});await patchLines(v.id,nl);list=list.map(z=>z.id===it.id?{...z,note:(z.note||"")+" · receipt reduced to "+T+" (rest already credited by Petpooja)"}:z)}}}
+  if(apply){await saveDoc(list);const b=J.get("meta","skHouseBackup")||{id:"skHouseBackup",runs:[]};const nb={id:"skHouseBackup",runs:[...arr(b.runs),bk]};await J.store.put("meta",nb);J.S.c.meta.set("skHouseBackup",nb)}
+  rep.left=r2(Object.values(res).reduce((t,x)=>t+x,0));rep.after=apply?J.balanceOf(hk.acc):null;return rep};
+// future postings: personal payments to the business never debit Staff Welfare; receipts never exceed what is still unpaid
+{const _pv=J.postVoucher;J.postVoucher=async spec=>{try{if(J.kotHouse()&&spec&&!spec.id){const a=hAcc(),L=arr(spec.lines);
+  if(spec.src?.col==="kotPay"&&spec.type==="receipt"){const amt=r2(L.filter(l=>+l.dr>0).reduce((t,l)=>t+(+l.dr||0),0));const cap=J.skRecvCap();if(amt>cap+0.5){if(cap<1){const id=spec.newId||"";J.toast?.("No receipt posted: Petpooja already credited these days");return {id:"",skipped:true}}const f=cap/amt;let used=0;const crs=L.filter(l=>l.a===a&&+l.cr>0);spec={...spec,lines:L.map(l=>{if(l.a===a&&+l.cr>0){const x=l===crs.at(-1)?r2(cap-used):r2(l.cr*f);used=r2(used+x);return {...l,cr:x}}if(+l.dr>0)return {...l,dr:cap};return l})}}}
+  else if(!["kots","ppday","payroll"].includes(spec.src?.col)&&L.length===2){const d=L.find(l=>l.a===a&&+l.dr>0),c=L.find(l=>+l.cr>0&&l.a!==a);if(d&&c&&isMon(c.a)&&OWN.test((spec.narr||"")+" "+L.map(l=>l.n||"").join(" "))){const v={narr:spec.narr,lines:L,id:""};const to=legTo(v,d);if(to)spec={...spec,lines:L.map(l=>l===d?{...l,a:to}:l)}}}}}catch(e){console.warn("house guard",e)}return _pv(spec)}}
+
 })();
