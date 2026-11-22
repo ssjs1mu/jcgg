@@ -193,7 +193,7 @@ J.act("skClub",()=>{const P=J.skClubPlan();if(!P)return;const f=J.fmtDate||(d=>d
 const hAcc=()=>J.kotHouse()?.acc||"";
 const OWN=/okbizaxis|98500@|josh\/utib|joshis? ?corner/i;
 const isMon=a=>["bank","card","wallet"].includes(J.get("accounts",a)?.kind);
-const capAcc=()=>J.sysAcc?.("capital")?.id||"";
+const capAcc=()=>J.get("accounts","capital")?.id||J.all("accounts").find(a=>a.kind==="capital"&&/owner.?s capital/i.test(a.name))?.id||"";
 const cardDraw=()=>J.all("accounts").find(a=>a.kind==="capital"&&/personal card/i.test(a.name))?.id||capAcc();
 const sale=()=>{const a=hAcc(),d={};if(!a)return d;for(const v of J.all("vouchers")){const c=v.src?.col;if(c!=="kots"&&c!=="ppday")continue;for(const l of arr(v.lines))if(l.a===a)d[v.date]=r2((d[v.date]||0)+(+l.dr||0)-(+l.cr||0))}return d};
 const rcptOf=v=>r2(arr(v.lines).filter(l=>l.a===hAcc()).reduce((t,l)=>t+(+l.cr||0)-(+l.dr||0),0));
@@ -214,7 +214,7 @@ J.skHouseFix=async(apply,legsOnly)=>{const hk=J.kotHouse();if(!hk)return null;co
     if(T<1){rep.del.push({id:v.id,d:v.date,a:A});bk.del[v.id]=v;if(apply){await J.store.del("vouchers",v.id);list=list.map(z=>z.id===it.id?{...z,vid:"",note:(z.note||"")+" · no receipt posted: Petpooja already credited these days"}:z)}}
     else{rep.trim.push({id:v.id,d:v.date,from:A,to:T});bk.lines[v.id]=v.lines;if(apply){const f=T/A;const L=arr(v.lines);let used=0;const crs=L.filter(l=>l.a===hk.acc&&+l.cr>0);const nl=L.map(l=>{if(l.a===hk.acc&&+l.cr>0){const isLast=l===crs.at(-1);const x=isLast?r2(T-used):r2(l.cr*f);used=r2(used+x);return {...l,cr:x}}if(+l.dr>0)return {...l,dr:T};return l});await patchLines(v.id,nl);list=list.map(z=>z.id===it.id?{...z,note:(z.note||"")+" · receipt reduced to "+T+" (rest already credited by Petpooja)"}:z)}}}
   if(apply){await saveDoc(list);const b=J.get("meta","skHouseBackup")||{id:"skHouseBackup",runs:[]};const nb={id:"skHouseBackup",runs:[...arr(b.runs),bk]};await J.store.put("meta",nb);J.S.c.meta.set("skHouseBackup",nb)}
-  rep.left=r2(Object.values(res).reduce((t,x)=>t+x,0));rep.after=apply?J.balanceOf(hk.acc):null;return rep};
+  rep.left=r2(Object.values(res).reduce((t,x)=>t+x,0));rep.leftDays=Object.entries(res).filter(([d,x])=>x>0.5).map(([d,x])=>d+":"+x);rep.after=apply?J.balanceOf(hk.acc):null;return rep};
 // future postings: personal payments to the business never debit Staff Welfare; receipts never exceed what is still unpaid
 {const _pv=J.postVoucher;J.postVoucher=async spec=>{try{if(J.kotHouse()&&spec&&!spec.id){const a=hAcc(),L=arr(spec.lines);
   if(spec.src?.col==="kotPay"&&spec.type==="receipt"){const amt=r2(L.filter(l=>+l.dr>0).reduce((t,l)=>t+(+l.dr||0),0));const cap=J.skRecvCap();if(amt>cap+0.5){if(cap<1){const id=spec.newId||"";J.toast?.("No receipt posted: Petpooja already credited these days");return {id:"",skipped:true}}const f=cap/amt;let used=0;const crs=L.filter(l=>l.a===a&&+l.cr>0);spec={...spec,lines:L.map(l=>{if(l.a===a&&+l.cr>0){const x=l===crs.at(-1)?r2(cap-used):r2(l.cr*f);used=r2(used+x);return {...l,cr:x}}if(+l.dr>0)return {...l,dr:cap};return l})}}}
