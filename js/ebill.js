@@ -15,7 +15,7 @@ const ml=p=>{const [y,m]=p.split("-");return MONS[+m-1].slice(0,3)[0]+MONS[+m-1]
 function parseBill(lines){const T=lines.join("\n");const g=(re,i=1)=>{const m=re.exec(T);return m?m[i]:""};const o={};
   const bn=/Bill No\.?:?\s*(\d{8,})\s*\/\s*(\d+)/.exec(T);if(!bn)throw new Error("This does not look like a CESC bill (no Bill No. found).");
   o.consumerNo=bn[1];o.acMonthCode=bn[2];o.billDate=dmy(g(/Bill Date\.?:?\s*(\d{2}\/\d{2}\/\d{2,4})/));o.customerId=g(/Customer ID\.?:?\s*(\d{8,})/);
-  const pm=/BILL FOR\s+([A-Z]+)\s+(\d{4})/.exec(T);if(!pm)throw new Error("Billing month not found.");const mi=MONS.indexOf(pm[1]);o.period=pm[2]+"-"+String(mi+1).padStart(2,"0");
+  const pm=/BILL\s+FOR\s*\W*([A-Za-z]+)\s+(\d{4})/i.exec(T);if(!pm)throw new Error("Billing month not found.");const mi=MONS.indexOf(pm[1].toUpperCase());if(mi<0)throw new Error("Billing month not found.");o.period=pm[2]+"-"+String(mi+1).padStart(2,"0");
   // name / address
   const ci=lines.findIndex(l=>/Customer ID\.?:?\s*\d{8,}/.test(l));const parts=[];
   for(const l of lines.slice(ci+1,ci+16)){const seg=l.split(/\s{2,}/)[0].trim();if(!/^[A-Z0-9][A-Z0-9 ,.\/;\-:()]*$/.test(seg)||/^\d{3}\s?\d{8}$/.test(seg)||/^\d{4,11}$/.test(seg)||/^(BANK|IFSC|AXIS)/.test(seg))continue;parts.push(seg);if(/\b\d{6}$/.test(seg))break}
@@ -64,6 +64,7 @@ async function ingest(file,pw){const lines=await pdfLines(file,pw);const b=parse
   try{const nAtt=await J.attachFiles("meta",d.id,[file],"Electricity bill "+ml(b.period));void nAtt}catch(e){console.warn("attach",e)}
   if(d.ledger){const a=J.get("accounts",d.ledger);if(a&&!arr(a.svc).some(c=>String(c.no)===d.consumerNo)){const x={...a,svc:[...arr(a.svc),{id:"svc-"+J.uid(),name:"CESC consumer "+d.consumerNo,no:d.consumerNo,provider:"CESC",words:d.customerId,active:true}]};try{await J.store.put("accounts",x);S.c.accounts.set(x.id,x)}catch(e){}}}
   return {d,b}}
+J.ebIngest=ingest;
 J.act("ebUpload",()=>{const i=document.createElement("input");i.type="file";i.accept=".pdf";i.multiple=true;i.onchange=async()=>{const fs=[...i.files];if(!fs.length)return;J.busy.start("Reading electricity bill");let last=null,ok=0;const msgs=[];
   try{for(const f of fs){try{const r=await ingest(f,document.getElementById("eb-pw")?.value||"");last=r.d;ok++;msgs.push(ml(r.b.period)+": "+r.b.units+" units · gross ₹"+inr.format(r.b.gross))}catch(e){msgs.push(f.name+": "+(/password/i.test(e.name+e.message)?"password-protected PDF — enter the password and retry":e.message))}}}
   finally{J.busy.end()}if(last){ui().no=last.consumerNo;ui().tab="bills"}toast(msgs.join(" · "));J.render()};i.click()});
