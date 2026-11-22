@@ -186,7 +186,7 @@ const LINKS={
  directory:["Does not post. Vendors, customers and staff are the parties ledgers belong to","—","—"],
  kitchen:["Does not post. Recipe costing reads Inventory item rates","—","—"],
  clients:["Does not post. Credit customers use customer ledgers","—","—"],
- dues:["Payments of rent, electricity, taxes, licences, EMIs and card bills; monthly fixed-bill journals; popup reminder until paid","Expense heads, tax, loan, card, bank","Due list by month (due, part paid, paid); Reconcile for loan and card ledgers; Reconcile & map to re-map Suspense or earlier-mapped entries by name to a category, sub-category and micro-category"],
+ dues:["Payments of rent, electricity, taxes, licences, EMIs and card bills; monthly fixed-bill journals; popup reminder until paid","Expense heads, tax, loan, card, bank","Due list by month (due, part paid, paid); Month-wise grid (months by bills, tap for units or reward points; read-only); All-cards comparison chart (read-only); Reconcile for loan and card ledgers; Reconcile & map to re-map Suspense or earlier-mapped entries by name to a category, sub-category and micro-category"],
  mkjacc:["Personal instruments, capital and settlement of business spends (MKJ settlement journals)","Owner / personal ledgers, capital","Owner ledger balance in Reconcile"],
  mkjinv:["Personal purchases marked in stock entries; posted as MKJ settlements","Owner / personal ledgers","Owner ledger balance in Reconcile"],
  mkjassets:["Personal equipment and assets","Asset, owner ledgers","Asset register"],
