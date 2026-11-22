@@ -207,7 +207,8 @@ async function patchLines(id,lines){const v=J.get("vouchers",id);await J.store.p
 J.skHouseFix=async(apply,legsOnly)=>{const hk=J.kotHouse();if(!hk)return null;const rep={legs:[],trim:[],del:[],before:J.balanceOf(hk.acc)};const bk={at:Date.now(),lines:{},del:{}};
   for(const x of J.skLegFix()){if(!x.to)continue;rep.legs.push({id:x.v.id,d:x.v.date,a:r2(+x.d.dr),to:J.accName(x.to)});bk.lines[x.v.id]=x.v.lines;if(apply)await patchLines(x.v.id,arr(x.v.lines).map(l=>l===x.d||(l.a===x.d.a&&l.dr===x.d.dr&&l.cr===x.d.cr)?{...l,a:x.to}:l))}
   const res={};for(const [d,x] of Object.entries(sale()))if(x>0)res[d]=x;
-  let list=items().slice();if(legsOnly){rep.after=apply?J.balanceOf(hk.acc):null;if(apply){const b=J.get("meta","skHouseBackup")||{id:"skHouseBackup",runs:[]};const nb={id:"skHouseBackup",runs:[...arr(b.runs),bk]};await J.store.put("meta",nb);J.S.c.meta.set("skHouseBackup",nb)}return rep}const gp=gpAcc();
+  let list=items().slice();if(legsOnly){rep.after=apply?J.balanceOf(hk.acc):null;if(apply){const b=J.get("meta","skHouseBackup")||{id:"skHouseBackup",runs:[]};const nb={id:"skHouseBackup",runs:[...arr(b.runs),bk]};await J.store.put("meta",nb);J.S.c.meta.set("skHouseBackup",nb)}return rep}{const dang=list.filter(z=>z.vid&&!J.get("vouchers",z.vid));if(dang.length){rep.dangling=dang.length;if(apply)list=list.map(z=>z.vid&&!J.get("vouchers",z.vid)?{...z,vid:"",note:(z.note||"")+" · no receipt posted: Petpooja already credited these days"}:z)}}
+  const gp=gpAcc();
   for(const it of list.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)))){if(!it.vid)continue;const v=J.get("vouchers",it.vid);if(!v||v.src?.col!=="kotPay")continue;const A=rcptOf(v);if(!(A>0))continue;
     const days=arr(it.days).length?arr(it.days):arr(it.kots).map(id=>J.get("kots",id)?.date).filter(Boolean);let need=0;for(const d of [...new Set(days)]){need=r2(need+(res[d]||0));res[d]=0}
     const T=Math.min(A,need);if(T>=A-0.5)continue;
