@@ -634,3 +634,6 @@ html.splitmode.menu-show #splitFab{left:248px}
 
 .sheet .skb{border-left:2px solid var(--ink,#222)}
 .sk14 td,.sk14 th{overflow-wrap:anywhere;padding-left:4px;padding-right:4px}
+
+/* priority colouring for bill reminders: 1 overdue · 2 within 3 days · 3 within a week · 4 within 15 days · 5 later */
+.chip.p1{background:#fee2e2;color:#b91c1c}.chip.p2{background:#ffedd5;color:#c2410c}.chip.p3{background:#fef3c7;color:#92400e}.chip.p4{background:#dbeafe;color:#1d4ed8}.chip.p5{background:#f1f5f9;color:#475569}
