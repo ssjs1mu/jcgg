@@ -254,5 +254,5 @@ J.act("skSheetCsv",()=>{const U=sheetUi();const dates=[...new Set(J.all("kots").
   J.saveFile("staff-kot-"+d+".csv",J.toCSV(rows))});
 J.mod({id:"kot",label:"Staff KOT",group:"Operations",icon:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/>',sub:"Staff food tickets at staff rates — settled daily through the house account (Petpooja) or recovered from salary.",
   headBtns:()=>`${J.skDueBadge()}<button class="btn w" data-a="skUpload">Upload KOT register</button>`,
-  tabs:[["sheet","Daily sheet / New KOT / KOT book",vSheet],["bill","Monthly bill",vBill],["tally","Daily tally (Petpooja)",vTally],["match","Match payments",()=>J.skMatchView?J.skMatchView():""],["food","Food by person",vFood]]});
+  tabs:[["sheet","Daily KOT Book",vSheet],["bill","Monthly bill",vBill],["tally","Daily tally (Petpooja)",vTally],["match","Match payments",()=>J.skMatchView?J.skMatchView():""],["food","Food by person",vFood]]});
 })();
