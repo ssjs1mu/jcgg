@@ -645,3 +645,4 @@ html.splitmode.menu-show #splitFab{left:248px}
 .sk14.fit .skc{width:78px;min-width:78px;max-width:78px}
 .sk14 .skc input[type=number]{-moz-appearance:textfield;appearance:textfield}
 .sk14 .skc input[type=number]::-webkit-inner-spin-button,.sk14 .skc input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.sk14 th.skn{position:relative;padding-right:10px}.sk14 .cr{position:absolute;right:0;top:0;bottom:0;width:8px;cursor:col-resize;touch-action:none;border-right:2px solid transparent}.sk14 th:hover .cr{border-right-color:var(--accent,#b23a0b)}
