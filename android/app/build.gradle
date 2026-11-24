@@ -1,0 +1,19 @@
+plugins { id "com.android.application" }
+android {
+    namespace "app.joshiscorner.care"
+    compileSdk 34
+    defaultConfig {
+        applicationId "app.joshiscorner.care"
+        minSdk 24
+        targetSdk 34
+        versionCode (project.findProperty("vCode") ?: "1").toInteger()
+        versionName "1.0." + (project.findProperty("vCode") ?: "1")
+    }
+    signingConfigs {
+        release {
+            def ks = System.getenv("KEYSTORE_FILE")
+            if (ks) { storeFile file(ks); storePassword System.getenv("KEY_PASS"); keyAlias "jcggcare"; keyPassword System.getenv("KEY_PASS") }
+        }
+    }
+    buildTypes { release { signingConfig signingConfigs.release; minifyEnabled false } }
+}

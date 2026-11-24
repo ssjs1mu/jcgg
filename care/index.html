@@ -11,28 +11,30 @@
 :root{--bg:#f4f1ec;--card:#fff;--ink:#1b2430;--mut:#6b7480;--pri:#b23a0b;--ok:#1d7a46;--bad:#b3261e;--warn:#9a6700;--ln:#e3ded6}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:64px}
-header{position:sticky;top:0;z-index:5;background:var(--pri);color:#fff;padding:8px 12px calc(8px);display:flex;align-items:center;gap:8px}
+header{position:sticky;top:0;z-index:5;background:var(--pri);color:#fff;padding:8px 12px;display:flex;align-items:center;gap:8px}
 header h1{font-size:17px;margin:0;flex:1}
 header .who{font-size:12px;opacity:.9}
 button{font:inherit;cursor:pointer}
 .ib{background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:8px;padding:6px 10px}
 .bar{display:flex;gap:6px;align-items:center;padding:8px 12px;flex-wrap:wrap}
 .seg{display:flex;border:1px solid var(--pri);border-radius:10px;overflow:hidden}
-.seg button{border:0;background:#fff;color:var(--pri);padding:7px 12px;font-weight:600}
+.seg button{border:0;background:#fff;color:var(--pri);padding:7px 11px;font-weight:600;font-size:14px}
 .seg button[aria-pressed=true]{background:var(--pri);color:#fff}
 .chip{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;background:#eee;color:var(--mut)}
 .chip.ok{background:#e1f3e8;color:var(--ok)}.chip.bad{background:#fbe4e2;color:var(--bad)}.chip.warn{background:#fff1d6;color:var(--warn)}
 .note{margin:0 12px 8px;padding:8px 10px;border-radius:10px;background:#fff1d6;color:var(--warn);font-size:13px}
 .day{display:flex;align-items:center;gap:6px;padding:0 12px 8px}
-.day input{flex:1;font:inherit;padding:8px;border:1px solid var(--ln);border-radius:10px;background:#fff;text-align:center}
+.day input,.day select{flex:1;font:inherit;padding:8px;border:1px solid var(--ln);border-radius:10px;background:#fff;text-align:center;min-width:0}
 .day button{background:#fff;border:1px solid var(--ln);border-radius:10px;padding:8px 14px;font-size:18px}
 .day button:disabled{opacity:.35}
 .tiles{display:flex;gap:6px;padding:0 12px 8px;overflow-x:auto}
 .tile{flex:1;min-width:70px;background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:6px 8px;text-align:center}
-.tile b{display:block;font-size:20px}.tile span{font-size:11px;color:var(--mut);text-transform:capitalize}
+.tile b{display:block;font-size:20px}.tile span{font-size:11px;color:var(--mut)}
 .list{padding:0 12px;display:flex;flex-direction:column;gap:8px}
 .card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:10px}
 .card h3{margin:0;font-size:15px}.card .sub{font-size:12px;color:var(--mut)}
+.card .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.card .amt{font-weight:700;white-space:nowrap}
 .st{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
 .st button{flex:1;min-width:44px;padding:8px 0;border:1px solid var(--ln);background:#fafafa;border-radius:9px;font-weight:700;color:var(--ink)}
 .st button[aria-pressed=true]{color:#fff;border-color:transparent}
@@ -41,12 +43,15 @@ button{font:inherit;cursor:pointer}
 .tm{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
 .tm label{font-size:11px;color:var(--mut);display:flex;flex-direction:column;gap:2px}
 .tm input{font:inherit;padding:6px 4px;border:1px solid var(--ln);border-radius:8px;width:100%}
-.row2{display:flex;gap:6px;margin-top:6px}
+.row2{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
 .lnk{background:none;border:0;color:var(--pri);padding:4px 2px;font-weight:600;font-size:13px}
 .bulk{margin:0 12px 8px;display:flex;gap:6px}
-.btn{background:var(--pri);color:#fff;border:0;border-radius:10px;padding:9px 14px;font-weight:600}
+.btn{background:var(--pri);color:#fff;border:0;border-radius:10px;padding:9px 14px;font-weight:600;text-decoration:none;display:inline-block;font-size:14px}
 .btn.alt{background:#fff;color:var(--pri);border:1px solid var(--pri)}
-nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--ln);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+.btn.sm{padding:6px 10px;font-size:13px;border-radius:9px}
+.btn.wa{background:#1f9d55}.btn.done{background:#e1f3e8;color:var(--ok)}
+.btn:disabled{opacity:.4}
+nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--ln);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:6}
 nav button{flex:1;border:0;background:none;padding:12px 0;font-weight:700;color:var(--mut)}
 nav button[aria-pressed=true]{color:var(--pri);box-shadow:inset 0 3px 0 var(--pri)}
 .gridw{margin:0 12px;overflow:auto;background:#fff;border:1px solid var(--ln);border-radius:12px;max-height:70vh}
@@ -62,17 +67,26 @@ table.g{border-collapse:collapse;font-size:12px}
 #login input{width:100%;font:inherit;padding:10px;border:1px solid var(--ln);border-radius:10px}
 #login .btn{width:100%;margin-top:14px}
 .err{color:var(--bad);font-size:13px;margin-top:8px;min-height:18px}
-.toast{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);background:#1b2430;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;z-index:9;max-width:90%}
+.toast{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);background:#1b2430;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;z-index:20;max-width:90%}
 .hide{display:none!important}
 .menu{position:absolute;right:8px;top:46px;background:#fff;color:var(--ink);border-radius:10px;border:1px solid var(--ln);box-shadow:0 6px 18px rgba(0,0,0,.18);min-width:170px;z-index:8}
 .menu button{display:block;width:100%;text-align:left;background:none;border:0;padding:11px 14px}
 .menu div{padding:8px 14px;font-size:12px;color:var(--mut);border-bottom:1px solid var(--ln)}
+.stars{color:#c27a00;letter-spacing:1px}
+.hint{font-size:12px;color:var(--mut)}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:15;display:flex;align-items:flex-end}
+.sbox{background:#fff;width:100%;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
+.sbox h2{margin:0 0 8px;font-size:17px;color:var(--pri)}
+.sbox label{display:block;margin:9px 0 3px;font-size:12px;color:var(--mut)}
+.sbox input,.sbox select,.sbox textarea{width:100%;font:inherit;padding:9px;border:1px solid var(--ln);border-radius:10px;background:#fff}
+.sbox .acts{display:flex;gap:8px;margin-top:14px}.sbox .acts .btn{flex:1;text-align:center}
+.fh{margin:8px 0 0;padding-left:16px;font-size:12px;color:var(--mut)}
 </style>
 </head>
 <body>
 <div id="login" class="hide">
   <h2>JCGG Care</h2>
-  <div style="color:var(--mut);font-size:13px">Customer Care · Daily Staff Attendance</div>
+  <div style="color:var(--mut);font-size:13px">Customer Care · Attendance · Clients</div>
   <label for="uid">User ID</label><input id="uid" value="jcgg" autocapitalize="off" autocomplete="username">
   <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
   <button class="btn" id="go">Sign In</button>
@@ -82,24 +96,31 @@ table.g{border-collapse:collapse;font-size:12px}
 
 <div id="app" class="hide">
   <header><h1>JCGG Care</h1><span class="who" id="who"></span><button class="ib" id="mb" aria-label="Menu">⋮</button></header>
-  <div class="menu hide" id="menu"><div id="mwho"></div><button id="rf">Refresh Data</button><button id="so">Sign Out</button></div>
-  <div class="bar"><div class="seg" id="ms"></div><span id="stat"></span></div>
-  <div class="note hide" id="lock"></div>
+  <div class="menu hide" id="menu"><div id="mwho"></div><button id="rf">Refresh Data</button><a id="apk" class="hide" href="https://github.com/ssjs1mu/jcgg/releases/download/apk-latest/JCGG-Care.apk" style="display:block;padding:11px 14px;color:inherit;text-decoration:none">Download Android App (APK)</a><button id="so">Sign Out</button></div>
 
-  <section id="vDay">
-    <div class="day"><button id="pv" aria-label="Previous Day">‹</button><input type="date" id="dt"><button id="nx" aria-label="Next Day">›</button></div>
-    <div class="tiles" id="tiles"></div>
-    <div class="bulk"><button class="btn alt" id="allp">Mark Unmarked As Present</button></div>
-    <div class="list" id="list"></div>
+  <section id="tAtt">
+    <div class="bar"><div class="seg" id="ms"></div><div class="seg" id="vs"><button data-v="day" aria-pressed="true">Day</button><button data-v="mon" aria-pressed="false">Month</button></div><span id="stat"></span></div>
+    <div class="note hide" id="lock"></div>
+    <section id="vDay">
+      <div class="day"><button id="pv" aria-label="Previous Day">‹</button><input type="date" id="dt"><button id="nx" aria-label="Next Day">›</button></div>
+      <div class="tiles" id="tiles"></div>
+      <div class="bulk"><button class="btn alt" id="allp">Mark Unmarked As Present</button></div>
+      <div class="list" id="list"></div>
+    </section>
+    <section id="vMon" class="hide">
+      <div class="gridw" id="grid"></div>
+      <p style="margin:8px 14px;font-size:12px;color:var(--mut)">Tap Any Day Cell To Open That Day. P Present · H Half-Day · A Absent · L Paid Leave · W Week Off · WW Worked On Week Off.</p>
+    </section>
   </section>
 
-  <section id="vMon" class="hide">
-    <div class="gridw" id="grid"></div>
-    <p style="margin:8px 14px;font-size:12px;color:var(--mut)">Tap Any Day Cell To Open That Day. P Present · H Half-Day · A Absent · L Paid Leave · W Week Off · WW Worked On Week Off.</p>
+  <section id="tCC" class="hide">
+    <div class="bar"><div class="seg" id="cs"><button data-c="bills" aria-pressed="true">Bills &amp; Thanks</button><button data-c="top" aria-pressed="false">Top Clients</button><button data-c="fb" aria-pressed="false">Feedback</button></div><span id="ccstat"></span></div>
+    <div id="ccv"></div>
   </section>
 
-  <nav><button id="nDay" aria-pressed="true">Day</button><button id="nMon" aria-pressed="false">Month</button></nav>
+  <nav><button id="nAtt" aria-pressed="true">Attendance</button><button id="nCC" aria-pressed="false">Customer Care</button></nav>
 </div>
+<div class="sheet hide" id="sheet"><div class="sbox" id="sbox"></div></div>
 <div class="toast hide" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -107,65 +128,86 @@ table.g{border-collapse:collapse;font-size:12px}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="../js/firebase-config.js"></script>
 <script>
-/* JCGG Care — customer care executive app: daily staff attendance for this month and last month.
-   Same Firebase project, same Customer Care login and the same Firestore security rules as the JCGG Suite (care.js):
-   attendance of this month is always editable; last month only while its salary status (paystatus) is still DRAFT.
-   Reads are kept small on purpose: the masked staff list, two attendance documents and two salary-status flags. */
+/* JCGG Care — Customer Care executive app (installable PWA, also wrapped as an Android APK).
+   Same Firebase project, Customer Care login and Firestore rules as the JCGG Suite (js/care.js):
+   • Attendance: this month always editable, last month only while its salary status (paystatus) is DRAFT. Live listeners.
+   • Customer Care: bills & thank-you WhatsApp, Google-review log, top clients, bill feedback — same records the Suite shows
+     (clients.msgs / clients.reviews, feedback/<id>), so everything entered here is live in Suite → Customer Care. */
 (()=>{
 const $=id=>document.getElementById(id);
 const ST=[["P","Present"],["H","Half-Day"],["A","Absent"],["L","Paid Leave"],["W","Week Off"],["WW","Worked On Week Off"]];
-const STN=Object.fromEntries(ST.concat([["O","Not Scheduled"]]));
+const STN=Object.fromEntries(ST);
 const CC_DOMAIN="care.joshiscorner.app";
 const ist=()=>new Date(Date.now()+330*60000);
 const today=()=>ist().toISOString().slice(0,10);
+const nowLocal=()=>ist().toISOString().slice(0,16);
 const monthId=off=>{const d=ist();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+off);return d.toISOString().slice(0,7)};
 const dim=m=>new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();
 const mLabel=m=>new Date(m+"-15T12:00:00").toLocaleDateString("en-IN",{month:"short",year:"numeric"});
 const dLabel=d=>new Date(d+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const arr=x=>Array.isArray(x)?x:[];
-let db,auth,me=null,staff=[],att={},pay={},M=null,D=today(),view="day",busy=false;
+const inr0=new Intl.NumberFormat("en-IN",{maximumFractionDigits:0});
+const money0=n=>"₹"+inr0.format(Math.round(+n||0));
+const stars=n=>n?"★".repeat(n)+"☆".repeat(5-n):"—";
+const FST=["Open","In progress","Resolved"];
+let db,auth,me=null,staff=[],att={},pay={},M=null,D=today(),tab="att",view="day",cv="bills",busy=false,subs=[];
+let cfg={},clients=[],fbs=[],ccLoaded=false,ccBusy=false,bd=null,lb="month",fq="",fst="";
 const months=[monthId(0),monthId(-1)];
+const by=()=>"Customer Care";
 
 function toast(t){const e=$("toast");e.textContent=t;e.classList.remove("hide");clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add("hide"),2800)}
 function init(){
   firebase.initializeApp(window.JCGG_CONFIG.firebase);db=firebase.firestore();auth=firebase.auth();
-  auth.onAuthStateChanged(async u=>{if(!u){me=null;$("app").classList.add("hide");$("login").classList.remove("hide");return}
+  try{db.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}
+  auth.onAuthStateChanged(async u=>{if(!u){me=null;subs.forEach(f=>f());subs=[];ccLoaded=false;$("app").classList.add("hide");$("login").classList.remove("hide");return}
     me=u;$("login").classList.add("hide");$("app").classList.remove("hide");await load()});
   $("go").onclick=async()=>{const id=$("uid").value.trim().toLowerCase(),pw=$("pw").value;$("err").textContent="";if(!id||!pw){$("err").textContent="Enter The User ID And Password.";return}
     try{await auth.signInWithEmailAndPassword(id.includes("@")?id:id+"@"+CC_DOMAIN,pw)}catch(e){$("err").textContent=/invalid|wrong|user-not-found|credential/.test(e.code||"")?"User ID Or Password Is Not Correct.":(e.message||"Sign-In Failed.")}};
   $("pw").addEventListener("keydown",e=>{if(e.key==="Enter")$("go").click()});
-  $("gg").onclick=async()=>{try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}catch(e){$("err").textContent=e.code==="auth/popup-closed-by-user"?"":"Google Sign-In Failed: "+(e.message||e.code)}};
+  $("gg").onclick=async()=>{try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}catch(e){$("err").textContent=e.code==="auth/popup-closed-by-user"?"":"Google Sign-In Failed In This App — Use The User ID And Password."}};
   $("mb").onclick=e=>{e.stopPropagation();$("menu").classList.toggle("hide")};document.addEventListener("click",()=>$("menu").classList.add("hide"));
-  $("so").onclick=()=>auth.signOut();$("rf").onclick=()=>load(true);
-  $("nDay").onclick=()=>setView("day");$("nMon").onclick=()=>setView("mon");
+  $("so").onclick=()=>auth.signOut();$("rf").onclick=()=>{load(true);if(tab==="cc")loadCC(true)};
+  $("nAtt").onclick=()=>setTab("att");$("nCC").onclick=()=>setTab("cc");
+  $("vs").querySelectorAll("button").forEach(b=>b.onclick=()=>setView(b.dataset.v));
+  $("cs").querySelectorAll("button").forEach(b=>b.onclick=()=>{cv=b.dataset.c;renderCC()});
   $("pv").onclick=()=>step(-1);$("nx").onclick=()=>step(1);$("dt").onchange=e=>{if(e.target.value)goDay(e.target.value)};
   $("allp").onclick=markAll;
+  $("sheet").addEventListener("click",e=>{if(e.target===$("sheet"))closeSheet()});
+  if(!/; wv\)/.test(navigator.userAgent)&&/Android/.test(navigator.userAgent))$("apk").classList.remove("hide");
   if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
 async function load(manual){
   if(busy)return;busy=true;$("stat").innerHTML='<span class="chip">Loading…</span>';
   try{
     $("who").textContent=(me.email||"").split("@")[0];$("mwho").textContent=me.email||"";
-    const [sc,...rest]=await Promise.all([db.collection("staffcc").get(),...months.map(m=>db.collection("attendance").doc(m).get()),...months.map(m=>db.collection("paystatus").doc(m).get())]);
+    const sc=await db.collection("staffcc").get();
     staff=sc.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
-    months.forEach((m,i)=>{att[m]=rest[i].exists?rest[i].data():{id:m,days:{}};pay[m]=rest[2+i].exists?(rest[2+i].data().status||"DRAFT"):"DRAFT"});
+    subs.forEach(f=>f());subs=[];
+    // live listeners on the two attendance documents and the two salary-status flags (4 small documents)
+    months.forEach(m=>{
+      subs.push(db.collection("attendance").doc(m).onSnapshot(s=>{att[m]=s.exists?s.data():{id:m,days:{}};if(M)render()},e=>toast("Attendance: "+(e.message||e))));
+      subs.push(db.collection("paystatus").doc(m).onSnapshot(s=>{pay[m]=s.exists?(s.data().status||"DRAFT"):"DRAFT";if(M)render()},()=>{pay[m]=pay[m]||"DRAFT"}));
+    });
     if(!M||!months.includes(M))M=months[0];if(D.slice(0,7)!==M)D=M===months[0]?today():M+"-"+dim(M);
+    months.forEach(m=>{att[m]=att[m]||{id:m,days:{}};pay[m]=pay[m]||"DRAFT"});
     if(manual)toast("Data Refreshed");render();
   }catch(e){$("stat").innerHTML='<span class="chip bad">Could Not Load</span>';toast(/permission/i.test(e.message||"")?"This Login Is Not Allowed To Read Attendance.":"Could Not Load: "+(e.message||e))}
   finally{busy=false}
 }
 const inSvc=(s,d)=>{const st=arr(s.stints);if(!st.length)return s.active!==false;return st.some(x=>(!x.join||x.join<=d)&&(!x.exit||x.exit>=d))};
-const editable=m=>m===months[0]?{ok:true}:(pay[m]==="DRAFT"?{ok:true}:{ok:false,why:`Salary For ${mLabel(m)} Is ${pay[m].charAt(0)+pay[m].slice(1).toLowerCase()} — Attendance Is Locked.`});
+const editable=m=>m===months[0]?{ok:true}:((pay[m]||"DRAFT")==="DRAFT"?{ok:true}:{ok:false,why:`Salary For ${mLabel(m)} Is ${pay[m].charAt(0)+pay[m].slice(1).toLowerCase()} — Attendance Is Locked.`});
 const rec=(m,day,sid)=>att[m]?.days?.[String(day)]?.[sid]||{};
-function setView(v){view=v;$("vDay").classList.toggle("hide",v!=="day");$("vMon").classList.toggle("hide",v!=="mon");$("nDay").setAttribute("aria-pressed",v==="day");$("nMon").setAttribute("aria-pressed",v==="mon");render()}
+function setTab(t){tab=t;$("tAtt").classList.toggle("hide",t!=="att");$("tCC").classList.toggle("hide",t!=="cc");$("nAtt").setAttribute("aria-pressed",t==="att");$("nCC").setAttribute("aria-pressed",t==="cc");
+  if(t==="cc"){if(!ccLoaded)loadCC();renderCC()}else render()}
+function setView(v){view=v;$("vDay").classList.toggle("hide",v!=="day");$("vMon").classList.toggle("hide",v!=="mon");$("vs").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===v));render()}
 function goDay(d){const lim=M===months[0]?today():M+"-"+dim(M);if(d>lim)d=lim;if(d<M+"-01")d=M+"-01";D=d;setView("day")}
 function step(n){const d=new Date(D+"T12:00:00");d.setDate(d.getDate()+n);goDay(d.toISOString().slice(0,10))}
 function render(){
-  if(!staff.length&&!Object.keys(att).length)return;
+  if(tab!=="att"||!M)return;
   $("ms").innerHTML=months.map((m,i)=>`<button data-m="${m}" aria-pressed="${m===M}">${i?"Last Month":"This Month"} · ${mLabel(m).split(" ")[0]}</button>`).join("");
   $("ms").querySelectorAll("button").forEach(b=>b.onclick=()=>{M=b.dataset.m;D=M===months[0]?today():M+"-"+dim(M);render()});
-  const ed=editable(M);$("stat").innerHTML=`<span class="chip ${pay[M]==="DRAFT"?"ok":"bad"}" title="Last month stays editable only while its salary is in draft">Salary ${pay[M].charAt(0)+pay[M].slice(1).toLowerCase()}</span>`;
+  const ed=editable(M);const ps=pay[M]||"DRAFT";$("stat").innerHTML=`<span class="chip ${ps==="DRAFT"?"ok":"bad"}" title="Last month stays editable only while its salary is in draft">Salary ${ps.charAt(0)+ps.slice(1).toLowerCase()}</span>`;
   const lk=$("lock");lk.textContent=ed.ok?"":ed.why;lk.classList.toggle("hide",ed.ok);
   if(view==="day")renderDay(ed);else renderMonth();
 }
@@ -173,12 +215,14 @@ function renderDay(ed){
   const day=+D.slice(8),can=ed.ok&&D<=today();const list=staff.filter(s=>inSvc(s,D));
   $("dt").value=D;$("dt").min=M+"-01";$("dt").max=M===months[0]?today():M+"-"+dim(M);$("pv").disabled=D<=M+"-01";$("nx").disabled=D>=$("dt").max;
   const cnt={P:0,H:0,A:0,un:0};for(const s of list){const v=rec(M,day,s.id).s;if(!v)cnt.un++;else if(cnt[v]!==undefined)cnt[v]++}
-  $("tiles").innerHTML=[["Present",cnt.P,"ok","Staff Marked Present On "+dLabel(D)],["Half-Day",cnt.H,"","Staff Marked Half-Day"],["Absent",cnt.A,"bad","Staff Marked Absent"],["Unmarked",cnt.un,"warn","Staff Still Without A Status For This Day"]].map(t=>`<div class="tile" title="${esc(t[3])}"><b>${t[1]}</b><span>${t[0]}</span></div>`).join("");
+  $("tiles").innerHTML=[["Present",cnt.P,"Staff Marked Present On "+dLabel(D)],["Half-Day",cnt.H,"Staff Marked Half-Day"],["Absent",cnt.A,"Staff Marked Absent"],["Unmarked",cnt.un,"Staff Still Without A Status For This Day"]].map(t=>`<div class="tile" title="${esc(t[2])}"><b>${t[1]}</b><span>${t[0]}</span></div>`).join("");
   $("allp").disabled=!can||!cnt.un;$("allp").classList.toggle("hide",!can);
+  // keep open "Times" panels and typed values stable across live refreshes
+  const open=new Set([...$("list").querySelectorAll("details[open]")].map(d=>d.closest(".card")?.dataset.s));
   $("list").innerHTML=list.map(s=>{const r=rec(M,day,s.id);const x=`${s.id}`;
     return `<div class="card" data-s="${esc(x)}"><h3>${esc(s.name)}</h3><div class="sub">${esc(s.desig||"")}${s.shiftStart?" · Shift "+esc(s.shiftStart)+(s.shiftEnd?"–"+esc(s.shiftEnd):""):""}</div>
     <div class="st">${ST.map(([k,l])=>`<button class="s-${k}" data-k="${k}" aria-pressed="${r.s===k}" title="${l}" ${can?"":"disabled"}>${k}</button>`).join("")}</div>
-    <details${r.in||r.out||r.in2||r.out2?" open":""}><summary class="lnk">Times</summary><div class="tm">${[["in","In"],["out","Out"],["in2","In 2"],["out2","Out 2"]].map(([f,l])=>`<label>${l}<input type="time" data-f="${f}" value="${esc(r[f]||"")}" ${can?"":"disabled"}></label>`).join("")}</div>
+    <details${r.in||r.out||r.in2||r.out2||open.has(x)?" open":""}><summary class="lnk">Times</summary><div class="tm">${[["in","In"],["out","Out"],["in2","In 2"],["out2","Out 2"]].map(([f,l])=>`<label>${l}<input type="time" data-f="${f}" value="${esc(r[f]||"")}" ${can?"":"disabled"}></label>`).join("")}</div>
     ${can?`<div class="row2"><button class="lnk" data-now="in">In Now</button><button class="lnk" data-now="out">Out Now</button></div>`:""}</details></div>`}).join("")||'<div class="card">No Staff In Service On This Day.</div>';
   $("list").querySelectorAll(".card").forEach(c=>{const sid=c.dataset.s;
     c.querySelectorAll(".st button").forEach(b=>b.onclick=()=>{const cur=rec(M,day,sid).s;setField(M,day,sid,"s",cur===b.dataset.k?null:b.dataset.k)});
@@ -196,9 +240,8 @@ async function setField(m,day,sid,f,v){
   const ed=editable(m);if(!ed.ok){toast(ed.why);return render()}
   const dstr=m+"-"+String(day).padStart(2,"0");if(dstr>today()){toast("Attendance Cannot Be Marked For A Future Day.");return render()}
   const cur=rec(m,day,sid);const prev=cur[f]??"";const u={[f]:v,auto:null,autoT:null};if(f==="in"&&v&&!cur.s)u.s="P";
-  const by=me.email?me.email.split("@")[0]:"care";
-  const entry={at:Date.now(),by,sid,day:+day,f,from:prev,to:v||""};
-  // optimistic update, then save; a failed save puts the screen back to what the server holds
+  const nm=me.email?me.email.split("@")[0]:"care";
+  const entry={at:Date.now(),by:nm,sid,day:+day,f,from:prev,to:v||""};
   const before=JSON.stringify(att[m]);att[m]=att[m]||{id:m,days:{}};att[m].days=att[m].days||{};att[m].days[String(day)]=att[m].days[String(day)]||{};att[m].days[String(day)][sid]={...cur,...u};render();
   try{
     await db.collection("attendance").doc(m).set({id:m,days:{[String(day)]:{[sid]:u}},cclog:firebase.firestore.FieldValue.arrayUnion(entry)},{merge:true});
@@ -208,12 +251,121 @@ async function setField(m,day,sid,f,v){
 async function markAll(){
   const ed=editable(M);if(!ed.ok)return toast(ed.why);const day=+D.slice(8);const todo=staff.filter(s=>inSvc(s,D)&&!rec(M,day,s.id).s);if(!todo.length)return;
   if(!confirm("Mark "+todo.length+" Unmarked Staff As Present For "+dLabel(D)+"?"))return;
-  const by=me.email?me.email.split("@")[0]:"care";const days={[String(day)]:{}};const logs=[];
-  for(const s of todo){days[String(day)][s.id]={s:"P",auto:null,autoT:null};logs.push({at:Date.now(),by,sid:s.id,day,f:"s",from:"",to:"P"})}
+  const nm=me.email?me.email.split("@")[0]:"care";const days={[String(day)]:{}};const logs=[];
+  for(const s of todo){days[String(day)][s.id]={s:"P",auto:null,autoT:null};logs.push({at:Date.now(),by:nm,sid:s.id,day,f:"s",from:"",to:"P"})}
   const before=JSON.stringify(att[M]);att[M]=att[M]||{id:M,days:{}};att[M].days=att[M].days||{};att[M].days[String(day)]={...(att[M].days[String(day)]||{})};for(const s of todo)att[M].days[String(day)][s.id]={...rec(M,day,s.id),s:"P"};render();
   try{await db.collection("attendance").doc(M).set({id:M,days,cclog:firebase.firestore.FieldValue.arrayUnion(...logs)},{merge:true});toast(todo.length+" Marked Present")}
   catch(e){att[M]=JSON.parse(before);render();toast("Could Not Save: "+(e.message||e))}
 }
+
+/* ================= Customer Care ================= */
+async function loadCC(manual){
+  if(ccBusy)return;ccBusy=true;$("ccstat").innerHTML='<span class="chip">Loading…</span>';
+  try{
+    const [cs,fs,ss]=await Promise.all([db.collection("clients").get(),db.collection("feedback").get(),db.collection("meta").doc("settings").get()]);
+    clients=cs.docs.map(d=>({id:d.id,...d.data()}));fbs=fs.docs.map(d=>({id:d.id,...d.data()}));cfg=ss.exists?ss.data():{};ccLoaded=true;
+    $("ccstat").innerHTML=`<span class="chip ok" title="Clients loaded">${clients.length} Clients</span>`;if(manual)toast("Customer Care Data Refreshed");
+  }catch(e){$("ccstat").innerHTML='<span class="chip bad">Could Not Load</span>';toast(/permission/i.test(e.message||"")?"This Login Is Not Allowed To Read Clients.":"Could Not Load: "+(e.message||e))}
+  finally{ccBusy=false;renderCC()}
+}
+const earns=c=>arr(c.pts).filter(p=>p.type==="earn");
+const bills=()=>clients.flatMap(c=>earns(c).map(p=>({c,p})));
+const bal=c=>arr(c.pts).reduce((t,p)=>t+(p.type==="redeem"?-p.points:+p.points||0),0);
+const digits=p=>{let d=String(p||"").replace(/\D/g,"");if(d.length===10)d="91"+d;return d.length>=11?d:""};
+const DEF_TPL={thanks:"Dear {name}, thank you for dining with {business} today (bill {bill}, ₹{amount}). We hope you loved it! If you have a minute, please share your experience on Google: {review} — it helps us a lot. 🙏",
+  points:"Dear {name}, your {business} reward balance is {points} points (worth ₹{worth}). You earn 1 point for every ₹{per} spent. See you soon!"};
+const tpl=k=>(cfg.waTpl||{})[k]||DEF_TPL[k];
+function waText(k,c,b){const lb=b||{};const val=+cfg.rewardValue||1;const per=+cfg.rewardPer||100;const pts=bal(c);
+  return tpl(k).replace(/\{(\w+)\}/g,(_,x)=>({name:(c.name||"").split(" ")[0]||"Guest",points:inr0.format(pts),worth:inr0.format(pts*val),bill:lb.bill||"",amount:inr0.format(+lb.amt||0),date:lb.date||"",review:cfg.reviewLink||"",business:cfg.business||"Joshi's Corner",per:String(per)})[x]??"")}
+const waLink=(c,k,b)=>{const d=digits(c.wa||c.phone);return d?"https://wa.me/"+d+"?text="+encodeURIComponent(waText(k,c,b)):""};
+function renderCC(){
+  $("cs").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.c===cv));
+  if(tab!=="cc")return;const root=$("ccv");
+  if(!ccLoaded){root.innerHTML='<div class="list"><div class="card">Loading Clients…</div></div>';return}
+  root.innerHTML=cv==="bills"?vBills():cv==="top"?vTop():vFb();wireCC(root);
+}
+function vBills(){
+  const all=bills();const d=bd||all.map(x=>x.p.date).sort().at(-1)||today();
+  const list=all.filter(x=>x.p.date===d).sort((a,b)=>(b.p.time||"").localeCompare(a.p.time||""));
+  const tot=list.reduce((s,x)=>s+(+x.p.amt||0),0);
+  return `<div class="day"><button data-a="bd-" aria-label="Previous Day">‹</button><input type="date" id="bdate" value="${d}"><button data-a="bd+" aria-label="Next Day">›</button></div>
+  <div class="tiles"><div class="tile" title="Bills on ${esc(dLabel(d))}"><b>${list.length}</b><span>Bills</span></div><div class="tile" title="Total sales of these bills"><b>${money0(tot)}</b><span>Sales</span></div>
+  <div class="tile" title="Thank-you messages already sent for these bills"><b>${list.filter(x=>arr(x.c.msgs).some(m=>m.kind==="thanks"&&m.bill===x.p.bill)).length}</b><span>Thanked</span></div>
+  <div class="tile" title="Google reviews logged against these bills"><b>${list.filter(x=>arr(x.c.reviews).some(r=>r.bill===x.p.bill)).length}</b><span>Reviews</span></div></div>
+  ${cfg.reviewLink?"":'<div class="note">Google Review Link Is Not Set — Ask The Owner To Add It In The Suite (Customer Care → Messages &amp; Review Link) So Thank-You Messages Include It.</div>'}
+  <div class="list">${list.map(({c,p})=>{const sent=arr(c.msgs).some(m=>m.kind==="thanks"&&m.bill===p.bill);const rev=arr(c.reviews).find(r=>r.bill===p.bill);const l=waLink(c,"thanks",p);
+    return `<div class="card"><div class="top"><div><h3>${esc(c.name)}</h3><div class="sub">${esc(c.code||"")} · ${esc(c.phone||"")}</div><div class="sub">Bill ${esc(p.bill||"")} · ${esc(p.time||"")} · ${p.points||0} Pts</div></div><div class="amt">${money0(p.amt)}</div></div>
+    <div class="row2">${l?`<a class="btn sm ${sent?"done":"wa"}" href="${l}" target="_blank" rel="noopener" data-a="wa" data-c="${esc(c.id)}" data-b="${esc(p.bill||"")}">${sent?"Thanked ✓ Again":"WhatsApp Thanks"}</a>`:'<span class="hint">No Mobile</span>'}
+    ${rev?`<span class="chip ok" title="Review logged">Review ${esc((rev.at||"").replace("T"," "))}${rev.stars?" · "+rev.stars+"★":""}</span>`:`<button class="btn sm alt" data-a="rev" data-c="${esc(c.id)}" data-b="${esc(p.bill||"")}">Log Review</button>`}
+    <button class="btn sm alt" data-a="fbn" data-c="${esc(c.id)}" data-b="${esc(p.bill||"")}">Feedback</button></div></div>`}).join("")||'<div class="card">No Bills On This Day.</div>'}</div>
+  <p class="hint" style="margin:8px 14px">Bills Come From The Petpooja Sales Upload Done By The Owner In The Suite.</p>`}
+function vTop(){
+  const t=today();const pre=lb==="day"?t:lb==="month"?t.slice(0,7):t.slice(0,4);const byc={};
+  for(const {c,p} of bills())if((p.date||"").startsWith(pre)){const x=byc[c.id]??={c,amt:0,n:0,pts:0};x.amt+=+p.amt||0;x.n++;x.pts+=+p.points||0}
+  const rows=Object.values(byc).sort((a,b)=>b.amt-a.amt).slice(0,25);
+  return `<div class="bar" style="padding-top:0"><div class="seg">${[["day","Today"],["month","This Month"],["year","This Year"]].map(([v,l])=>`<button data-a="lb" data-v="${v}" aria-pressed="${lb===v}">${l}</button>`).join("")}</div></div>
+  <div class="list">${rows.map((r,i)=>{const l=waLink(r.c,"points");return `<div class="card"><div class="top"><div><h3>${i<3?["🥇","🥈","🥉"][i]:i+1+"."} ${esc(r.c.name)}</h3><div class="sub">${esc(r.c.code||"")} · ${esc(r.c.phone||"")}</div><div class="sub">${r.n} Bills · ${inr0.format(r.pts)} Pts Earned · Balance ${inr0.format(bal(r.c))}</div></div><div class="amt">${money0(r.amt)}</div></div>
+    ${l?`<div class="row2"><a class="btn sm wa" href="${l}" target="_blank" rel="noopener" data-a="wa" data-c="${esc(r.c.id)}" data-k="points" data-b="">WhatsApp Points</a></div>`:""}</div>`}).join("")||'<div class="card">No Sales In This Period.</div>'}</div>`}
+function vFb(){
+  const q=fq.toLowerCase();const list=fbs.filter(f=>(!fst||f.status===fst)&&(!q||[f.bill,f.phone,f.clientName,f.code,f.food,f.service].join(" ").toLowerCase().includes(q))).sort((a,b)=>(b.at||"").localeCompare(a.at||""));
+  const cnt=s=>fbs.filter(f=>f.status===s).length;const rated=fbs.filter(f=>f.rating);
+  return `<div class="tiles"><div class="tile" title="All feedback entries"><b>${fbs.length}</b><span>Feedback</span></div><div class="tile" title="To act on"><b>${cnt("Open")}</b><span>Open</span></div><div class="tile"><b>${cnt("In progress")}</b><span>In Progress</span></div><div class="tile" title="${rated.length} rated"><b>${rated.length?(rated.reduce((s,f)=>s+f.rating,0)/rated.length).toFixed(1)+"★":"—"}</b><span>Average</span></div></div>
+  <div class="day"><input id="fq" placeholder="Search Bill, Mobile, Client, Text" value="${esc(fq)}" style="text-align:left"><button data-a="fbn" aria-label="New Feedback" style="color:var(--pri);font-weight:700">＋</button></div>
+  <div class="bar" style="padding-top:0"><div class="seg">${[["","All"],...FST.map(s=>[s,s])].map(([v,l])=>`<button data-a="fst" data-v="${v}" aria-pressed="${fst===v}">${l}</button>`).join("")}</div></div>
+  <div class="list">${list.map(f=>`<div class="card"><div class="top"><div><h3>${esc(f.clientName||f.phone||"Unknown Client")}</h3><div class="sub">Bill ${esc(f.bill)} · ${esc((f.at||"").replace("T"," "))}</div></div><div><span class="stars">${stars(f.rating)}</span></div></div>
+    ${f.food?`<div class="sub"><b>Food:</b> ${esc(f.food.slice(0,160))}</div>`:""}${f.service?`<div class="sub"><b>Service:</b> ${esc(f.service.slice(0,160))}</div>`:""}
+    <div class="row2"><span class="chip ${f.status==="Resolved"?"ok":f.status==="Open"?"warn":""}">${esc(f.status)}</span><button class="btn sm alt" data-a="fbe" data-id="${esc(f.id)}">Edit</button></div>${f.resolution?`<div class="hint">${esc(f.resolution.slice(0,100))}</div>`:""}</div>`).join("")||'<div class="card">No Feedback Yet.</div>'}</div>`}
+function wireCC(root){
+  const bdate=root.querySelector("#bdate");if(bdate)bdate.onchange=()=>{bd=bdate.value||null;renderCC()};
+  const fqi=root.querySelector("#fq");if(fqi)fqi.oninput=()=>{fq=fqi.value;clearTimeout(wireCC.t);wireCC.t=setTimeout(()=>{renderCC();const n=$("fq");n.focus();n.setSelectionRange(n.value.length,n.value.length)},250)};
+  root.querySelectorAll("[data-a]").forEach(el=>el.addEventListener("click",()=>{const a=el.dataset.a;
+    if(a==="bd-"||a==="bd+"){const cur=bd||bills().map(x=>x.p.date).sort().at(-1)||today();const d=new Date(cur+"T12:00:00");d.setDate(d.getDate()+(a==="bd+"?1:-1));bd=d.toISOString().slice(0,10);renderCC()}
+    else if(a==="lb"){lb=el.dataset.v;renderCC()}
+    else if(a==="fst"){fst=el.dataset.v;renderCC()}
+    else if(a==="wa")logMsg(el.dataset.c,el.dataset.k||"thanks",el.dataset.b);
+    else if(a==="rev")reviewSheet(el.dataset.c,el.dataset.b);
+    else if(a==="fbn")fbSheet(null,el.dataset.c,el.dataset.b);
+    else if(a==="fbe")fbSheet(el.dataset.id)}));
+}
+// WhatsApp opens through the link itself; here the send is logged on the client (same record as the Suite's ccWa)
+async function logMsg(cid,kind,bill){const c=clients.find(x=>x.id===cid);if(!c)return;const m={at:Date.now(),kind,bill:bill||"",by:by()};
+  c.msgs=[...arr(c.msgs),m];setTimeout(renderCC,400);
+  try{await db.collection("clients").doc(cid).update({id:cid,msgs:firebase.firestore.FieldValue.arrayUnion(m)})}catch(e){toast("Could Not Log The Message: "+(e.message||e))}}
+function openSheet(html){$("sbox").innerHTML=html;$("sheet").classList.remove("hide")}
+function closeSheet(){$("sheet").classList.add("hide");$("sbox").innerHTML=""}
+function reviewSheet(cid,bill){const c=clients.find(x=>x.id===cid);if(!c)return;
+  openSheet(`<h2>Log Google Review</h2><div class="hint">${esc(c.name)} · ${esc(c.code||"")} · ${esc(c.phone||"")}</div>
+  <label>Against Bill</label><input id="r-bill" value="${esc(bill||"")}"><label>Review Date &amp; Time</label><input id="r-at" type="datetime-local" value="${nowLocal()}">
+  <label>Stars</label><select id="r-st"><option value="">—</option>${[5,4,3,2,1].map(n=>`<option>${n}</option>`).join("")}</select><label>Review Text / Link (Optional)</label><textarea id="r-note" rows="2"></textarea>
+  <div class="acts"><button class="btn alt" id="x">Cancel</button><button class="btn" id="ok">Save Review</button></div>`);
+  $("x").onclick=closeSheet;
+  $("ok").onclick=async()=>{const at=$("r-at").value;if(!at)return toast("Enter The Review Date And Time.");
+    const r={id:"r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),at,bill:$("r-bill").value.trim(),stars:$("r-st").value?+$("r-st").value:null,note:$("r-note").value.trim(),by:by(),loggedAt:Date.now()};
+    $("ok").disabled=true;
+    try{await db.collection("clients").doc(cid).update({id:cid,reviews:firebase.firestore.FieldValue.arrayUnion(r),lastReviewAt:at,lastReviewBill:r.bill});c.reviews=[...arr(c.reviews),r];closeSheet();toast("Review Logged");renderCC()}
+    catch(e){$("ok").disabled=false;toast("Could Not Save: "+(e.message||e))}}}
+function fbSheet(id,cid,bill){
+  const f=id?fbs.find(x=>x.id===id):{at:nowLocal(),rating:"",status:"Open"};if(!f)return;const c=id?clients.find(x=>x.id===f.clientId):clients.find(x=>x.id===cid);
+  const who=id?(f.phone||c?.phone||c?.code||""):(c?.phone||c?.code||"");const bl=id?(f.bill||""):(bill||"");
+  openSheet(`<h2>${id?"Feedback · Bill "+esc(f.bill||""):"New Bill Feedback"}</h2>
+  <label>Client Mobile / Number</label><input id="f-who" value="${esc(who)}" placeholder="Mobile Or CL-0001"><label>Bill Number</label><input id="f-bill" value="${esc(bl)}">
+  <label>Date &amp; Time</label><input id="f-at" type="datetime-local" value="${esc(f.at||nowLocal())}"><label>Rating</label>
+  <select id="f-rt"><option value="">—</option>${[["5","5 ★ Excellent"],["4","4 ★ Good"],["3","3 ★ Average"],["2","2 ★ Poor"],["1","1 ★ Very Poor"]].map(([v,l])=>`<option value="${v}" ${String(f.rating||"")===v?"selected":""}>${l}</option>`).join("")}</select>
+  <label>Food Feedback</label><textarea id="f-food" rows="2">${esc(f.food||"")}</textarea><label>Service Feedback</label><textarea id="f-svc" rows="2">${esc(f.service||"")}</textarea>
+  <label>Resolution Status</label><select id="f-st">${FST.map(s=>`<option ${s===(f.status||"Open")?"selected":""}>${s}</option>`).join("")}</select><label>Action Taken / Resolution</label><textarea id="f-res" rows="2">${esc(f.resolution||"")}</textarea>
+  ${arr(f.history).length?`<ul class="fh">${arr(f.history).map(h=>`<li>${new Date(h.at).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})} · ${esc(h.by)} · ${esc(h.text)}</li>`).join("")}</ul>`:""}
+  <div class="acts"><button class="btn alt" id="x">Cancel</button><button class="btn" id="ok">Save Feedback</button></div>`);
+  $("x").onclick=closeSheet;
+  $("ok").onclick=async()=>{const w=$("f-who").value.trim();const bill2=$("f-bill").value.trim();if(!bill2)return toast("Enter The Bill Number.");
+    const ph=w.replace(/\D/g,"").slice(-10);const cl=clients.find(x=>(ph.length===10&&String(x.phone||"").replace(/\D/g,"").slice(-10)===ph)||(x.code&&x.code.toLowerCase()===w.toLowerCase()));
+    const fd={rating:$("f-rt").value,status:$("f-st").value,resolution:$("f-res").value.trim(),food:$("f-food").value.trim(),service:$("f-svc").value.trim()};
+    const now=Date.now();const changes=id?["rating","status","resolution","food","service"].filter(k=>String(f[k]??"")!==String(fd[k]??"")).map(k=>k+": "+(String(fd[k]).slice(0,60)||"—")):["created"];
+    const rec2={...(id?f:{createdAt:now,by:by()}),id:id||"fb-"+now.toString(36)+Math.random().toString(36).slice(2,6),clientId:cl?.id||"",clientName:cl?.name||"",code:cl?.code||"",phone:ph||w,bill:bill2,at:$("f-at").value||nowLocal(),
+      rating:fd.rating?+fd.rating:null,food:fd.food,service:fd.service,status:fd.status,resolution:fd.resolution,updatedAt:now,updatedBy:by(),
+      history:[...arr(f.history),...(changes.length?[{at:now,by:by(),text:changes.join("; ")}]:[])],...(fd.status==="Resolved"&&f.status!=="Resolved"?{resolvedAt:now,resolvedBy:by()}:{})};
+    $("ok").disabled=true;
+    try{await db.collection("feedback").doc(rec2.id).set(rec2);const i=fbs.findIndex(x=>x.id===rec2.id);if(i>=0)fbs[i]=rec2;else fbs.push(rec2);closeSheet();toast(cl?"Feedback Saved For "+cl.name:"Feedback Saved — No Client With This Number Yet");renderCC()}
+    catch(e){$("ok").disabled=false;toast("Could Not Save: "+(e.message||e))}}}
 init();
 })();
 </script>
