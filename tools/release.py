@@ -13,7 +13,7 @@ FILES = {
   "kitchen": ["js/mod-kitchen.js", "js/kitchen-plus.js", "js/masala.js", "js/recipe-lib.js", "js/picpick.js"],
   "kot": ["js/mod-staffkot.js", "js/mod-kot.js", "js/skpay.js"],
   "staff": ["js/mod-staff.js", "js/escrow.js", "js/mod-people.js", "js/mod-rules.js", "js/access.js"],
-  "care": ["js/care.js", "docs/customer-care.md"],
+  "care": ["js/care.js", "docs/customer-care.md", "care/index.html", "care/sw.js", "care/manifest.webmanifest"],
   "agreements": ["js/agreements.js"],
   "directory": ["js/mod-directory.js", "js/mod-clients.js", "js/dir-snapshot.js"],
   "accounts": ["js/ledpop.js", "js/mod-accounts.js", "js/lock.js", "js/autocheck.js", "js/merge.js", "js/dupes.js", "js/gstpaid.js", "js/bankmatch.js", "js/matchall.js", "js/divisions.js", "js/register.js", "js/pendsheet.js", "js/cardrecon.js", "js/expcat.js", "js/connections.js", "js/remap.js", "js/movepick.js", "js/personal.js", "js/masters.js", "js/bankpdf.js", "js/loans.js"],

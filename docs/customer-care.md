@@ -130,3 +130,7 @@ are picked up by the owner's payroll the next time it recalculates.
 * Entries inside a record — service records, premiums, claims, reward entries, reviews, staff notes, salary revisions —
   have **edit / delete** links; a linked accounting entry follows the new amount and date or is removed.
 * Supplier bills: header edit (date, invoice, order, note; voucher and stock receipt follow). Staff KOTs: date, quantity, rate.
+
+## 9. JCGG Care Android app (`care/`)
+
+Installable PWA at `/care/` (own manifest and service worker). Same Firebase project, Customer Care login (user ID `jcgg` or a listed Google account) and the same security rules as section 7. Reads only `staffcc`, `attendance/<this month>`, `attendance/<last month>` and `paystatus/<month>`; writes `attendance.days` and `attendance.cclog` (set with merge). Last month is editable only while its salary status is DRAFT; future days are blocked.

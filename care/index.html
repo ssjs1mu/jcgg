@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#b23a0b">
+<title>JCGG Care</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="../icons/icon-192.png">
+<style>
+:root{--bg:#f4f1ec;--card:#fff;--ink:#1b2430;--mut:#6b7480;--pri:#b23a0b;--ok:#1d7a46;--bad:#b3261e;--warn:#9a6700;--ln:#e3ded6}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:64px}
+header{position:sticky;top:0;z-index:5;background:var(--pri);color:#fff;padding:8px 12px calc(8px);display:flex;align-items:center;gap:8px}
+header h1{font-size:17px;margin:0;flex:1}
+header .who{font-size:12px;opacity:.9}
+button{font:inherit;cursor:pointer}
+.ib{background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:8px;padding:6px 10px}
+.bar{display:flex;gap:6px;align-items:center;padding:8px 12px;flex-wrap:wrap}
+.seg{display:flex;border:1px solid var(--pri);border-radius:10px;overflow:hidden}
+.seg button{border:0;background:#fff;color:var(--pri);padding:7px 12px;font-weight:600}
+.seg button[aria-pressed=true]{background:var(--pri);color:#fff}
+.chip{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;background:#eee;color:var(--mut)}
+.chip.ok{background:#e1f3e8;color:var(--ok)}.chip.bad{background:#fbe4e2;color:var(--bad)}.chip.warn{background:#fff1d6;color:var(--warn)}
+.note{margin:0 12px 8px;padding:8px 10px;border-radius:10px;background:#fff1d6;color:var(--warn);font-size:13px}
+.day{display:flex;align-items:center;gap:6px;padding:0 12px 8px}
+.day input{flex:1;font:inherit;padding:8px;border:1px solid var(--ln);border-radius:10px;background:#fff;text-align:center}
+.day button{background:#fff;border:1px solid var(--ln);border-radius:10px;padding:8px 14px;font-size:18px}
+.day button:disabled{opacity:.35}
+.tiles{display:flex;gap:6px;padding:0 12px 8px;overflow-x:auto}
+.tile{flex:1;min-width:70px;background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:6px 8px;text-align:center}
+.tile b{display:block;font-size:20px}.tile span{font-size:11px;color:var(--mut);text-transform:capitalize}
+.list{padding:0 12px;display:flex;flex-direction:column;gap:8px}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:10px}
+.card h3{margin:0;font-size:15px}.card .sub{font-size:12px;color:var(--mut)}
+.st{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
+.st button{flex:1;min-width:44px;padding:8px 0;border:1px solid var(--ln);background:#fafafa;border-radius:9px;font-weight:700;color:var(--ink)}
+.st button[aria-pressed=true]{color:#fff;border-color:transparent}
+.s-P[aria-pressed=true]{background:var(--ok)}.s-H[aria-pressed=true]{background:#c27a00}.s-A[aria-pressed=true]{background:var(--bad)}
+.s-L[aria-pressed=true]{background:#2563a8}.s-W[aria-pressed=true]{background:#6b7480}.s-WW[aria-pressed=true]{background:#7a3fa8}
+.tm{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.tm label{font-size:11px;color:var(--mut);display:flex;flex-direction:column;gap:2px}
+.tm input{font:inherit;padding:6px 4px;border:1px solid var(--ln);border-radius:8px;width:100%}
+.row2{display:flex;gap:6px;margin-top:6px}
+.lnk{background:none;border:0;color:var(--pri);padding:4px 2px;font-weight:600;font-size:13px}
+.bulk{margin:0 12px 8px;display:flex;gap:6px}
+.btn{background:var(--pri);color:#fff;border:0;border-radius:10px;padding:9px 14px;font-weight:600}
+.btn.alt{background:#fff;color:var(--pri);border:1px solid var(--pri)}
+nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--ln);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;border:0;background:none;padding:12px 0;font-weight:700;color:var(--mut)}
+nav button[aria-pressed=true]{color:var(--pri);box-shadow:inset 0 3px 0 var(--pri)}
+.gridw{margin:0 12px;overflow:auto;background:#fff;border:1px solid var(--ln);border-radius:12px;max-height:70vh}
+table.g{border-collapse:collapse;font-size:12px}
+.g th,.g td{border:1px solid var(--ln);padding:4px 5px;text-align:center;min-width:26px}
+.g th:first-child,.g td:first-child{position:sticky;left:0;background:#fff;text-align:left;white-space:nowrap;z-index:1;min-width:96px;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.g thead th{position:sticky;top:0;background:#f4f1ec;z-index:2}.g thead th:first-child{z-index:3}
+.g td.P{background:#e1f3e8;color:var(--ok)}.g td.H{background:#fff1d6;color:var(--warn)}.g td.A{background:#fbe4e2;color:var(--bad)}
+.g td.L{background:#dbe8f7;color:#2563a8}.g td.W{background:#ececec}.g td.WW{background:#eadcf5;color:#7a3fa8}
+.g td.tod,.g th.tod{outline:2px solid var(--pri);outline-offset:-2px}
+#login{max-width:380px;margin:12vh auto 0;padding:18px;background:#fff;border-radius:16px;border:1px solid var(--ln)}
+#login h2{margin:0 0 4px;color:var(--pri)}#login label{display:block;margin:10px 0 3px;font-size:13px;color:var(--mut)}
+#login input{width:100%;font:inherit;padding:10px;border:1px solid var(--ln);border-radius:10px}
+#login .btn{width:100%;margin-top:14px}
+.err{color:var(--bad);font-size:13px;margin-top:8px;min-height:18px}
+.toast{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);background:#1b2430;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;z-index:9;max-width:90%}
+.hide{display:none!important}
+.menu{position:absolute;right:8px;top:46px;background:#fff;color:var(--ink);border-radius:10px;border:1px solid var(--ln);box-shadow:0 6px 18px rgba(0,0,0,.18);min-width:170px;z-index:8}
+.menu button{display:block;width:100%;text-align:left;background:none;border:0;padding:11px 14px}
+.menu div{padding:8px 14px;font-size:12px;color:var(--mut);border-bottom:1px solid var(--ln)}
+</style>
+</head>
+<body>
+<div id="login" class="hide">
+  <h2>JCGG Care</h2>
+  <div style="color:var(--mut);font-size:13px">Customer Care · Daily Staff Attendance</div>
+  <label for="uid">User ID</label><input id="uid" value="jcgg" autocapitalize="off" autocomplete="username">
+  <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
+  <button class="btn" id="go">Sign In</button>
+  <button class="btn alt" id="gg" style="width:100%;margin-top:8px">Sign In With Google</button>
+  <div class="err" id="err"></div>
+</div>
+
+<div id="app" class="hide">
+  <header><h1>JCGG Care</h1><span class="who" id="who"></span><button class="ib" id="mb" aria-label="Menu">⋮</button></header>
+  <div class="menu hide" id="menu"><div id="mwho"></div><button id="rf">Refresh Data</button><button id="so">Sign Out</button></div>
+  <div class="bar"><div class="seg" id="ms"></div><span id="stat"></span></div>
+  <div class="note hide" id="lock"></div>
+
+  <section id="vDay">
+    <div class="day"><button id="pv" aria-label="Previous Day">‹</button><input type="date" id="dt"><button id="nx" aria-label="Next Day">›</button></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="bulk"><button class="btn alt" id="allp">Mark Unmarked As Present</button></div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <section id="vMon" class="hide">
+    <div class="gridw" id="grid"></div>
+    <p style="margin:8px 14px;font-size:12px;color:var(--mut)">Tap Any Day Cell To Open That Day. P Present · H Half-Day · A Absent · L Paid Leave · W Week Off · WW Worked On Week Off.</p>
+  </section>
+
+  <nav><button id="nDay" aria-pressed="true">Day</button><button id="nMon" aria-pressed="false">Month</button></nav>
+</div>
+<div class="toast hide" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../js/firebase-config.js"></script>
+<script>
+/* JCGG Care — customer care executive app: daily staff attendance for this month and last month.
+   Same Firebase project, same Customer Care login and the same Firestore security rules as the JCGG Suite (care.js):
+   attendance of this month is always editable; last month only while its salary status (paystatus) is still DRAFT.
+   Reads are kept small on purpose: the masked staff list, two attendance documents and two salary-status flags. */
+(()=>{
+const $=id=>document.getElementById(id);
+const ST=[["P","Present"],["H","Half-Day"],["A","Absent"],["L","Paid Leave"],["W","Week Off"],["WW","Worked On Week Off"]];
+const STN=Object.fromEntries(ST.concat([["O","Not Scheduled"]]));
+const CC_DOMAIN="care.joshiscorner.app";
+const ist=()=>new Date(Date.now()+330*60000);
+const today=()=>ist().toISOString().slice(0,10);
+const monthId=off=>{const d=ist();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+off);return d.toISOString().slice(0,7)};
+const dim=m=>new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();
+const mLabel=m=>new Date(m+"-15T12:00:00").toLocaleDateString("en-IN",{month:"short",year:"numeric"});
+const dLabel=d=>new Date(d+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const arr=x=>Array.isArray(x)?x:[];
+let db,auth,me=null,staff=[],att={},pay={},M=null,D=today(),view="day",busy=false;
+const months=[monthId(0),monthId(-1)];
+
+function toast(t){const e=$("toast");e.textContent=t;e.classList.remove("hide");clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add("hide"),2800)}
+function init(){
+  firebase.initializeApp(window.JCGG_CONFIG.firebase);db=firebase.firestore();auth=firebase.auth();
+  auth.onAuthStateChanged(async u=>{if(!u){me=null;$("app").classList.add("hide");$("login").classList.remove("hide");return}
+    me=u;$("login").classList.add("hide");$("app").classList.remove("hide");await load()});
+  $("go").onclick=async()=>{const id=$("uid").value.trim().toLowerCase(),pw=$("pw").value;$("err").textContent="";if(!id||!pw){$("err").textContent="Enter The User ID And Password.";return}
+    try{await auth.signInWithEmailAndPassword(id.includes("@")?id:id+"@"+CC_DOMAIN,pw)}catch(e){$("err").textContent=/invalid|wrong|user-not-found|credential/.test(e.code||"")?"User ID Or Password Is Not Correct.":(e.message||"Sign-In Failed.")}};
+  $("pw").addEventListener("keydown",e=>{if(e.key==="Enter")$("go").click()});
+  $("gg").onclick=async()=>{try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}catch(e){$("err").textContent=e.code==="auth/popup-closed-by-user"?"":"Google Sign-In Failed: "+(e.message||e.code)}};
+  $("mb").onclick=e=>{e.stopPropagation();$("menu").classList.toggle("hide")};document.addEventListener("click",()=>$("menu").classList.add("hide"));
+  $("so").onclick=()=>auth.signOut();$("rf").onclick=()=>load(true);
+  $("nDay").onclick=()=>setView("day");$("nMon").onclick=()=>setView("mon");
+  $("pv").onclick=()=>step(-1);$("nx").onclick=()=>step(1);$("dt").onchange=e=>{if(e.target.value)goDay(e.target.value)};
+  $("allp").onclick=markAll;
+  if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+async function load(manual){
+  if(busy)return;busy=true;$("stat").innerHTML='<span class="chip">Loading…</span>';
+  try{
+    $("who").textContent=(me.email||"").split("@")[0];$("mwho").textContent=me.email||"";
+    const [sc,...rest]=await Promise.all([db.collection("staffcc").get(),...months.map(m=>db.collection("attendance").doc(m).get()),...months.map(m=>db.collection("paystatus").doc(m).get())]);
+    staff=sc.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+    months.forEach((m,i)=>{att[m]=rest[i].exists?rest[i].data():{id:m,days:{}};pay[m]=rest[2+i].exists?(rest[2+i].data().status||"DRAFT"):"DRAFT"});
+    if(!M||!months.includes(M))M=months[0];if(D.slice(0,7)!==M)D=M===months[0]?today():M+"-"+dim(M);
+    if(manual)toast("Data Refreshed");render();
+  }catch(e){$("stat").innerHTML='<span class="chip bad">Could Not Load</span>';toast(/permission/i.test(e.message||"")?"This Login Is Not Allowed To Read Attendance.":"Could Not Load: "+(e.message||e))}
+  finally{busy=false}
+}
+const inSvc=(s,d)=>{const st=arr(s.stints);if(!st.length)return s.active!==false;return st.some(x=>(!x.join||x.join<=d)&&(!x.exit||x.exit>=d))};
+const editable=m=>m===months[0]?{ok:true}:(pay[m]==="DRAFT"?{ok:true}:{ok:false,why:`Salary For ${mLabel(m)} Is ${pay[m].charAt(0)+pay[m].slice(1).toLowerCase()} — Attendance Is Locked.`});
+const rec=(m,day,sid)=>att[m]?.days?.[String(day)]?.[sid]||{};
+function setView(v){view=v;$("vDay").classList.toggle("hide",v!=="day");$("vMon").classList.toggle("hide",v!=="mon");$("nDay").setAttribute("aria-pressed",v==="day");$("nMon").setAttribute("aria-pressed",v==="mon");render()}
+function goDay(d){const lim=M===months[0]?today():M+"-"+dim(M);if(d>lim)d=lim;if(d<M+"-01")d=M+"-01";D=d;setView("day")}
+function step(n){const d=new Date(D+"T12:00:00");d.setDate(d.getDate()+n);goDay(d.toISOString().slice(0,10))}
+function render(){
+  if(!staff.length&&!Object.keys(att).length)return;
+  $("ms").innerHTML=months.map((m,i)=>`<button data-m="${m}" aria-pressed="${m===M}">${i?"Last Month":"This Month"} · ${mLabel(m).split(" ")[0]}</button>`).join("");
+  $("ms").querySelectorAll("button").forEach(b=>b.onclick=()=>{M=b.dataset.m;D=M===months[0]?today():M+"-"+dim(M);render()});
+  const ed=editable(M);$("stat").innerHTML=`<span class="chip ${pay[M]==="DRAFT"?"ok":"bad"}" title="Last month stays editable only while its salary is in draft">Salary ${pay[M].charAt(0)+pay[M].slice(1).toLowerCase()}</span>`;
+  const lk=$("lock");lk.textContent=ed.ok?"":ed.why;lk.classList.toggle("hide",ed.ok);
+  if(view==="day")renderDay(ed);else renderMonth();
+}
+function renderDay(ed){
+  const day=+D.slice(8),can=ed.ok&&D<=today();const list=staff.filter(s=>inSvc(s,D));
+  $("dt").value=D;$("dt").min=M+"-01";$("dt").max=M===months[0]?today():M+"-"+dim(M);$("pv").disabled=D<=M+"-01";$("nx").disabled=D>=$("dt").max;
+  const cnt={P:0,H:0,A:0,un:0};for(const s of list){const v=rec(M,day,s.id).s;if(!v)cnt.un++;else if(cnt[v]!==undefined)cnt[v]++}
+  $("tiles").innerHTML=[["Present",cnt.P,"ok","Staff Marked Present On "+dLabel(D)],["Half-Day",cnt.H,"","Staff Marked Half-Day"],["Absent",cnt.A,"bad","Staff Marked Absent"],["Unmarked",cnt.un,"warn","Staff Still Without A Status For This Day"]].map(t=>`<div class="tile" title="${esc(t[3])}"><b>${t[1]}</b><span>${t[0]}</span></div>`).join("");
+  $("allp").disabled=!can||!cnt.un;$("allp").classList.toggle("hide",!can);
+  $("list").innerHTML=list.map(s=>{const r=rec(M,day,s.id);const x=`${s.id}`;
+    return `<div class="card" data-s="${esc(x)}"><h3>${esc(s.name)}</h3><div class="sub">${esc(s.desig||"")}${s.shiftStart?" · Shift "+esc(s.shiftStart)+(s.shiftEnd?"–"+esc(s.shiftEnd):""):""}</div>
+    <div class="st">${ST.map(([k,l])=>`<button class="s-${k}" data-k="${k}" aria-pressed="${r.s===k}" title="${l}" ${can?"":"disabled"}>${k}</button>`).join("")}</div>
+    <details${r.in||r.out||r.in2||r.out2?" open":""}><summary class="lnk">Times</summary><div class="tm">${[["in","In"],["out","Out"],["in2","In 2"],["out2","Out 2"]].map(([f,l])=>`<label>${l}<input type="time" data-f="${f}" value="${esc(r[f]||"")}" ${can?"":"disabled"}></label>`).join("")}</div>
+    ${can?`<div class="row2"><button class="lnk" data-now="in">In Now</button><button class="lnk" data-now="out">Out Now</button></div>`:""}</details></div>`}).join("")||'<div class="card">No Staff In Service On This Day.</div>';
+  $("list").querySelectorAll(".card").forEach(c=>{const sid=c.dataset.s;
+    c.querySelectorAll(".st button").forEach(b=>b.onclick=()=>{const cur=rec(M,day,sid).s;setField(M,day,sid,"s",cur===b.dataset.k?null:b.dataset.k)});
+    c.querySelectorAll("input[type=time]").forEach(i=>i.onchange=()=>setField(M,day,sid,i.dataset.f,i.value||null));
+    c.querySelectorAll("[data-now]").forEach(b=>b.onclick=()=>{const t=ist().toISOString().slice(11,16);setField(M,day,sid,b.dataset.now,t)})});
+}
+function renderMonth(){
+  const n=dim(M),a=att[M]?.days||{},t=today();const list=staff.filter(s=>arr(s.stints).length?arr(s.stints).some(x=>(!x.join||x.join<=M+"-"+n)&&(!x.exit||x.exit>=M+"-01")):s.active!==false);
+  $("grid").innerHTML=`<table class="g"><thead><tr><th>Staff</th>${[...Array(n)].map((_,i)=>`<th class="${M+"-"+String(i+1).padStart(2,"0")===t?"tod":""}">${i+1}</th>`).join("")}<th title="Present">P</th><th title="Half-Day">H</th><th title="Absent">A</th><th title="Paid Leave">L</th></tr></thead><tbody>${list.map(s=>{const c={P:0,H:0,A:0,L:0};
+    const cells=[...Array(n)].map((_,i)=>{const v=a[String(i+1)]?.[s.id]?.s||"";if(c[v]!==undefined)c[v]++;return `<td class="${v}${M+"-"+String(i+1).padStart(2,"0")===t?" tod":""}" data-d="${i+1}" title="${esc(s.name)} · ${i+1} ${mLabel(M)} · ${STN[v]||"Unmarked"}">${v}</td>`}).join("");
+    return `<tr><td title="${esc(s.name)}">${esc(s.name)}</td>${cells}<td>${c.P}</td><td>${c.H}</td><td>${c.A}</td><td>${c.L}</td></tr>`}).join("")}</tbody></table>`;
+  $("grid").querySelectorAll("td[data-d]").forEach(td=>td.onclick=()=>goDay(M+"-"+String(td.dataset.d).padStart(2,"0")));
+}
+async function setField(m,day,sid,f,v){
+  const ed=editable(m);if(!ed.ok){toast(ed.why);return render()}
+  const dstr=m+"-"+String(day).padStart(2,"0");if(dstr>today()){toast("Attendance Cannot Be Marked For A Future Day.");return render()}
+  const cur=rec(m,day,sid);const prev=cur[f]??"";const u={[f]:v,auto:null,autoT:null};if(f==="in"&&v&&!cur.s)u.s="P";
+  const by=me.email?me.email.split("@")[0]:"care";
+  const entry={at:Date.now(),by,sid,day:+day,f,from:prev,to:v||""};
+  // optimistic update, then save; a failed save puts the screen back to what the server holds
+  const before=JSON.stringify(att[m]);att[m]=att[m]||{id:m,days:{}};att[m].days=att[m].days||{};att[m].days[String(day)]=att[m].days[String(day)]||{};att[m].days[String(day)][sid]={...cur,...u};render();
+  try{
+    await db.collection("attendance").doc(m).set({id:m,days:{[String(day)]:{[sid]:u}},cclog:firebase.firestore.FieldValue.arrayUnion(entry)},{merge:true});
+    if(f==="in"&&u.s)toast("Marked Present");
+  }catch(e){att[m]=JSON.parse(before);render();toast(/permission/i.test(e.message||"")?"Not Allowed — This Month's Salary May Already Be Processed.":"Could Not Save: "+(e.message||e))}
+}
+async function markAll(){
+  const ed=editable(M);if(!ed.ok)return toast(ed.why);const day=+D.slice(8);const todo=staff.filter(s=>inSvc(s,D)&&!rec(M,day,s.id).s);if(!todo.length)return;
+  if(!confirm("Mark "+todo.length+" Unmarked Staff As Present For "+dLabel(D)+"?"))return;
+  const by=me.email?me.email.split("@")[0]:"care";const days={[String(day)]:{}};const logs=[];
+  for(const s of todo){days[String(day)][s.id]={s:"P",auto:null,autoT:null};logs.push({at:Date.now(),by,sid:s.id,day,f:"s",from:"",to:"P"})}
+  const before=JSON.stringify(att[M]);att[M]=att[M]||{id:M,days:{}};att[M].days=att[M].days||{};att[M].days[String(day)]={...(att[M].days[String(day)]||{})};for(const s of todo)att[M].days[String(day)][s.id]={...rec(M,day,s.id),s:"P"};render();
+  try{await db.collection("attendance").doc(M).set({id:M,days,cclog:firebase.firestore.FieldValue.arrayUnion(...logs)},{merge:true});toast(todo.length+" Marked Present")}
+  catch(e){att[M]=JSON.parse(before);render();toast("Could Not Save: "+(e.message||e))}
+}
+init();
+})();
+</script>
+</body>
+</html>
