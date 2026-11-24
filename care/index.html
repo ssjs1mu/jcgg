@@ -99,13 +99,18 @@ table.g{border-collapse:collapse;font-size:12px}
   <div class="menu hide" id="menu"><div id="mwho"></div><button id="rf">Refresh Data</button><a id="apk" class="hide" href="https://github.com/ssjs1mu/jcgg/releases/download/apk-latest/JCGG-Care.apk" style="display:block;padding:11px 14px;color:inherit;text-decoration:none">Download Android App (APK)</a><button id="so">Sign Out</button></div>
 
   <section id="tAtt">
-    <div class="bar"><div class="seg" id="ms"></div><div class="seg" id="vs"><button data-v="day" aria-pressed="true">Day</button><button data-v="mon" aria-pressed="false">Month</button></div><span id="stat"></span></div>
+    <div class="bar"><div class="seg" id="ms"></div><div class="seg" id="vs"><button data-v="day" aria-pressed="true">Date-Wise</button><button data-v="stf" aria-pressed="false">Staff-Wise</button><button data-v="mon" aria-pressed="false">Month</button></div><span id="stat"></span></div>
     <div class="note hide" id="lock"></div>
     <section id="vDay">
       <div class="day"><button id="pv" aria-label="Previous Day">‹</button><input type="date" id="dt"><button id="nx" aria-label="Next Day">›</button></div>
       <div class="tiles" id="tiles"></div>
       <div class="bulk"><button class="btn alt" id="allp">Mark Unmarked As Present</button></div>
       <div class="list" id="list"></div>
+    </section>
+    <section id="vStf" class="hide">
+      <div class="day"><button id="sp" aria-label="Previous Staff">‹</button><select id="ssel"></select><button id="sn" aria-label="Next Staff">›</button></div>
+      <div class="tiles" id="stiles"></div>
+      <div class="list" id="slist"></div>
     </section>
     <section id="vMon" class="hide">
       <div class="gridw" id="grid"></div>
@@ -151,7 +156,7 @@ const inr0=new Intl.NumberFormat("en-IN",{maximumFractionDigits:0});
 const money0=n=>"₹"+inr0.format(Math.round(+n||0));
 const stars=n=>n?"★".repeat(n)+"☆".repeat(5-n):"—";
 const FST=["Open","In progress","Resolved"];
-let db,auth,me=null,staff=[],att={},pay={},M=null,D=today(),tab="att",view="day",cv="bills",busy=false,subs=[];
+let SID=null,db,auth,me=null,staff=[],att={},pay={},M=null,D=today(),tab="att",view="day",cv="bills",busy=false,subs=[];
 let cfg={},clients=[],fbs=[],ccLoaded=false,ccBusy=false,bd=null,lb="month",fq="",fst="";
 const months=[monthId(0),monthId(-1)];
 const by=()=>"Customer Care";
@@ -173,6 +178,8 @@ function init(){
   $("cs").querySelectorAll("button").forEach(b=>b.onclick=()=>{cv=b.dataset.c;renderCC()});
   $("pv").onclick=()=>step(-1);$("nx").onclick=()=>step(1);$("dt").onchange=e=>{if(e.target.value)goDay(e.target.value)};
   $("allp").onclick=markAll;
+  $("ssel").onchange=e=>{SID=e.target.value;render()};
+  $("sp").onclick=()=>stepStaff(-1);$("sn").onclick=()=>stepStaff(1);
   $("sheet").addEventListener("click",e=>{if(e.target===$("sheet"))closeSheet()});
   if(!/; wv\)/.test(navigator.userAgent)&&/Android/.test(navigator.userAgent))$("apk").classList.remove("hide");
   if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
@@ -200,7 +207,8 @@ const editable=m=>m===months[0]?{ok:true}:((pay[m]||"DRAFT")==="DRAFT"?{ok:true}
 const rec=(m,day,sid)=>att[m]?.days?.[String(day)]?.[sid]||{};
 function setTab(t){tab=t;$("tAtt").classList.toggle("hide",t!=="att");$("tCC").classList.toggle("hide",t!=="cc");$("nAtt").setAttribute("aria-pressed",t==="att");$("nCC").setAttribute("aria-pressed",t==="cc");
   if(t==="cc"){if(!ccLoaded)loadCC();renderCC()}else render()}
-function setView(v){view=v;$("vDay").classList.toggle("hide",v!=="day");$("vMon").classList.toggle("hide",v!=="mon");$("vs").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===v));render()}
+function stepStaff(n){const l=monthStaff();const i=l.findIndex(s=>s.id===SID);const j=Math.max(0,Math.min(l.length-1,(i<0?0:i)+n));if(l[j]){SID=l[j].id;render()}}
+function setView(v){view=v;$("vStf").classList.toggle("hide",v!=="stf");$("vDay").classList.toggle("hide",v!=="day");$("vMon").classList.toggle("hide",v!=="mon");$("vs").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===v));render()}
 function goDay(d){const lim=M===months[0]?today():M+"-"+dim(M);if(d>lim)d=lim;if(d<M+"-01")d=M+"-01";D=d;setView("day")}
 function step(n){const d=new Date(D+"T12:00:00");d.setDate(d.getDate()+n);goDay(d.toISOString().slice(0,10))}
 function render(){
@@ -209,7 +217,7 @@ function render(){
   $("ms").querySelectorAll("button").forEach(b=>b.onclick=()=>{M=b.dataset.m;D=M===months[0]?today():M+"-"+dim(M);render()});
   const ed=editable(M);const ps=pay[M]||"DRAFT";$("stat").innerHTML=`<span class="chip ${ps==="DRAFT"?"ok":"bad"}" title="Last month stays editable only while its salary is in draft">Salary ${ps.charAt(0)+ps.slice(1).toLowerCase()}</span>`;
   const lk=$("lock");lk.textContent=ed.ok?"":ed.why;lk.classList.toggle("hide",ed.ok);
-  if(view==="day")renderDay(ed);else renderMonth();
+  if(view==="day")renderDay(ed);else if(view==="stf")renderStaff(ed);else renderMonth();
 }
 function renderDay(ed){
   const day=+D.slice(8),can=ed.ok&&D<=today();const list=staff.filter(s=>inSvc(s,D));
@@ -228,6 +236,24 @@ function renderDay(ed){
     c.querySelectorAll(".st button").forEach(b=>b.onclick=()=>{const cur=rec(M,day,sid).s;setField(M,day,sid,"s",cur===b.dataset.k?null:b.dataset.k)});
     c.querySelectorAll("input[type=time]").forEach(i=>i.onchange=()=>setField(M,day,sid,i.dataset.f,i.value||null));
     c.querySelectorAll("[data-now]").forEach(b=>b.onclick=()=>{const t=ist().toISOString().slice(11,16);setField(M,day,sid,b.dataset.now,t)})});
+}
+const monthStaff=()=>{const n=dim(M);return staff.filter(s=>arr(s.stints).length?arr(s.stints).some(x=>(!x.join||x.join<=M+"-"+n)&&(!x.exit||x.exit>=M+"-01")):s.active!==false)};
+function renderStaff(ed){
+  const list=monthStaff();if(!list.some(s=>s.id===SID))SID=list[0]?.id||null;const s=list.find(x=>x.id===SID);
+  $("ssel").innerHTML=list.map(x=>`<option value="${esc(x.id)}" ${x.id===SID?"selected":""}>${esc(x.name)}</option>`).join("");
+  if(!s){$("stiles").innerHTML="";$("slist").innerHTML='<div class="card">No Staff In Service This Month.</div>';return}
+  const n=dim(M),t=today();const last=M===months[0]?+t.slice(8):n;const c={P:0,H:0,A:0,L:0,W:0,WW:0,un:0};
+  const days=[];for(let d=1;d<=last;d++){const ds=M+"-"+String(d).padStart(2,"0");if(!inSvc(s,ds))continue;const r=rec(M,d,s.id);if(!r.s)c.un++;else if(c[r.s]!==undefined)c[r.s]++;days.push({d,ds,r})}
+  $("stiles").innerHTML=[["Present",c.P,"Days Marked Present"],["Half-Day",c.H,"Days Marked Half-Day"],["Absent",c.A,"Days Marked Absent"],["Leave",c.L,"Paid Leave Days"],["Unmarked",c.un,"Days Up To Today Without A Status"]].map(x=>`<div class="tile" title="${esc(x[2])}"><b>${x[1]}</b><span>${x[0]}</span></div>`).join("");
+  const open=new Set([...$("slist").querySelectorAll("details[open]")].map(d=>d.closest(".card")?.dataset.d));
+  $("slist").innerHTML=days.slice().reverse().map(({d,ds,r})=>{const can=ed.ok&&ds<=t;
+    return `<div class="card" data-d="${d}"><div class="top"><h3>${esc(new Date(ds+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"}))}</h3><span class="chip ${r.s==="P"?"ok":r.s==="A"?"bad":r.s?"warn":""}">${r.s?esc(STN[r.s]):"Unmarked"}</span></div>
+    <div class="st">${ST.map(([k,l])=>`<button class="s-${k}" data-k="${k}" aria-pressed="${r.s===k}" title="${l}" ${can?"":"disabled"}>${k}</button>`).join("")}</div>
+    <details${r.in||r.out||r.in2||r.out2||open.has(String(d))?" open":""}><summary class="lnk">Times</summary><div class="tm">${[["in","In"],["out","Out"],["in2","In 2"],["out2","Out 2"]].map(([f,l])=>`<label>${l}<input type="time" data-f="${f}" value="${esc(r[f]||"")}" ${can?"":"disabled"}></label>`).join("")}</div>${can?`<div class="row2"><button class="lnk" data-now="in">In Now</button><button class="lnk" data-now="out">Out Now</button></div>`:""}</details></div>`}).join("")||'<div class="card">No Days To Show Yet.</div>';
+  $("slist").querySelectorAll(".card").forEach(cd=>{const day=+cd.dataset.d;
+    cd.querySelectorAll(".st button").forEach(b=>b.onclick=()=>{const cur=rec(M,day,SID).s;setField(M,day,SID,"s",cur===b.dataset.k?null:b.dataset.k)});
+    cd.querySelectorAll("input[type=time]").forEach(i=>i.onchange=()=>setField(M,day,SID,i.dataset.f,i.value||null));
+    cd.querySelectorAll("[data-now]").forEach(b=>b.onclick=()=>setField(M,day,SID,b.dataset.now,ist().toISOString().slice(11,16)))});
 }
 function renderMonth(){
   const n=dim(M),a=att[M]?.days||{},t=today();const list=staff.filter(s=>arr(s.stints).length?arr(s.stints).some(x=>(!x.join||x.join<=M+"-"+n)&&(!x.exit||x.exit>=M+"-01")):s.active!==false);
