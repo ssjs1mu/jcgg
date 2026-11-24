@@ -639,3 +639,9 @@ html.splitmode.menu-show #splitFab{left:248px}
 .chip.p1{background:#fee2e2;color:#b91c1c}.chip.p2{background:#ffedd5;color:#c2410c}.chip.p3{background:#fef3c7;color:#92400e}.chip.p4{background:#dbeafe;color:#1d4ed8}.chip.p5{background:#f1f5f9;color:#475569}
 
 .sk14.fit{table-layout:auto;width:auto}.sk14.fit td,.sk14.fit th{white-space:nowrap;overflow-wrap:normal}.sk14.fit .skc{width:66px;min-width:66px;max-width:66px;overflow:hidden;text-overflow:clip}
+
+/* Staff KOT sheet: full staff names (wrapped) in the column headers, quantity boxes wide enough for decimals like 0.5 / 1.25 */
+.sk14.fit th.skn{white-space:normal;overflow-wrap:normal;word-break:normal;line-height:1.15;font-size:12px;vertical-align:bottom;text-align:right}
+.sk14.fit .skc{width:78px;min-width:78px;max-width:78px}
+.sk14 .skc input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.sk14 .skc input[type=number]::-webkit-inner-spin-button,.sk14 .skc input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
