@@ -52,6 +52,8 @@ async function sync(force){if(busy)return null;busy=true;try{
   return {days:Object.keys(byDay).length,units:r3(units),put,del}
 }catch(e){console.error("sales→stock",e);return null}finally{busy=false}}
 J.salesToStock=sync;
+// true when a sold name is already taken out of stock by this module (beverage / chiller lines) — the recipe module skips it so nothing is deducted twice
+J.ssCovers=name=>{const b=base(name),k=norm(b),u=doc().map?.[k];if(u)return u.item!=="-";return BEV.test(b)&&!!suggest(b)};
 
 // keep stock current whenever Inventory is open
 let t=null;J.afterRender.push(mid=>{if(mid!=="inventory")return;clearTimeout(t);t=setTimeout(async()=>{const r=await sync(false);if(r&&(r.put||r.del))toast(`Stock updated from sales: ${r.put} day${r.put===1?"":"s"} refreshed`)},1500)});

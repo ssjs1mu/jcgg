@@ -111,6 +111,16 @@ J.recipeCosting=(m,serves,depth=0)=>{const kit=K();{const pk=pkgCost(m,serves||1
       if(!r){unpriced++;rows.push({text:p.text,src:"none",label:"Not priced — set a rate",costBase:0,cost:0,qty:fmtAmt(amt*k,b),kind,name:p.name});continue}
       const c=costOf(amt,b,r);rows.push({text:p.text,src:r.src,label:r.label+(r.src==="inv"?"":` @ ₹${inr0.format(r.rate)}/${r.unit}`),costBase:c,cost:c*k,qty:fmtAmt(amt*k,b),kind,rateKey:r.key,name:p.name});tot+=c*k;totBase+=c}}
   return {rows,total:tot,perServe:want?tot/want:0,baseTotal:totBase,basePerServe:totBase/base,serves:want,base,unpriced}};
+// raw quantities one serve of a dish uses (grams / ml / pieces), each tied to the Inventory item it was priced from (when there is one) — feeds Inventory → Recipe → stock
+J.recipeStock=(m,depth=0)=>{const kit=K();const base=kit.baseServes(m)||4;const f=1/base;const own=kit.selfKeys(m);const out=[];
+  for(const ln of kit.lines(m.recipe?.en?.ing)){const refs=depth<2?kit.findRefs(ln,own):[];
+    if(refs.length){const rm=kit.itemOf(refs[0].name);if(rm){for(const x of J.recipeStock(rm,depth+1))out.push(x);continue}}
+    for(const p of parseLine(ln)){
+      if(p.fry){const gh=/ghee/i.test(p.name);const r=rateFor(gh?"ghee":"oil");out.push({name:gh?"ghee":"oil",amt:12*base*Math.pow(f,.85),base:"ml",item:r?.src==="inv"?r.item:null,kind:"fat"});continue}
+      if(p.q==null)continue;
+      const r=rateFor(p.name);const kind=kit.kindOf(p.name)[0];const k=Math.pow(f,KINDX[kind]??1);const [amt,b]=toBase(p.q,p.unit,p.name,r);
+      out.push({name:p.name,amt:amt*k,base:b,item:r?.src==="inv"?r.item:null,kind})}}
+  return out};
 const fmtAmt=(a,b)=>b==="pc"?(Math.round(a*10)/10)+" pc":b==="ml"?(a>=1000?(a/1000).toFixed(2)+" L":Math.round(a)+" ml"):(a>=1000?(a/1000).toFixed(2)+" kg":a<10?a.toFixed(1)+" g":Math.round(a)+" g");
 const tgt=()=>+J.settings().targetFood||32;
 const priceOf=m=>K().rate(m,"gr");
