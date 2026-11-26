@@ -24,14 +24,30 @@ function sold(){const c={};for(const d of J.all("ppday"))for(const o of arr(d.or
 // recipe of a sold dish (menu item with a recipe, or the built-in library recipe of the same name), read once per sync
 function recipeOf(name,cache){if(cache.has(name))return cache.get(name);let r=null;try{const m=J.KIT?.itemOf(name);if(m){const L=J.recipeStock(m);if(L.length)r={m,L}}}catch(e){console.warn("recipe",name,e)}cache.set(name,r);return r}
 const ikey=n=>norm(n);
+// strict automatic match: every word of the ingredient must be a whole word of exactly one best stock item, and the item may not be a different
+// product form (powder / paste / sauce / oil / flakes … the ingredient did not ask for). Anything less clear is left for you to choose.
+const STOP=new Set(["fresh","chopped","sliced","diced","whole","raw","boiled","ripe","small","big","medium","large","fine","thick","thin","the","and","with","for","finely","roughly"]);
+const FORM=new Set(["powder","paste","sauce","oil","flake","sprinkler","masala","mix","seasoning","cream","puree","essence","syrup","cube","ketchup","vinegar","juice","pickle","chutney","soup","biscuit","cake","chip"]);
+const tok=s=>String(s||"").toLowerCase().replace(/[^a-z ]+/g," ").split(/\s+/).filter(w=>w.length>2&&!STOP.has(w)).map(w=>w.replace(/chilly/,"chilli").replace(/ies$/,"y").replace(/oes$/,"o").replace(/s$/,w.length>3?"":"s"));
+const mcache=new Map();
+function strict(name){const k=ikey(name);if(mcache.has(k))return mcache.get(k);const w=tok(name);let res={id:null,n:0};
+  if(w.length){const D=J.D?.inv?.items||{};const cand=[];
+    for(const it of J.all("items")){if(it.active===false)continue;const t=tok(it.name);if(!w.every(x=>t.includes(x)))continue;
+      if(t.some(x=>FORM.has(x)&&!w.includes(x)))continue;cand.push({id:it.id,x:t.filter(y=>!w.includes(y)).length,b:arr(D[it.id]?.buys).length})}
+    const stocked=cand.filter(c=>c.b>0);const pool=stocked.length?stocked:cand;pool.sort((a,b)=>a.x-b.x);
+    res={id:pool.length&&(pool.length===1||pool[1].x>pool[0].x)?pool[0].id:null,n:pool.length}}
+  mcache.set(k,res);return res}
+// pack-sized items ("… 1 kg", "… 200 ml") counted in pieces: one piece = the pack size
+const packOf=name=>{const m=String(name||"").match(/(\d+(?:\.\d+)?)\s*(kg|gm|g|ltr|litre|l|ml)\b/i);if(!m)return null;let q=+m[1];const u=m[2].toLowerCase();if(u==="kg"||u==="ltr"||u==="litre"||u==="l")q*=1000;return {amt:q,base:(u==="ml"||u==="l"||u==="ltr"||u==="litre")?"ml":"g"}};
+const toStock=(amt,b,it)=>{const q=toUnit(amt,b,it.unit);if(q!=null)return q;if(/^(PC|PCS|NOS|NO|UNIT|EACH|PKT|PACK|BOTTLE|TIN|BOX)/i.test(String(it.unit||""))){const p=packOf(it.name);if(p&&p.base===b&&p.amt>0)return amt/p.amt}return null};
 // resolved stock item of one recipe line: your choice, otherwise the automatic name match
-function itemOfLine(l,c){const u=c.ing[ikey(l.name)];if(u)return u.item&&u.item!=="-"?u.item:null;return l.item||null}
+function itemOfLine(l,c){const u=c.ing[ikey(l.name)];if(u)return u.item&&u.item!=="-"?u.item:null;return strict(l.name).id}
 function plan(){const c=cfg(),S0=sold(),cache=new Map(),byDay={},dishes=[],ings={};let units=0;
   const first=id=>{const b=J.D?.inv?.items[id]?.buys||[];return b.length?b.map(x=>x.date).sort()[0]:null};
   for(const [k,e] of Object.entries(S0)){const rc=recipeOf(e.name,cache);const per=+(c.dish[k]?.per)||1;
     const row={k,name:e.name,n:e.n,per,rc,mapped:0,total:0,skip:0};dishes.push(row);if(!rc)continue;
-    for(const l of rc.L){row.total++;const id=itemOfLine(l,c);const ik=ikey(l.name);const g=ings[ik]??={key:ik,name:l.name,base:l.base,amt:0,item:id,by:c.ing[ik]?"you":"auto",dishes:new Set()};g.amt+=l.amt*e.n*per;g.dishes.add(e.name);
-      if(!id)continue;const it=J.get("items",id);const q=it?toUnit(l.amt,l.base,it.unit):null;if(q==null){row.skip++;g.unit=true;continue}row.mapped++;
+    for(const l of rc.L){row.total++;const id=itemOfLine(l,c);const ik=ikey(l.name);const g=ings[ik]??={key:ik,name:l.name,base:l.base,amt:0,item:id,by:c.ing[ik]?"you":"auto",n:c.ing[ik]?0:strict(l.name).n,dishes:new Set()};g.amt+=l.amt*e.n*per;g.dishes.add(e.name);
+      if(!id)continue;const it=J.get("items",id);const q=it?toStock(l.amt,l.base,it):null;if(q==null){row.skip++;g.unit=true;continue}row.mapped++;
       const f=first(id);if(!f)continue;
       for(const [d,n] of Object.entries(e.days)){if(d<f)continue;if(c.from&&d<c.from)continue;const day=byDay[d]??={};day[id]=(day[id]||0)+q*n*per;units+=q*n*per}}}
   return {c,dishes,ings,byDay,units}}
@@ -59,7 +75,7 @@ J.act("rcItem",async el=>{const c=cfg();const ing={...c.ing};if(el.value==="auto
 
 const ui=()=>J.ui("rs",{m:J.today().slice(0,7),q:""});
 const fmtB=(a,b)=>b==="pc"?r3(a)+" pc":b==="ml"?(a>=1000?r3(a/1000)+" L":Math.round(a)+" ml"):(a>=1000?r3(a/1000)+" kg":Math.round(a)+" g");
-function vRS(){const U=ui(),P=plan(),c=P.c,ro=J.readOnly?.();const items=J.all("items").filter(i=>i.active!==false).sort((a,b)=>a.name.localeCompare(b.name));
+function vRS(){const U=ui(),P=plan(),c=P.c,need=Object.values(P.ings).filter(g=>!g.item&&!c.ing[g.key]).length,ro=J.readOnly?.();const items=J.all("items").filter(i=>i.active!==false).sort((a,b)=>a.name.localeCompare(b.name));
   const dl=P.dishes.slice().sort((a,b)=>b.n-a.n);const withR=dl.filter(d=>d.rc),noR=dl.filter(d=>!d.rc);
   const ig=Object.values(P.ings).sort((a,b)=>b.dishes.size-a.dishes.size||b.amt-a.amt);
   const opts=sel=>`<option value="auto" ${sel==="auto"?"selected":""}>Automatic match</option><option value="-" ${sel==="-"?"selected":""}>Not a stock item</option>`+items.map(i=>`<option value="${esc(i.id)}" ${sel===i.id?"selected":""}>${esc(i.name)} (${esc(i.unit||"")})</option>`).join("");
@@ -72,7 +88,7 @@ function vRS(){const U=ui(),P=plan(),c=P.c,ro=J.readOnly?.();const items=J.all("
   const tw=rows.reduce((s,r)=>s+val(r,r.adj),0),tr=rows.reduce((s,r)=>s+val(r,r.rc),0);
   return `<div class="filters"><label class="row" style="gap:6px"><input type="checkbox" data-ach="rcOn" ${c.on?"checked":""} ${ro?"disabled":""}> <b>Take stock out automatically from recipes of dishes sold</b></label>
    <label class="f" style="width:170px">From date<input type="date" value="${esc(c.from||"")}" max="${J.today()}" data-ach="rcFrom" ${ro?"disabled":""}></label>
-   <button class="btn primary w" data-a="rcRefresh">Refresh from sales</button><span class="hint">${J.all("moves").filter(x=>x.rcp).length} days posted · ${withR.length} dishes with a recipe · ${noR.length} sold without a recipe</span></div>
+   <button class="btn primary w" data-a="rcRefresh">Refresh from sales</button><span class="hint">${J.all("moves").filter(x=>x.rcp).length} days posted · ${withR.length} dishes with a recipe · ${noR.length} sold without a recipe · ${need} ingredient${need===1?"":"s"} not matched to stock yet (nothing is taken out for them)</span></div>
   <div class="note">Quantity only — no vouchers. From the "from" date, stop logging daily kitchen consumption for these items (otherwise stock goes out twice) and use <b>Adjust stock</b> for count differences and wastage. Recipe quantities are the Kitchen's per-serve amounts; a sold name counts one serve per time it appears on a bill (change "Serves per sale" for halves or combos).</div>
   <h2 class="ph" style="padding:12px 0 6px">Consumption &amp; wastage — <input type="month" value="${esc(m)}" data-ui="rs.m" style="width:160px"> <input data-ui="rs.q" value="${esc(U.q)}" placeholder="Search item" style="max-width:180px"></h2>
   <div class="panel"><div class="tbl-wrap"><table class="grid-x fit"><thead><tr><th>Item</th><th>Unit</th><th class="num" title="Taken out by recipes of dishes sold">From recipes</th><th class="num" title="Beverages / chiller sold (Sales → stock)">Beverage sales</th><th class="num" title="Daily issues logged by hand">Logged by hand</th><th class="num" title="Negative Adjust stock entries — wastage, spoilage, count differences">Wastage / adjust</th><th class="num">Total out</th><th class="num" title="At last purchase rate">Wastage ₹</th></tr></thead><tbody>
@@ -87,6 +103,6 @@ function vRS(){const U=ui(),P=plan(),c=P.c,ro=J.readOnly?.();const items=J.all("
   <div class="panel"><div class="tbl-wrap"><table class="grid-x fit"><thead><tr><th>Ingredient in recipes</th><th class="num">Dishes</th><th class="num" title="Estimated over every sale in Petpooja">Used in sales</th><th>Stock item</th><th>Status</th></tr></thead><tbody>
   ${ig.slice(0,120).map(g=>{const u=c.ing[g.key];const it=g.item?J.get("items",g.item):null;return `<tr><td>${esc(g.name)}</td><td class="num">${g.dishes.size}</td><td class="num">${fmtB(g.amt,g.base)}</td>
    <td><select data-ach="rcItem" data-x="${esc(g.key)}" style="min-width:240px" ${ro?"disabled":""}>${opts(u?u.item:"auto")}</select></td>
-   <td>${!it?'<span class="chip">Not stock</span>':g.unit?'<span class="chip warn">Unit mismatch</span>':`<span class="chip ok">${u?"Set":"Auto"}</span> <span class="hint">${esc(it.name)}</span>`}</td></tr>`}).join("")||'<tr><td colspan="5" class="muted">Nothing to map yet.</td></tr>'}</tbody></table></div></div>`}
+   <td>${!it?(u?'<span class="chip">Not stock</span>':g.n>1?`<span class="chip warn" title="Several stock items fit — pick the one you use">Choose · ${g.n} fit</span>`:'<span class="chip">No match</span>'):g.unit?'<span class="chip warn">Unit mismatch</span>':`<span class="chip ok">${u?"Set":"Auto"}</span> <span class="hint">${esc(it.name)}</span>`}</td></tr>`}).join("")||'<tr><td colspan="5" class="muted">Nothing to map yet.</td></tr>'}</tbody></table></div></div>`}
 const inv=J.MODS.find(m=>m.id==="inventory");if(inv){const i=inv.tabs.findIndex(t=>t[0]==="salesstock");inv.tabs.splice(i<0?inv.tabs.length:i+1,0,["recipestock","Recipe → stock",vRS])}
 })();
