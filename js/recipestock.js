@@ -30,9 +30,11 @@ const STOP=new Set(["fresh","chopped","sliced","diced","whole","raw","boiled","r
 const FORM=new Set(["powder","paste","sauce","oil","flake","sprinkler","masala","mix","seasoning","cream","puree","essence","syrup","cube","ketchup","vinegar","juice","pickle","chutney","soup","biscuit","cake","chip"]);
 const tok=s=>String(s||"").toLowerCase().replace(/[^a-z ]+/g," ").split(/\s+/).filter(w=>w.length>2&&!STOP.has(w)).map(w=>w.replace(/chilly/,"chilli").replace(/ies$/,"y").replace(/oes$/,"o").replace(/s$/,w.length>3?"":"s"));
 const mcache=new Map();
+const NOTSTOCK=/^(hot |cold |warm |lukewarm |boiling |ice |crushed )*(water|ice)$|^ice( cubes?)?$/i;   // tap water and ice are never a stock item
+const PACKX=/\b(sachet|combo|sample|assorted|trial)\b/i;                                          // portion sachets and mixed packs are not recipe ingredients
 function strict(name){const k=ikey(name);if(mcache.has(k))return mcache.get(k);const w=tok(name);let res={id:null,n:0};
-  if(w.length){const D=J.D?.inv?.items||{};const cand=[];
-    for(const it of J.all("items")){if(it.active===false)continue;const t=tok(it.name);if(!w.every(x=>t.includes(x)))continue;
+  if(w.length&&!NOTSTOCK.test(String(name).trim())){const D=J.D?.inv?.items||{};const cand=[];
+    for(const it of J.all("items")){if(it.active===false||PACKX.test(it.name||""))continue;const t=tok(it.name);if(!w.every(x=>t.includes(x)))continue;
       if(t.some(x=>FORM.has(x)&&!w.includes(x)))continue;cand.push({id:it.id,x:t.filter(y=>!w.includes(y)).length,b:arr(D[it.id]?.buys).length})}
     const stocked=cand.filter(c=>c.b>0);const pool=stocked.length?stocked:cand;pool.sort((a,b)=>a.x-b.x);
     res={id:pool.length&&(pool.length===1||pool[1].x>pool[0].x)?pool[0].id:null,n:pool.length}}
