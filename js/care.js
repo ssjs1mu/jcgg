@@ -9,7 +9,7 @@
 (()=>{
 const J=window.J,{S,esc,inr,inr0,r2,money,money0,fmtDate,today,addDays,uid,fld,txt,num,dateI,selO,area,toast,monthLabel}=J;
 const arr=x=>Array.isArray(x)?x:[];
-const ui=()=>J.ui("care",{q:"",lb:"month",lbd:"",lbm:"",lby:"",fq:"",fst:"",bd:"",am:"",ad:""});
+const ui=()=>J.ui("care",{q:"",lb:"month",lbd:"",lbm:"",lby:"",fq:"",fst:"",bd:"",am:"",ad:"",mq:"",mv:"people"});
 const isAdmin=()=>S.me.owner||["Super Admin","Admin"].includes(J.myRole());
 const canStaffEdit=()=>!J.readOnly()&&(J.isCC()||["Super Admin","Admin","Manager","Accountant"].includes(J.myRole()));
 const who=()=>S.me.name||S.me.email||"";
@@ -218,6 +218,29 @@ function vFeedback(){const U=ui();const q=(U.fq||"").toLowerCase();const list=J.
   <div class="filters">${fld("Search",`<input data-ui="care.fq" value="${esc(U.fq||"")}" placeholder="Bill, mobile, client, text">`)}<div class="seg">${[["","All"],...FST.map(s=>[s,s])].map(([v,l])=>`<button data-set="care.fst=${v}" aria-pressed="${(U.fst||"")===v}">${l}</button>`).join("")}</div><button class="btn primary w" data-a="fbNew" style="margin-left:auto">＋ New feedback</button></div>
   <div class="panel"><div class="tbl-wrap"><table><thead><tr><th>Date &amp; time</th><th>Bill</th><th>Client</th><th>Rating</th><th>Food</th><th>Service</th><th>Status</th><th></th></tr></thead><tbody>
   ${list.map(f=>`<tr><td class="nowrap">${esc((f.at||"").replace("T"," "))}</td><td class="mono">${esc(f.bill)}</td><td>${f.clientId?`<button class="linkbtn" data-a="cliView" data-x="${f.clientId}">${esc(f.clientName||f.phone)}</button>`:esc(f.phone||"")}</td><td>${stars(f.rating)}</td><td class="hint">${esc((f.food||"").slice(0,80))}</td><td class="hint">${esc((f.service||"").slice(0,80))}</td><td><span class="chip ${f.status==="Resolved"?"ok":f.status==="Open"?"warn":"plain"}">${esc(f.status)}</span>${f.resolution?`<div class="hint">${esc(f.resolution.slice(0,60))}</div>`:""}</td><td class="nowrap"><button class="btn small" data-a="fbEdit" data-x="${f.id}">Edit</button> ${J.isCC()?"":J.delBtn("feedback",f.id)}</td></tr>`).join("")||'<tr><td colspan="8" class="muted">No feedback yet.</td></tr>'}</tbody></table></div></div>`}
-J.mod({id:"care",label:"Customer Care",group:"Operations",icon:'<path d="M4 12a8 8 0 0 1 16 0v5a2 2 0 0 1-2 2h-2v-6h4"/><path d="M4 13h4v6H6a2 2 0 0 1-2-2z"/>',sub:"Thank-you messages, Google reviews, bill feedback, top clients, staff profiles and attendance. Clients are in Directory.",
-  tabs:[["bills","Bills & thanks",vBills],["top","Top clients",vLeader],["feedback","Feedback",vFeedback],["staff","Staff profiles",vStaffProfiles],["attendance","Attendance",vAttendanceCC]]});
+// ---- Menu Visits: people who registered on the Ground Floor / Mezzanine 3D menus (read from the menu's private Google Sheet) ----
+const MV_URL="https://script.google.com/macros/s/AKfycbzSvrZIKcbbuXxa6cc7o_NNG3Nd6ZJ1aFLtAZoCav3V9XBLXD_-YhM3gcrcDlHIQY_Xuw/exec";
+const MV={st:"idle",d:null,err:"",at:0};
+async function mvLoad(){if(MV.st==="load")return;MV.st="load";MV.err="";J.render();
+  try{const u=firebase.auth().currentUser;if(!u)throw new Error("auth");const tok=await u.getIdToken();
+    const r=await fetch(MV_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({a:"menuVisits",idToken:tok})});const j=await r.json();
+    if(j&&j.ok){MV.d=j;MV.st="ok";MV.at=Date.now()}else{MV.st="err";MV.err=j&&j.err==="denied"?"This login is not allowed to see menu visitors. The owner can allow it in the menu backend (MENU_VIEWERS).":j&&j.err==="auth"?"Sign-in could not be checked. Sign out and in again.":j&&j.err==="setup"?"The menu database is not set up yet.":"The menu backend does not know this request yet. Deploy backend version 2.4 (New version)."}}
+  catch(e){MV.st="err";MV.err="Could not reach the menu backend. Check the internet and try Refresh."}
+  J.render()}
+function vMenuVisits(){const U=ui();if(MV.st==="idle"||(MV.st==="ok"&&Date.now()-MV.at>300000))setTimeout(mvLoad,0);
+  const head=`<div class="filters"><span class="hint">Registrations from the Ground Floor and Mezzanine menus${MV.d?" · updated "+esc(MV.d.at):""}</span><button type="button" class="btn small w" data-a="mvRefresh" style="margin-left:auto">${MV.st==="load"?"Loading…":"↻ Refresh"}</button></div>`;
+  if(MV.st==="err")return head+`<div class="empty"><strong>Menu visits not available</strong><p class="hint">${esc(MV.err)}</p></div>`;
+  if(!MV.d)return head+'<div class="empty"><strong>Loading menu visits…</strong></div>';
+  const D=MV.d,q=(U.mq||"").trim().toLowerCase(),view=U.mv==="log"?"log":"people";
+  const hit=x=>!q||(String(x.name||"")+" "+String(x.mobile||"")).toLowerCase().includes(q);
+  const P=D.rows.filter(hit).sort((a,b)=>b.count-a.count),L=D.log.filter(hit);
+  const ph=m=>m?"+91 "+esc(m):"";
+  return head+`<div class="kpis">${J.kpi("People",String(D.stats.people),"registered")}${J.kpi("Menu visits",String(D.stats.visits),"total opens")}${J.kpi("Active today",String(D.stats.today),"opened today")}${J.kpi("Verified",String(D.stats.otp),"by OTP")}</div>
+  <div class="filters">${fld("Search",`<input data-ui="care.mq" value="${esc(U.mq||"")}" placeholder="Name or mobile">`)}<div class="seg">${[["people","Visitors"],["log","Visit log"]].map(([v,l])=>`<button data-set="care.mv=${v}" aria-pressed="${view===v}">${l}</button>`).join("")}</div></div>
+  <div class="panel"><div class="tbl-wrap">${view==="people"
+   ?`<table><thead><tr><th>Name</th><th>Mobile</th><th class="num">Visits</th><th>First registered</th><th>Last visit</th><th>Menu</th><th>Verification</th></tr></thead><tbody>${P.slice(0,500).map(x=>`<tr><td><b>${esc(x.name)}</b></td><td class="mono nowrap">${ph(x.mobile)}</td><td class="num"><b>${x.count}</b></td><td class="nowrap hint">${esc(x.first)}</td><td class="nowrap hint">${esc(x.last)}</td><td>${esc(x.zone)}</td><td><span class="chip ${x.ver==="OTP verified"?"ok":"plain"}">${esc(x.ver||"—")}</span></td></tr>`).join("")||'<tr><td colspan="7" class="muted">No visitors yet.</td></tr>'}</tbody></table>`
+   :`<table><thead><tr><th>Date &amp; time</th><th>Name</th><th>Mobile</th><th>Menu</th><th class="num">Visit #</th></tr></thead><tbody>${L.map(x=>`<tr><td class="nowrap">${esc(x.time)}</td><td>${esc(x.name)}</td><td class="mono nowrap">${ph(x.mobile)}</td><td>${esc(x.zone)}</td><td class="num">${esc(x.n)}</td></tr>`).join("")||'<tr><td colspan="5" class="muted">No visits yet.</td></tr>'}</tbody></table>`}</div></div>${view==="people"&&P.length>500?`<p class="hint">Showing 500 of ${P.length}. Use search.</p>`:""}${view==="log"?'<p class="hint">Latest 300 opens.</p>':""}`}
+J.act("mvRefresh",()=>{MV.st="idle";mvLoad()});
+J.mod({id:"care",label:"Customer Care",group:"Operations",icon:'<path d="M4 12a8 8 0 0 1 16 0v5a2 2 0 0 1-2 2h-2v-6h4"/><path d="M4 13h4v6H6a2 2 0 0 1-2-2z"/>',sub:"Thank-you messages, Google reviews, bill feedback, top clients, staff profiles and attendance. Menu Visits (who registered on the 3D menus). Clients are in Directory.",
+  tabs:[["bills","Bills & thanks",vBills],["top","Top clients",vLeader],["feedback","Feedback",vFeedback],["staff","Staff profiles",vStaffProfiles],["attendance","Attendance",vAttendanceCC],["menu","Menu Visits",vMenuVisits]]});
 })();

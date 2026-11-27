@@ -136,3 +136,8 @@ are picked up by the owner's payroll the next time it recalculates.
 Installable PWA at `/care/` (own manifest and service worker). Same Firebase project, Customer Care login (user ID `jcgg` or a listed Google account) and the same security rules as section 7. Reads only `staffcc`, `attendance/<this month>`, `attendance/<last month>` and `paystatus/<month>`; writes `attendance.days` and `attendance.cclog` (set with merge). Last month is editable only while its salary status is DRAFT; future days are blocked.
 
 The app has two bottom tabs. **Attendance**: Date-wise, Staff-wise and Month views, live listeners on this/last month. **Customer Care**: Bills & Thanks (WhatsApp thank-you logs `clients.msgs`, Log Review writes `clients.reviews`), Top Clients, Feedback (`feedback/<id>`, same record shape and history as the Suite). Reads `clients`, `feedback`, `meta/settings`. APK: `android/` (WebView shell around `/care/`), built by `.github/workflows/apk.yml` into the release `apk-latest` (JCGG-Care.apk); the app always loads the latest web version, so the APK only needs reinstalling if the shell changes.
+
+## Menu Visits tab
+Read-only list of people who registered on the Ground Floor / Mezzanine 3D menus (name, mobile, visit count, first/last visit, verification) plus the latest 300 opens.
+The app sends the signed-in user's Firebase login token to the menu backend (Google Apps Script v2.4, action `menuVisits`); the backend verifies it with Firebase and
+answers only for ADMIN_EMAIL, the Customer Care login and emails listed in the script property `MENU_VIEWERS` (set `CARE_VIEW_OFF=1` to hide it from Customer Care). No secret is kept in this repository.
